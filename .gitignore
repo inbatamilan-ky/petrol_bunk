@@ -1,0 +1,46 @@
+# Frontend dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Python virtual environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Backend runtime files
+petrol_bunk_api/uploads/*
+!petrol_bunk_api/uploads/.gitkeep
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Local logs and debug output
+*.log
+debug_out.txt
+
+# Imported operational data
+# Keep seed data in src/data/ tracked; ignore local spreadsheet imports.
+data/*.xls
+data/*.xlsx
+data/*.xlsm
+
+# Editor and operating-system files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+Desktop.ini
