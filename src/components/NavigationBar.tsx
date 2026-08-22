@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import {
   LayoutDashboard,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors } from '../theme/colors';
+import { UserRole } from '../types';
 
 export type ScreenId =
   | 'dashboard'
@@ -33,14 +34,14 @@ interface NavItem {
   id: ScreenId;
   label: string;
   icon: any;
-  roles: ('Owner' | 'Manager' | 'Operator')[];
+  roles: UserRole[];
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard, roles: ['Owner', 'Manager', 'Operator'] },
-  { id: 'shifts',    label: 'Shift Ops',   icon: Fuel,            roles: ['Owner', 'Manager', 'Operator'] },
-  { id: 'credit',    label: 'Credit Ledger', icon: CreditCard,    roles: ['Owner', 'Manager', 'Operator'] },
-  { id: 'expenses',  label: 'Expenses',    icon: Receipt,         roles: ['Owner', 'Manager', 'Operator'] },
+  { id: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard, roles: ['Owner', 'Manager'] },
+  { id: 'shifts',    label: 'Shift Ops',   icon: Fuel,            roles: ['Owner', 'Manager'] },
+  { id: 'credit',    label: 'Credit Ledger', icon: CreditCard,    roles: ['Owner', 'Manager'] },
+  { id: 'expenses',  label: 'Expenses',    icon: Receipt,         roles: ['Owner', 'Manager'] },
   { id: 'rates',     label: 'Daily Rates', icon: TrendingUp,      roles: ['Owner', 'Manager'] },
   { id: 'cashbank',  label: 'Cash & Bank', icon: Banknote,        roles: ['Owner', 'Manager'] },
   { id: 'reports',   label: 'Reports',     icon: FileText,        roles: ['Owner', 'Manager'] },
@@ -59,7 +60,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     return (
       <View style={styles.sidebarContainer}>
         <View style={styles.sidebarHeader}>
-          <Text style={styles.sidebarSectionTitle}>NAVIGATION</Text>
+          <Text style={styles.sidebarSectionTitle}>MAIN MENU</Text>
         </View>
         <ScrollView style={styles.sidebarScroll} showsVerticalScrollIndicator={false}>
           {allowedItems.map((item) => {
@@ -72,7 +73,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 onPress={() => onSelectScreen(item.id)}
                 activeOpacity={0.7}
               >
-                <Icon size={18} color={isActive ? '#FFFFFF' : colors.textSecondary} />
+                <Icon size={18} color={isActive ? '#FFFFFF' : '#64748B'} />
                 <Text style={[styles.sidebarItemText, isActive && styles.sidebarItemTextActive]}>
                   {item.label}
                 </Text>
@@ -104,7 +105,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               activeOpacity={0.7}
             >
               <View style={styles.iconWrapper}>
-                <Icon size={18} color={isActive ? colors.primary : colors.textSecondary} />
+                <Icon size={18} color={isActive ? '#0284C7' : '#64748B'} />
                 {item.id === 'shifts' && activeShift && <View style={styles.bottomBadgeDot} />}
               </View>
               <Text style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]} numberOfLines={1}>
@@ -121,10 +122,10 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 const styles = StyleSheet.create({
   sidebarContainer: {
     width: 220,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRightWidth: 1,
-    borderRightColor: colors.border,
-    paddingVertical: 16,
+    borderRightColor: '#E2E8F0',
+    paddingVertical: 14,
     height: '100%',
   },
   sidebarHeader: {
@@ -132,68 +133,93 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sidebarSectionTitle: {
-    color: colors.textMuted,
-    fontSize: 11,
+    color: '#94A3B8',
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   sidebarScroll: { flex: 1 },
   sidebarItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
     marginHorizontal: 8,
     borderRadius: 8,
-    gap: 12,
-    marginBottom: 2,
+    gap: 10,
+    marginBottom: 3,
   },
-  sidebarItemActive: { backgroundColor: colors.primary },
+  sidebarItemActive: {
+    backgroundColor: '#0284C7',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
   sidebarItemText: {
-    color: colors.textSecondary,
+    color: '#475569',
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
   },
-  sidebarItemTextActive: { color: '#FFFFFF', fontWeight: '700' },
+  sidebarItemTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   activeShiftDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10B981',
   },
   bottomNavContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: '#E2E8F0',
     paddingVertical: 4,
-    paddingBottom: 6,
+    paddingBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 8,
   },
   bottomNavScroll: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    gap: 6,
+    gap: 4,
   },
   bottomNavItem: {
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 5,
     paddingHorizontal: 12,
-    paddingVertical: 6,
     borderRadius: 8,
-    minWidth: 70,
+    minWidth: 64,
   },
-  bottomNavItemActive: { backgroundColor: colors.surfaceElevated },
-  iconWrapper: { position: 'relative', marginBottom: 3 },
+  bottomNavItemActive: {
+    backgroundColor: '#F0F9FF',
+  },
+  iconWrapper: {
+    position: 'relative',
+    marginBottom: 2,
+  },
   bottomBadgeDot: {
     position: 'absolute',
-    top: -2,
-    right: -4,
+    top: -1,
+    right: -3,
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.success,
+    backgroundColor: '#10B981',
   },
-  bottomNavText: { color: colors.textSecondary, fontSize: 10, fontWeight: '600' },
-  bottomNavTextActive: { color: colors.primary, fontWeight: '700' },
+  bottomNavText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  bottomNavTextActive: {
+    color: '#0284C7',
+    fontWeight: '700',
+  },
 });

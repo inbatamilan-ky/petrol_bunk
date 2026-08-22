@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -39,14 +39,14 @@ export const ReportsScreen: React.FC = () => {
   const totalExpenses = expenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
   const totalCreditBalance = customers.reduce((sum, c) => sum + c.outstandingBalance, 0);
 
-  // Approximate fuel gross margin (e.g. ₹3.50/L dealer margin)
+  // Approximate fuel gross margin (e.g. Γé╣3.50/L dealer margin)
   const estimatedFuelMargin = totalFuelLitres * 3.50;
   const netOperatingProfit = estimatedFuelMargin - totalExpenses;
 
   // Export CSV for current tab
   const handleExport = () => {
     if (activeTab === 'sales') {
-      const headers = ['Shift Date', 'Shift No', 'Pump', 'Operator', 'Litres Sold', 'Total Sales (₹)', 'Shortage/Excess (₹)'];
+      const headers = ['Shift Date', 'Shift No', 'Pump', 'Operator', 'Litres Sold', 'Total Sales (Γé╣)', 'Shortage/Excess (Γé╣)'];
       const rows = shifts.map((s) => [
         s.shiftDate,
         s.shiftNo,
@@ -58,7 +58,7 @@ export const ReportsScreen: React.FC = () => {
       ]);
       exportToCSV(`Daily_Sales_Report_${getTodayDateString()}`, headers, rows);
     } else if (activeTab === 'collections') {
-      const headers = ['Shift No', 'Date', 'Cash (₹)', 'UPI/GPay (₹)', 'Card (₹)', 'Credit (₹)', 'Total Collected (₹)'];
+      const headers = ['Shift No', 'Date', 'Cash (Γé╣)', 'UPI/GPay (Γé╣)', 'Card (Γé╣)', 'Credit (Γé╣)', 'Total Collected (Γé╣)'];
       const rows = shifts.map((s) => [
         s.shiftNo,
         s.shiftDate,
@@ -70,7 +70,7 @@ export const ReportsScreen: React.FC = () => {
       ]);
       exportToCSV(`Collections_Reconciliation_${getTodayDateString()}`, headers, rows);
     } else if (activeTab === 'credit') {
-      const headers = ['Customer Code', 'Customer Name', 'Phone', 'Credit Limit (₹)', 'Outstanding Balance (₹)', 'Utilization %'];
+      const headers = ['Customer Code', 'Customer Name', 'Phone', 'Credit Limit (Γé╣)', 'Outstanding Balance (Γé╣)', 'Utilization %'];
       const rows = customers.map((c) => [
         c.code,
         c.name,
@@ -150,7 +150,7 @@ export const ReportsScreen: React.FC = () => {
               <Text style={[styles.colHeader, { width: 70 }]}>PUMP</Text>
               <Text style={[styles.colHeader, { flex: 1.5 }]}>OPERATOR</Text>
               <Text style={[styles.colHeader, { width: 110, textAlign: 'right' }]}>VOLUME (L)</Text>
-              <Text style={[styles.colHeader, { width: 120, textAlign: 'right' }]}>GROSS SALES (₹)</Text>
+              <Text style={[styles.colHeader, { width: 120, textAlign: 'right' }]}>GROSS SALES (Γé╣)</Text>
               <Text style={[styles.colHeader, { width: 100, textAlign: 'right' }]}>STATUS</Text>
             </View>
 
@@ -240,8 +240,8 @@ export const ReportsScreen: React.FC = () => {
               <Text style={[styles.colHeader, { width: 70 }]}>CODE</Text>
               <Text style={[styles.colHeader, { flex: 1.5 }]}>CUSTOMER NAME</Text>
               <Text style={[styles.colHeader, { width: 120 }]}>PHONE</Text>
-              <Text style={[styles.colHeader, { width: 120, textAlign: 'right' }]}>CREDIT LIMIT (₹)</Text>
-              <Text style={[styles.colHeader, { width: 130, textAlign: 'right' }]}>OUTSTANDING (₹)</Text>
+              <Text style={[styles.colHeader, { width: 120, textAlign: 'right' }]}>CREDIT LIMIT (Γé╣)</Text>
+              <Text style={[styles.colHeader, { width: 130, textAlign: 'right' }]}>OUTSTANDING (Γé╣)</Text>
               <Text style={[styles.colHeader, { width: 90, textAlign: 'right' }]}>USED %</Text>
             </View>
 
@@ -302,7 +302,7 @@ export const ReportsScreen: React.FC = () => {
             </View>
 
             <View style={styles.pnlRow}>
-              <Text style={styles.pnlLabel}>B. Estimated Dealer Commission Margin (@ ₹3.50/L):</Text>
+              <Text style={styles.pnlLabel}>B. Estimated Dealer Commission Margin (@ Γé╣3.50/L):</Text>
               <Text style={[styles.pnlVal, { color: colors.accent }]}>
                 + {formatCurrency(estimatedFuelMargin)}
               </Text>

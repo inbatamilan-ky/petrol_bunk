@@ -60,7 +60,12 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           </View>
 
           {/* Thermal Paper Container */}
-          <ScrollView style={styles.paperScroll} contentContainerStyle={styles.paperContent}>
+          <ScrollView
+            style={styles.paperScroll}
+            contentContainerStyle={styles.paperContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             <View style={styles.thermalPaper}>
               {/* Station Header */}
               <Text style={styles.receiptBrand}>SRI MURUGAN AGENCIES</Text>
@@ -250,6 +255,7 @@ const styles = StyleSheet.create({
   },
   paperScroll: {
     maxHeight: 520,
+    flexShrink: 1,
     backgroundColor: '#E2E8F0',
   },
   paperContent: {

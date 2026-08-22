@@ -1,21 +1,21 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Fuel, ShieldCheck, UserCheck, Wrench, RefreshCw, Clock } from 'lucide-react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Fuel, ShieldCheck, UserCheck, LogOut, Clock, Sparkles } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency } from '../utils/formatters';
 import { UserRole } from '../types';
 
 export const Header: React.FC = () => {
-  const { role, setRole, products, activeShift, resetAllData } = useBunk();
+  const { role, setRole, products, activeShift, logout, currentUser } = useBunk();
 
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
   };
 
-  const handleReset = () => {
-    if (window.confirm('Reset all demo shift records and ledger transactions back to initial state?')) {
-      resetAllData();
+  const handleLogout = () => {
+    if (window.confirm('Sign out of FuelPulse?')) {
+      logout();
     }
   };
 
@@ -25,19 +25,23 @@ export const Header: React.FC = () => {
       <View style={styles.topRow}>
         <View style={styles.stationInfo}>
           <View style={styles.logoBadge}>
-            <Fuel size={20} color="#000" />
+            <Fuel size={20} color="#FFFFFF" />
           </View>
           <View>
-            <Text style={styles.stationName}>SRI MURUGAN AGENCIES</Text>
-            <Text style={styles.stationSub}>IOCL Retail Outlet • Bunk Code: IOC-49821</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.stationName}>FuelPulse</Text>
+              <View style={styles.versionBadge}>
+                <Text style={styles.versionText}>PRO</Text>
+              </View>
+            </View>
+            <Text style={styles.stationSub}>KY Petrol Bunk • IOC-49821</Text>
           </View>
         </View>
 
-        {/* Role Switcher */}
+        {/* Role Switcher & User Profile */}
         <View style={styles.roleGroup}>
-          <Text style={styles.roleLabel}>Active Role:</Text>
           <View style={styles.roleTabs}>
-            {(['Owner', 'Manager', 'Operator'] as UserRole[]).map((r) => {
+            {(['Owner', 'Manager'] as UserRole[]).map((r) => {
               const isActive = role === r;
               return (
                 <TouchableOpacity
@@ -46,17 +50,26 @@ export const Header: React.FC = () => {
                   onPress={() => handleRoleChange(r)}
                   activeOpacity={0.7}
                 >
-                  {r === 'Owner' && <ShieldCheck size={14} color={isActive ? '#FFFFFF' : colors.textSecondary} />}
-                  {r === 'Manager' && <UserCheck size={14} color={isActive ? '#FFFFFF' : colors.textSecondary} />}
-                  {r === 'Operator' && <Wrench size={14} color={isActive ? '#FFFFFF' : colors.textSecondary} />}
-                  <Text style={[styles.roleTabText, isActive && styles.roleTabTextActive]}>{r}</Text>
+                  {r === 'Owner' ? (
+                    <ShieldCheck size={14} color={isActive ? '#FFFFFF' : '#64748B'} />
+                  ) : (
+                    <UserCheck size={14} color={isActive ? '#FFFFFF' : '#64748B'} />
+                  )}
+                  <Text style={[styles.roleTabText, isActive && styles.roleTabTextActive]}>
+                    {r} {r === 'Owner' ? '(1)' : '(2)'}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <TouchableOpacity style={styles.resetBtn} onPress={handleReset} title="Reset Data">
-            <RefreshCw size={14} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={handleLogout}
+            accessibilityLabel="Sign Out"
+            activeOpacity={0.7}
+          >
+            <LogOut size={14} color="#64748B" />
           </TouchableOpacity>
         </View>
       </View>
@@ -64,7 +77,7 @@ export const Header: React.FC = () => {
       {/* Ticker & Shift Banner */}
       <View style={styles.tickerRow}>
         {/* Active Rates Ticker */}
-        <View style={styles.ratesContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
           <Text style={styles.rateTickerLabel}>TODAY'S RATES:</Text>
           {products.slice(0, 3).map((prod) => (
             <View key={prod.id} style={styles.ratePill}>
@@ -73,14 +86,14 @@ export const Header: React.FC = () => {
               <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
             </View>
           ))}
-        </View>
+        </ScrollView>
 
         {/* Shift Badge */}
         <View style={styles.shiftBadge}>
-          <Clock size={13} color={activeShift ? colors.success : colors.warning} />
+          <Clock size={12} color={activeShift ? '#10B981' : '#F59E0B'} />
           <Text style={styles.shiftBadgeText}>
             {activeShift
-              ? `${activeShift.shiftType} Shift • Pump ${activeShift.pumpNo} • ${activeShift.operatorName}`
+              ? `${activeShift.shiftType} Shift • Pump #${activeShift.pumpNo} • ${activeShift.operatorName}`
               : 'No Active Shift'}
           </Text>
           {activeShift && <View style={styles.livePulse} />}
@@ -92,9 +105,9 @@ export const Header: React.FC = () => {
 
 const styles = StyleSheet.create({
   headerContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
     paddingTop: 10,
     paddingBottom: 8,
     paddingHorizontal: 16,
@@ -112,45 +125,59 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: '#0284C7',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   stationName: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: -0.3,
+  },
+  versionBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  versionText: {
+    color: '#1D4ED8',
+    fontSize: 9,
+    fontWeight: '800',
   },
   stationSub: {
-    color: colors.textSecondary,
+    color: '#64748B',
     fontSize: 11,
     marginTop: 1,
+    fontWeight: '500',
   },
   roleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  roleLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   roleTabs: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: '#F1F5F9',
     borderRadius: 8,
-    padding: 3,
+    padding: 2.5,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
   roleTab: {
     flexDirection: 'row',
@@ -161,22 +188,29 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   roleTabActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#0284C7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   roleTabText: {
-    color: colors.textSecondary,
-    fontSize: 12,
+    color: '#64748B',
+    fontSize: 11,
     fontWeight: '600',
   },
   roleTabTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
-  resetBtn: {
+  logoutBtn: {
     padding: 7,
     borderRadius: 8,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tickerRow: {
     flexDirection: 'row',
@@ -185,7 +219,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: '#F1F5F9',
     flexWrap: 'wrap',
     gap: 8,
   },
@@ -193,10 +227,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   rateTickerLabel: {
-    color: colors.textMuted,
+    color: '#94A3B8',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -204,12 +238,12 @@ const styles = StyleSheet.create({
   ratePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     gap: 5,
   },
   rateColorTag: {
@@ -218,12 +252,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   rateProdName: {
-    color: colors.textSecondary,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '600',
   },
   rateValue: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 11,
     fontWeight: '700',
     fontFamily: typography.monoFont,
@@ -231,16 +265,16 @@ const styles = StyleSheet.create({
   shiftBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     gap: 6,
   },
   shiftBadgeText: {
-    color: colors.textPrimary,
+    color: '#334155',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -248,6 +282,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.success,
+    backgroundColor: '#10B981',
   },
 });

@@ -1,30 +1,25 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-} from 'react-native';
-import {
-  Receipt,
-  PlusCircle,
-  TrendingDown,
-  Tag,
-  Calendar,
-  X,
   CheckCircle2,
   FileSpreadsheet,
-  RotateCcw,
+  PlusCircle,
   Sparkles,
+  X
 } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { DropdownPicker } from '../components/DropdownPicker';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
-import { ExpenseType } from '../types';
+import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
 
 export const ExpensesScreen: React.FC = () => {
   const { expenses, expenseTypes, pumps, addExpense, role } = useBunk();
@@ -40,37 +35,43 @@ export const ExpensesScreen: React.FC = () => {
 
   // Quick preset bata fill
   const handleSelectBataPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Bata'))?.id || '');
+    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Bata'))?.id || expenseTypes[0]?.id || '');
     setAmount('1300.00');
     setPaidTo('Day Shift Operators (4 staff)');
     setRemarks('Daily shift operator bata @ ₹325 each');
   };
 
   const handleSelectTeaPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Tea'))?.id || '');
+    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Tea'))?.id || expenseTypes[0]?.id || '');
     setAmount('100.00');
     setPaidTo('Sri Murugan Tea Stall');
     setRemarks('Staff tea & snacks');
   };
 
   const handleSelectDensityPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Density'))?.id || '');
+    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Density'))?.id || expenseTypes[0]?.id || '');
     setAmount('110.00');
     setPaidTo('Morning Density Calibration Test');
     setRemarks('5 Litres test jar sample');
   };
 
   const handleAddExpenseSubmit = () => {
-    const typeObj = expenseTypes.find((t) => t.id === selectedTypeId);
+    const rawTypeId = selectedTypeId.startsWith('__other__:') ? selectedTypeId.replace('__other__:', '') : selectedTypeId;
+    const typeObj = expenseTypes.find((t) => t.id === rawTypeId || t.name.toLowerCase() === rawTypeId.toLowerCase());
+    const typeName = typeObj?.name || rawTypeId;
+    const typeId = typeObj?.id || 'et-custom-' + Date.now();
     const amountNum = parseFloat(amount) || 0;
-    if (!typeObj || amountNum <= 0) return;
+    if (!typeName || amountNum <= 0) return;
+
+    const cleanPaidTo = paidTo.startsWith('__other__:') ? paidTo.replace('__other__:', '') : paidTo;
+    const cleanPaidBy = paidBy.startsWith('__other__:') ? paidBy.replace('__other__:', '') : paidBy;
 
     addExpense({
-      expenseTypeId: typeObj.id,
-      expenseTypeName: typeObj.name,
+      expenseTypeId: typeId,
+      expenseTypeName: typeName,
       amount: amountNum,
-      paidTo: paidTo || 'Vendor',
-      paidBy: paidBy || 'Manager',
+      paidTo: cleanPaidTo || 'Vendor',
+      paidBy: cleanPaidBy || 'Manager',
       pumpId: selectedPumpId || undefined,
       isCreditNote,
       remarks,
@@ -171,7 +172,7 @@ export const ExpensesScreen: React.FC = () => {
       {/* Quick Presets Bar */}
       <View style={styles.presetsCard}>
         <Text style={styles.presetsTitle}>Quick One-Tap Vouchers:</Text>
-        <View style={styles.presetsRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsRow}>
           <TouchableOpacity
             style={styles.presetPill}
             onPress={() => {
@@ -204,46 +205,104 @@ export const ExpensesScreen: React.FC = () => {
             <Sparkles size={12} color={colors.accent} />
             <Text style={styles.presetPillText}>Density Sample (₹110)</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       {/* Expenses Table */}
       <View style={styles.tableCard}>
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-          <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
-          <Text style={[styles.tableColHeader, { flex: 1.5 }]}>EXPENSE HEAD</Text>
-          <Text style={[styles.tableColHeader, { flex: 1.5 }]}>PAID TO / REMARKS</Text>
-          <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>AMOUNT (₹)</Text>
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          style={styles.tableScroll}
+          contentContainerStyle={{ minWidth: '100%' }}
+        >
+          <View style={{ width: '100%', minWidth: 640 }}>
+            <View style={styles.tableHeaderRow}>
+              <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
+              <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 140 }]}>EXPENSE HEAD</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 140 }]}>PAID TO / REMARKS</Text>
+              <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>AMOUNT (₹)</Text>
+            </View>
+ {expenses.map((e) => (
+  <View key={e.id} style={styles.tableDataRow}>
+    {/* Date */}
+    <Text style={[styles.tableCell, { width: 90 }]}>
+      {formatDate(e.date)}
+    </Text>
 
-        {expenses.map((e) => (
-          <View key={e.id} style={styles.tableDataRow}>
-            <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(e.date)}</Text>
-            <Text style={[styles.tableCellMono, { width: 110 }]}>{e.voucherNo}</Text>
-            <View style={{ flex: 1.5, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.tableCellHead}>{e.expenseTypeName}</Text>
-              {e.isCreditNote && (
-                <View style={styles.creditNoteBadge}>
-                  <Text style={styles.creditNoteText}>REVERSAL</Text>
-                </View>
-              )}
-            </View>
-            <View style={{ flex: 1.5 }}>
-              <Text style={styles.tableCellPaidTo} numberOfLines={1}>{e.paidTo}</Text>
-              {e.remarks && <Text style={styles.tableCellRemarks} numberOfLines={1}>{e.remarks}</Text>}
-            </View>
-            <Text
-              style={[
-                styles.tableCellAmount,
-                { color: e.isCreditNote ? colors.cashGreen : colors.speed, width: 110, textAlign: 'right' },
-              ]}
-            >
-              {e.isCreditNote ? '-' : ''}
-              {formatCurrency(e.amount)}
-            </Text>
+    {/* Voucher Number */}
+    <Text style={[styles.tableCellMono, { width: 110 }]}>
+      {e.voucherNo}
+    </Text>
+
+    {/* Expense Head */}
+    <View
+      style={{
+        flex: 1.5,
+        minWidth: 140,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <Text style={styles.tableCellHead}>
+        {e.expenseTypeName}
+      </Text>
+
+      {e.isCreditNote && (
+        <View style={styles.creditNoteBadge}>
+          <Text style={styles.creditNoteText}>
+            REVERSAL
+          </Text>
+        </View>
+      )}
+    </View>
+
+    {/* Paid To / Remarks */}
+    <View
+      style={{
+        flex: 1.5,
+        minWidth: 140,
+      }}
+    >
+      <Text
+        style={styles.tableCellPaidTo}
+        numberOfLines={1}
+      >
+        {e.paidTo}
+      </Text>
+
+      {e.remarks ? (
+        <Text
+          style={styles.tableCellRemarks}
+          numberOfLines={1}
+        >
+          {e.remarks}
+        </Text>
+      ) : null}
+    </View>
+
+    {/* Amount */}
+    <Text
+      style={[
+        styles.tableCellAmount,
+        {
+          color: e.isCreditNote
+            ? colors.cashGreen
+            : colors.speed,
+          width: 110,
+          textAlign: 'right',
+        },
+      ]}
+    >
+      {e.isCreditNote ? '-' : ''}
+      {formatCurrency(e.amount)}
+    </Text>
+  </View>
+))}
           </View>
-        ))}
+        </ScrollView>
       </View>
 
       {/* Add Expense Modal */}
@@ -257,99 +316,119 @@ export const ExpensesScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              {/* Category Picker */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Expense Head / Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-                  {expenseTypes.map((t) => (
-                    <TouchableOpacity
-                      key={t.id}
-                      style={[styles.pillOption, selectedTypeId === t.id && styles.pillOptionActive]}
-                      onPress={() => setSelectedTypeId(t.id)}
-                    >
-                      <Text style={[styles.pillOptionText, selectedTypeId === t.id && styles.pillOptionTextActive]}>
-                        {t.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                {/* Expense Head / Category Dropdown */}
+                <DropdownPicker
+                  label="Expense Head / Category *"
+                  placeholder="Select Expense Head..."
+                  options={expenseTypes.map((t) => ({
+                    label: t.name,
+                    value: t.id,
+                    subtitle: `Category: ${t.category}`,
+                    inactive: t.active === false,
+                  }))}
+                  value={selectedTypeId}
+                  onChange={(v, l) => {
+                    setSelectedTypeId(v);
+                  }}
+                  allowOther
+                  onSaveNew={(customName) => setSelectedTypeId(customName)}
+                />
 
-              {/* Amount & Credit Note Toggle */}
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Amount (₹)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="numeric"
-                    placeholder="0.00"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
+                {/* Amount & Credit Note Toggle */}
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Amount (₹) *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={amount}
+                      onChangeText={setAmount}
+                      keyboardType="numeric"
+                      placeholder="0.00"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
 
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Transaction Nature</Text>
-                  <View style={styles.toggleRow}>
-                    <TouchableOpacity
-                      style={[styles.natureBtn, !isCreditNote && styles.natureBtnActive]}
-                      onPress={() => setIsCreditNote(false)}
-                    >
-                      <Text style={[styles.natureBtnText, !isCreditNote && styles.natureBtnTextActive]}>
-                        Expense Paid
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.natureBtn, isCreditNote && styles.natureBtnActive]}
-                      onPress={() => setIsCreditNote(true)}
-                    >
-                      <Text style={[styles.natureBtnText, isCreditNote && styles.natureBtnTextActive]}>
-                        Credit Note (Return)
-                      </Text>
-                    </TouchableOpacity>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Transaction Nature</Text>
+                    <View style={styles.toggleRow}>
+                      <TouchableOpacity
+                        style={[styles.natureBtn, !isCreditNote && styles.natureBtnActive]}
+                        onPress={() => setIsCreditNote(false)}
+                      >
+                        <Text style={[styles.natureBtnText, !isCreditNote && styles.natureBtnTextActive]}>
+                          Expense Paid
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.natureBtn, isCreditNote && styles.natureBtnActive]}
+                        onPress={() => setIsCreditNote(true)}
+                      >
+                        <Text style={[styles.natureBtnText, isCreditNote && styles.natureBtnTextActive]}>
+                          Credit Note (Return)
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Paid To & Paid By */}
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Paid To (Vendor / Person)</Text>
+                {/* Paid To & Paid By Dropdowns */}
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <DropdownPicker
+                      label="Paid To (Vendor / Person) *"
+                      placeholder="Select or type recipient..."
+                      options={[
+                        { label: 'Day Shift Operators (4 staff)', value: 'Day Shift Operators (4 staff)', subtitle: 'Operator Daily Bata' },
+                        { label: 'Night Shift Operators', value: 'Night Shift Operators', subtitle: 'Operator Daily Bata' },
+                        { label: 'Sri Murugan Tea Stall', value: 'Sri Murugan Tea Stall', subtitle: 'Daily Tea & Snacks' },
+                        { label: 'Morning Density Calibration Test', value: 'Morning Density Calibration Test', subtitle: 'Calibration & Density Sample' },
+                        { label: 'Gokulam Chit Fund', value: 'Gokulam Chit Fund', subtitle: 'Monthly Chit Installment' },
+                        { label: 'Lorry Bata Expense', value: 'Lorry Bata Expense', subtitle: 'Tanker Decantation Bata' },
+                        { label: 'Stationery & Printing', value: 'Stationery & Printing', subtitle: 'Receipt Rolls & Registers' },
+                        { label: 'Generator Diesel & Fuel', value: 'Generator Diesel & Fuel', subtitle: 'Station Backup' },
+                        { label: 'Advance Payment to Staff', value: 'Advance Payment to Staff', subtitle: 'Staff Advance' },
+                      ]}
+                      value={paidTo}
+                      onChange={(v, l) => setPaidTo(l || v)}
+                      allowOther
+                      onSaveNew={(customName) => setPaidTo(customName)}
+                    />
+                  </View>
+
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <DropdownPicker
+                      label="Paid By *"
+                      placeholder="Select or type paid by..."
+                      options={[
+                        { label: 'Manager', value: 'Manager' },
+                        { label: 'Cashier', value: 'Cashier' },
+                        { label: 'Owner', value: 'Owner' },
+                        { label: 'Supervisor', value: 'Supervisor' },
+                        { label: 'Shift In-charge', value: 'Shift In-charge' },
+                      ]}
+                      value={paidBy}
+                      onChange={(v, l) => setPaidBy(l || v)}
+                      allowOther
+                      onSaveNew={(customName) => setPaidBy(customName)}
+                    />
+                  </View>
+                </View>
+
+                {/* Remarks */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Voucher Remarks / Notes</Text>
                   <TextInput
                     style={styles.textInput}
-                    value={paidTo}
-                    onChangeText={setPaidTo}
-                    placeholder="e.g. Tea Stall / Staff Name"
+                    value={remarks}
+                    onChangeText={setRemarks}
+                    placeholder="Details of expense"
                     placeholderTextColor={colors.textMuted}
                   />
                 </View>
-
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Paid By</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={paidBy}
-                    onChangeText={setPaidBy}
-                    placeholder="e.g. Manager"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
               </View>
-
-              {/* Remarks */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Voucher Remarks / Notes</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={remarks}
-                  onChangeText={setRemarks}
-                  placeholder="Details of expense"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleAddExpenseSubmit} activeOpacity={0.8}>
@@ -500,6 +579,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
+  },
+  tableScroll: {
+    width: '100%',
   },
   tableHeaderRow: {
     flexDirection: 'row',
