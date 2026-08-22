@@ -1175,7 +1175,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   textInput: {
-    backgroundColor: '#070A12',
+    backgroundColor: '#dbdde4',
     color: '#000',
     fontSize: 13,
     borderRadius: 8,
@@ -1185,7 +1185,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   totalPreviewBox: {
-    backgroundColor: '#070A12',
+    backgroundColor: '#dbdde4',
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',

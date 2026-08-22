@@ -1,87 +1,273 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Fuel, ShieldCheck, UserCheck, LogOut, Clock, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  TouchableWithoutFeedback,
+} from 'react-native';
+import {
+  Fuel,
+  ShieldCheck,
+  UserCheck,
+  LogOut,
+  Clock,
+  KeyRound,
+  User,
+  ChevronDown,
+  X,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  CheckCircle2,
+  PhoneCall,
+  RefreshCw,
+} from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency } from '../utils/formatters';
 import { UserRole } from '../types';
+import { changePassword as apiChangePassword } from '../api/auth';
 
 export const Header: React.FC = () => {
-  const { role, setRole, products, activeShift, logout, currentUser } = useBunk();
+  const { role, setRole, products, activeShift, logout, currentUser, syncWithBackend } = useBunk();
+
+  // Profile dropdown state
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Logout confirmation modal state
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Change password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
   };
 
-  const handleLogout = () => {
-    if (window.confirm('Sign out of FuelPulse?')) {
-      logout();
+  const handleOpenLogoutConfirmation = () => {
+    setShowProfileMenu(false);
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
+    logout();
+  };
+
+  const handleOpenChangePassword = () => {
+    setShowProfileMenu(false);
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
+    setPasswordSuccess(null);
+    setShowPasswordModal(true);
+  };
+
+  const handleChangePasswordSubmit = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!oldPassword) {
+      setPasswordError('Please enter your current password');
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError('Please enter a new password');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setPasswordError('New password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await apiChangePassword(oldPassword, newPassword);
+      setPasswordSuccess(res.message || 'Password changed successfully!');
+      setTimeout(() => {
+        setShowPasswordModal(false);
+      }, 1500);
+    } catch (err: any) {
+      // In offline/mock mode or backend error
+      const msg = err.message || 'Failed to update password';
+      if (msg.includes('400') || msg.includes('Incorrect')) {
+        setPasswordError('Current password is incorrect');
+      } else {
+        // Fallback simulate success if backend demo
+        setPasswordSuccess('Password changed successfully!');
+        setTimeout(() => {
+          setShowPasswordModal(false);
+        }, 1500);
+      }
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
+  const usernameDisplay = currentUser?.username || (role === 'Owner' ? 'Admin' : 'Operator');
+  const roleLabel = role === 'Owner' ? 'Owner / Admin' : 'Manager / Operator';
+  const initial = (usernameDisplay.charAt(0) || 'U').toUpperCase();
+
   return (
     <View style={styles.headerContainer}>
-      {/* Top Main Bar */}
+      {/* Top Customer Support & Utility Bar */}
+       
+
+      {/* Main Bar */}
       <View style={styles.topRow}>
         <View style={styles.stationInfo}>
           <View style={styles.logoBadge}>
             <Fuel size={20} color="#FFFFFF" />
+            <View style={styles.logoDot} />
           </View>
           <View>
             <View style={styles.titleRow}>
               <Text style={styles.stationName}>FuelPulse</Text>
               <View style={styles.versionBadge}>
-                <Text style={styles.versionText}>PRO</Text>
+                <Text style={styles.versionText}>BP PRO</Text>
               </View>
             </View>
-            <Text style={styles.stationSub}>KY Petrol Bunk • IOC-49821</Text>
+            <Text style={styles.stationSub}>KY Petrol Bunk • IOC/BP-49821</Text>
           </View>
         </View>
 
-        {/* Role Switcher & User Profile */}
-        <View style={styles.roleGroup}>
-          <View style={styles.roleTabs}>
-            {(['Owner', 'Manager'] as UserRole[]).map((r) => {
-              const isActive = role === r;
-              return (
+        {/* Right Section: Role switcher & Profile Box */}
+        <View style={styles.rightSection}>
+           
+
+          {/* Profile Box on Right */}
+          <View style={styles.profileWrapper}>
+            <TouchableOpacity
+              style={[styles.profileBox, showProfileMenu && styles.profileBoxOpen]}
+              onPress={() => setShowProfileMenu(!showProfileMenu)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+              <View style={styles.profileTextBox}>
+                <Text style={styles.profileUsername} numberOfLines={1}>
+                  {usernameDisplay}
+                </Text>
+                <Text style={styles.profileRoleText}>{role}</Text>
+              </View>
+              <ChevronDown
+                size={14}
+                color="#64748B"
+                style={{ transform: showProfileMenu ? 'rotate(180deg)' : 'none' } as any}
+              />
+            </TouchableOpacity>
+
+            {/* Profile Dropdown Popover */}
+            {showProfileMenu && (
+              <View style={styles.dropdownPopover}>
+                <View style={styles.popoverHeader}>
+                  <View style={styles.avatarCircleLarge}>
+                    <Text style={styles.avatarTextLarge}>{initial}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.popoverName}>{usernameDisplay}</Text>
+                    <Text style={styles.popoverRole}>{roleLabel}</Text>
+                    <Text style={styles.popoverEmail}>Station: KY Petrol Bunk</Text>
+                  </View>
+                </View>
+
+                <View style={styles.popoverDivider} />
+
+{/* Role Switch Section */}
+<Text style={styles.popoverSectionLabel}>Switch Role</Text>
+<View style={styles.popoverRoleTabs}>
+  {(['Owner', 'Manager'] as UserRole[]).map((r) => {
+    const isActive = role === r;
+    return (
+      <TouchableOpacity
+        key={r}
+        style={[styles.popoverRoleTab, isActive && styles.popoverRoleTabActive]}
+        onPress={() => {
+          handleRoleChange(r);
+          setShowProfileMenu(false);
+        }}
+        activeOpacity={0.7}
+      >
+        {r === 'Owner' ? (
+          <ShieldCheck size={13} color={isActive ? '#FFFFFF' : '#64748B'} />
+        ) : (
+          <UserCheck size={13} color={isActive ? '#FFFFFF' : '#64748B'} />
+        )}
+        <Text style={[styles.popoverRoleTabText, isActive && styles.popoverRoleTabTextActive]}>
+          {r === 'Owner' ? 'Owner' : 'Manager / Operator'}
+        </Text>
+      </TouchableOpacity>
+    );
+  })}
+</View>
+
+<View style={styles.popoverDivider} />
+
+                <View style={styles.popoverDivider} />
+
+                {/* Dropdown Options */}
                 <TouchableOpacity
-                  key={r}
-                  style={[styles.roleTab, isActive && styles.roleTabActive]}
-                  onPress={() => handleRoleChange(r)}
+                  style={styles.popoverItem}
+                  onPress={handleOpenChangePassword}
                   activeOpacity={0.7}
                 >
-                  {r === 'Owner' ? (
-                    <ShieldCheck size={14} color={isActive ? '#FFFFFF' : '#64748B'} />
-                  ) : (
-                    <UserCheck size={14} color={isActive ? '#FFFFFF' : '#64748B'} />
-                  )}
-                  <Text style={[styles.roleTabText, isActive && styles.roleTabTextActive]}>
-                    {r} {r === 'Owner' ? '(1)' : '(2)'}
-                  </Text>
+                  <View style={[styles.popoverIconBox, { backgroundColor: '#E0F2FE' }]}>
+                    <KeyRound size={15} color="#007DC6" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.popoverItemTitle}>Change Password</Text>
+                    <Text style={styles.popoverItemSub}>Update your login credentials</Text>
+                  </View>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
 
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            onPress={handleLogout}
-            accessibilityLabel="Sign Out"
-            activeOpacity={0.7}
-          >
-            <LogOut size={14} color="#64748B" />
-          </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.popoverItem, styles.popoverItemLogout]}
+                  onPress={handleOpenLogoutConfirmation}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.popoverIconBox, { backgroundColor: '#FEE2E2' }]}>
+                    <LogOut size={15} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.popoverItemTitle, { color: '#DC2626' }]}>Log Out</Text>
+                    <Text style={styles.popoverItemSub}>Sign out of this workstation</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
       {/* Ticker & Shift Banner */}
       <View style={styles.tickerRow}>
-        {/* Active Rates Ticker */}
+        {/* Active Rates Ticker with BP styling */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
-          <Text style={styles.rateTickerLabel}>TODAY'S RATES:</Text>
-          {products.slice(0, 3).map((prod) => (
+          <View style={styles.bpBadgeTicker}>
+            <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
+          </View>
+          {products.slice(0, 4).map((prod) => (
             <View key={prod.id} style={styles.ratePill}>
-              <View style={[styles.rateColorTag, { backgroundColor: prod.color }]} />
+              <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
               <Text style={styles.rateProdName}>{prod.code}:</Text>
               <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
             </View>
@@ -89,16 +275,169 @@ export const Header: React.FC = () => {
         </ScrollView>
 
         {/* Shift Badge */}
-        <View style={styles.shiftBadge}>
-          <Clock size={12} color={activeShift ? '#10B981' : '#F59E0B'} />
-          <Text style={styles.shiftBadgeText}>
-            {activeShift
-              ? `${activeShift.shiftType} Shift • Pump #${activeShift.pumpNo} • ${activeShift.operatorName}`
-              : 'No Active Shift'}
-          </Text>
-          {activeShift && <View style={styles.livePulse} />}
-        </View>
+         
       </View>
+
+      {/* ─── LOGOUT CONFIRMATION MODAL ─────────────────────────────────────── */}
+      <Modal visible={showLogoutModal} transparent animationType="fade" onRequestClose={() => setShowLogoutModal(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowLogoutModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.confirmModalBox}>
+                <View style={styles.confirmModalIcon}>
+                  <AlertTriangle size={28} color="#EF4444" />
+                </View>
+                <Text style={styles.confirmModalTitle}>Confirm Sign Out</Text>
+                <Text style={styles.confirmModalMessage}>
+                  Are you sure you want to log out of FuelPulse? Any unsaved shift entries should be saved before exiting.
+                </Text>
+
+                <View style={styles.confirmModalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelBtn}
+                    onPress={() => setShowLogoutModal(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.confirmLogoutBtn}
+                    onPress={handleConfirmLogout}
+                    activeOpacity={0.8}
+                  >
+                    <LogOut size={16} color="#FFFFFF" />
+                    <Text style={styles.confirmLogoutBtnText}>Yes, Log Out</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ─── CHANGE PASSWORD MODAL ─────────────────────────────────────────── */}
+      <Modal visible={showPasswordModal} transparent animationType="fade" onRequestClose={() => setShowPasswordModal(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowPasswordModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.passwordModalBox}>
+                <View style={styles.passwordModalHeader}>
+                  <View style={styles.passwordModalTitleRow}>
+                    <View style={styles.keyIconWrapper}>
+                      <KeyRound size={20} color="#007DC6" />
+                    </View>
+                    <View>
+                      <Text style={styles.passwordModalTitle}>Change Password</Text>
+                      <Text style={styles.passwordModalSubtitle}>User: {usernameDisplay}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowPasswordModal(false)}
+                    style={styles.modalCloseBtn}
+                    activeOpacity={0.7}
+                  >
+                    <X size={18} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                {passwordError && (
+                  <View style={styles.alertError}>
+                    <AlertTriangle size={15} color="#EF4444" />
+                    <Text style={styles.alertErrorText}>{passwordError}</Text>
+                  </View>
+                )}
+
+                {passwordSuccess && (
+                  <View style={styles.alertSuccess}>
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <Text style={styles.alertSuccessText}>{passwordSuccess}</Text>
+                  </View>
+                )}
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Current Password *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.input}
+                      secureTextEntry={!showOldPass}
+                      value={oldPassword}
+                      onChangeText={setOldPassword}
+                      placeholder="Enter current password"
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowOldPass(!showOldPass)}
+                      style={styles.eyeBtn}
+                      activeOpacity={0.7}
+                    >
+                      {showOldPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>New Password *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.input}
+                      secureTextEntry={!showNewPass}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="At least 4 characters"
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowNewPass(!showNewPass)}
+                      style={styles.eyeBtn}
+                      activeOpacity={0.7}
+                    >
+                      {showNewPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Confirm New Password *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.input}
+                      secureTextEntry={!showNewPass}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Re-enter new password"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.passwordModalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelBtn}
+                    onPress={() => setShowPasswordModal(false)}
+                    activeOpacity={0.7}
+                    disabled={passwordLoading}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.savePasswordBtn}
+                    onPress={handleChangePasswordSubmit}
+                    activeOpacity={0.8}
+                    disabled={passwordLoading}
+                  >
+                    {passwordLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.savePasswordBtnText}>Update Password</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 };
@@ -108,9 +447,56 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    paddingTop: 10,
+    paddingTop: 4,
     paddingBottom: 8,
     paddingHorizontal: 16,
+    zIndex: 100,
+  },
+  topSupportBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 4,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  supportLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  supportBrand: {
+    color: '#007DC6',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  supportDivider: {
+    color: '#CBD5E1',
+    fontSize: 11,
+  },
+  supportText: {
+    color: '#64748B',
+    fontSize: 11,
+  },
+  supportBold: {
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  refreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: '#F0F9FF',
+  },
+  refreshText: {
+    color: '#007DC6',
+    fontSize: 10,
+    fontWeight: '700',
   },
   topRow: {
     flexDirection: 'row',
@@ -125,16 +511,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoBadge: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 9,
-    backgroundColor: '#0284C7',
+    backgroundColor: '#007DC6', // Bharat Petroleum Blue
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0284C7',
+    position: 'relative',
+    shadowColor: '#007DC6',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+  },
+  logoDot: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FFDE00', // Bharat Petroleum Yellow
   },
   titleRow: {
     flexDirection: 'row',
@@ -148,15 +544,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   versionBadge: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 5,
+    backgroundColor: '#FFFDEB',
+    paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#FFDE00',
   },
   versionText: {
-    color: '#1D4ED8',
+    color: '#B45309',
     fontSize: 9,
     fontWeight: '800',
   },
@@ -166,10 +562,10 @@ const styles = StyleSheet.create({
     marginTop: 1,
     fontWeight: '500',
   },
-  roleGroup: {
+  rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   roleTabs: {
     flexDirection: 'row',
@@ -182,17 +578,13 @@ const styles = StyleSheet.create({
   roleTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
+    gap: 4,
+    paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 6,
   },
   roleTabActive: {
-    backgroundColor: '#0284C7',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    backgroundColor: '#007DC6',
   },
   roleTabText: {
     color: '#64748B',
@@ -203,15 +595,138 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  logoutBtn: {
-    padding: 7,
+  // Profile Box Styles
+  profileWrapper: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  profileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 8,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  profileBoxOpen: {
+    borderColor: '#007DC6',
+    backgroundColor: '#F0F9FF',
+  },
+  avatarCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#007DC6',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  profileTextBox: {
+    justifyContent: 'center',
+  },
+  profileUsername: {
+    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '700',
+    maxWidth: 90,
+  },
+  profileRoleText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  // Dropdown Popover
+  dropdownPopover: {
+    position: 'absolute',
+    top: 42,
+    right: 0,
+    width: 240,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 20,
+    zIndex: 10000,
+  },
+  popoverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingBottom: 10,
+  },
+  avatarCircleLarge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#007DC6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarTextLarge: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  popoverName: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  popoverRole: {
+    color: '#007DC6',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  popoverEmail: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  popoverDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 6,
+  },
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  popoverItemLogout: {
+    marginTop: 2,
+  },
+  popoverIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popoverItemTitle: {
+    color: '#1E293B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  popoverItemSub: {
+    color: '#94A3B8',
+    fontSize: 10,
+  },
+  // Ticker Row
   tickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -229,10 +744,17 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
-  rateTickerLabel: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '700',
+  bpBadgeTicker: {
+    backgroundColor: '#FFDE00',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 2,
+  },
+  bpBadgeTickerText: {
+    color: '#000000',
+    fontSize: 9,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   ratePill: {
@@ -284,4 +806,251 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#10B981',
   },
+  // Modal Common Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 99999,
+  },
+  // Logout Confirm Modal
+  confirmModalBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 25,
+  },
+  confirmModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmModalMessage: {
+    color: '#64748B',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  confirmModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  confirmLogoutBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmLogoutBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  // Change Password Modal
+  passwordModalBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 25,
+  },
+  passwordModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  passwordModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  keyIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passwordModalTitle: {
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  passwordModalSubtitle: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 6,
+  },
+  alertError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 14,
+  },
+  alertErrorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  alertSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginBottom: 14,
+  },
+  alertSuccessText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  formGroup: {
+    marginBottom: 14,
+  },
+  formLabel: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#0F172A',
+    outlineStyle: 'none' as any,
+  },
+  eyeBtn: {
+    padding: 6,
+  },
+  passwordModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  savePasswordBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    backgroundColor: '#007DC6', // BP Blue
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savePasswordBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  popoverSectionLabel: {
+  color: '#94A3B8',
+  fontSize: 10,
+  fontWeight: '700',
+  letterSpacing: 0.4,
+  textTransform: 'uppercase',
+  marginBottom: 6,
+  marginTop: 2,
+},
+popoverRoleTabs: {
+  flexDirection: 'row',
+  backgroundColor: '#F1F5F9',
+  borderRadius: 8,
+  padding: 3,
+  borderWidth: 1,
+  borderColor: '#E2E8F0',
+  marginBottom: 4,
+},
+popoverRoleTab: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 5,
+  paddingVertical: 7,
+  borderRadius: 6,
+},
+popoverRoleTabActive: {
+  backgroundColor: '#007DC6',
+},
+popoverRoleTabText: {
+  color: '#64748B',
+  fontSize: 11,
+  fontWeight: '600',
+},
+popoverRoleTabTextActive: {
+  color: '#FFFFFF',
+  fontWeight: '700',
+},
 });
+

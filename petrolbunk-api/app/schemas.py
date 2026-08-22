@@ -15,6 +15,11 @@ class UserCreate(BaseModel):
     role: int = Field(default=2, ge=1, le=2)  # 1 = Owner, 2 = Manager
 
 
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

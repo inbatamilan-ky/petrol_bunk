@@ -45,3 +45,10 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<AuthUser> {
   return apiFetch('/api/auth/me');
 }
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<{ status: string; message: string }> {
+  return apiFetch('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+}
