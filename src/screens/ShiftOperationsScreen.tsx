@@ -26,8 +26,9 @@ import {
 import { useBunk } from '../context/BunkContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatLitres, formatMeter, formatDate } from '../utils/formatters';
+import { formatCurrency, formatLitres, formatMeter, formatDate, getTodayDateString } from '../utils/formatters';
 import { Shift, ShiftType, MeterReadingEntry, PaymentCollectionBreakdown } from '../types';
+import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 
 export const ShiftOperationsScreen: React.FC = () => {
   const {
@@ -46,6 +47,10 @@ export const ShiftOperationsScreen: React.FC = () => {
   const [selectedPumpId, setSelectedPumpId] = useState<string>(pumps[0]?.id || '');
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>(operators[0]?.id || '');
   const [selectedShiftType, setSelectedShiftType] = useState<ShiftType>('Morning');
+  const [shiftDate, setShiftDate] = useState(getTodayDateString());
+  const [reliefOperatorId, setReliefOperatorId] = useState<string>('');
+  const [openingCashFloat, setOpeningCashFloat] = useState('0');
+
 
   // Currently Editing Shift State
   const [currentShift, setCurrentShift] = useState<Shift | null>(activeShift || shifts[0] || null);
@@ -163,18 +168,20 @@ export const ShiftOperationsScreen: React.FC = () => {
   };
 
   // Trigger Open Shift
-  const handleConfirmOpenShift = () => {
-    const newShift = openNewShift({
+  const handleConfirmOpenShift = async () => {
+    const newShift = await openNewShift({
       pumpId: selectedPumpId,
       operatorId: selectedOperatorId,
       shiftType: selectedShiftType,
+      shiftDate,
     });
     setCurrentShift(newShift);
     setShowOpenModal(false);
   };
 
+
   // Trigger Close Shift
-  const handleFinalCloseShift = () => {
+  const handleFinalCloseShift = async () => {
     if (!currentShift) return;
     if (
       window.confirm(
@@ -183,7 +190,7 @@ export const ShiftOperationsScreen: React.FC = () => {
         )}\nDifference: ${formatCurrency(currentShift.shortageOrExcess)}`
       )
     ) {
-      closeShift(currentShift.id, currentShift.notes);
+      await closeShift(currentShift.id, currentShift, currentShift.notes);
       generateThermalReceipt(currentShift);
     }
   };
@@ -269,7 +276,7 @@ export const ShiftOperationsScreen: React.FC = () => {
               onPress={() => setCurrentShift(s)}
               activeOpacity={0.7}
             >
-              <View style={[styles.pillDot, { backgroundColor: isInProgress ? colors.success : colors.textMuted }]} />
+               
               <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>
                 {s.shiftNo} ({s.shiftType})
               </Text>
@@ -286,29 +293,6 @@ export const ShiftOperationsScreen: React.FC = () => {
               <View style={styles.metaMain}>
                 <View style={styles.metaBadgeRow}>
                   <Text style={styles.shiftIdText}>{currentShift.shiftNo}</Text>
-                  <View
-                    style={[
-                      styles.statusTag,
-                      {
-                        backgroundColor:
-                          currentShift.status === 'IN_PROGRESS'
-                            ? colors.success + '20'
-                            : colors.surfaceHighlight,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusTagText,
-                        {
-                          color:
-                            currentShift.status === 'IN_PROGRESS' ? colors.success : colors.textSecondary,
-                        },
-                      ]}
-                    >
-                      {currentShift.status}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.metaSub}>
                   Pump #{currentShift.pumpNo} • {currentShift.operatorName} • {formatDate(currentShift.shiftDate)} ({currentShift.shiftType})
@@ -359,7 +343,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                     {/* Header */}
                     <View style={styles.readingCardHeader}>
                       <View style={styles.readingTitleLeft}>
-                        <View style={[styles.fuelTagDot, { backgroundColor: reading.fuelCode === 'HSD' ? colors.diesel : colors.petrol }]} />
+                         
                         <Text style={styles.readingProductName}>
                           Nozzle #{reading.nozzleNo} - {reading.productName}
                         </Text>
@@ -618,60 +602,98 @@ export const ShiftOperationsScreen: React.FC = () => {
             </View>
 
             <View style={styles.modalBody}>
-              {/* Select Pump */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Pump Dispenser</Text>
-                <View style={styles.optionList}>
-                  {pumps.map((pump) => (
-                    <TouchableOpacity
-                      key={pump.id}
-                      style={[styles.optionPill, selectedPumpId === pump.id && styles.optionPillActive]}
-                      onPress={() => setSelectedPumpId(pump.id)}
-                    >
-                      <Text style={[styles.optionText, selectedPumpId === pump.id && styles.optionTextActive]}>
-                        Pump #{pump.pumpNo}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+                {/* Shift Date */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Shift Date</Text>
+                  <TextInput
+                    style={styles.simInput}
+                    value={shiftDate}
+                    onChangeText={setShiftDate}
+                    placeholder="YYYY-MM-DD"
+                    keyboardType="numeric"
+                  />
                 </View>
-              </View>
 
-              {/* Select Operator */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Shift Operator</Text>
-                <View style={styles.optionList}>
-                  {operators.map((op) => (
-                    <TouchableOpacity
-                      key={op.id}
-                      style={[styles.optionPill, selectedOperatorId === op.id && styles.optionPillActive]}
-                      onPress={() => setSelectedOperatorId(op.id)}
-                    >
-                      <Text style={[styles.optionText, selectedOperatorId === op.id && styles.optionTextActive]}>
-                        {op.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                {/* Select Pump */}
+                <DropdownPicker
+                  label="Select Pump Dispenser *"
+                  placeholder="Select Pump Dispenser..."
+                  options={pumps.map((pump) => ({
+                    label: pump.name,
+                    value: pump.id,
+                    subtitle: `Pump #${pump.pumpNo} • ${pump.nozzles.length} nozzle(s)`,
+                    inactive: pump.status === 'INACTIVE' || pump.status === 'MAINTENANCE',
+                  } as DropdownOption))}
+                  value={selectedPumpId}
+                  onChange={(v) => setSelectedPumpId(v)}
+                />
 
-              {/* Select Shift Timing */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Shift Type</Text>
-                <View style={styles.optionList}>
-                  {(['Morning', 'Evening', 'Night', 'Full Day'] as ShiftType[]).map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      style={[styles.optionPill, selectedShiftType === st && styles.optionPillActive]}
-                      onPress={() => setSelectedShiftType(st)}
-                    >
-                      <Text style={[styles.optionText, selectedShiftType === st && styles.optionTextActive]}>
-                        {st}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                {/* Shift Type */}
+                <DropdownPicker
+                  label="Shift Type *"
+                  placeholder="Select Shift Type..."
+                  options={[
+                    { label: 'Morning Shift', value: 'Morning', subtitle: '06:00 AM - 02:00 PM' },
+                    { label: 'Evening Shift', value: 'Evening', subtitle: '02:00 PM - 10:00 PM' },
+                    { label: 'Night Shift', value: 'Night', subtitle: '10:00 PM - 06:00 AM' },
+                    { label: 'Full Day Shift', value: 'Full Day', subtitle: '24 Hours / Extended' },
+                  ]}
+                  value={selectedShiftType}
+                  onChange={(v) => setSelectedShiftType(v as ShiftType)}
+                  allowOther
+                  onSaveNew={(v) => setSelectedShiftType(v as ShiftType)}
+                />
+
+                {/* Select Shift Operator */}
+                <DropdownPicker
+                  label="Select Shift Operator *"
+                  placeholder="Select Shift Operator..."
+                  options={operators.map((op) => ({
+                    label: op.name,
+                    value: op.id,
+                    subtitle: `Bata: ₹${op.dailyBata}/day`,
+                    inactive: !op.active,
+                  } as DropdownOption))}
+                  value={selectedOperatorId}
+                  onChange={(v) => setSelectedOperatorId(v)}
+                  allowOther
+                  onSaveNew={(v) => setSelectedOperatorId(v)}
+                />
+
+                {/* Relief Operator (Optional) */}
+                <DropdownPicker
+                  label="Relief Operator (Optional)"
+                  placeholder="Select Relief Operator..."
+                  options={[
+                    { label: 'None (No Relief)', value: '' },
+                    ...operators.map((op) => ({
+                      label: op.name,
+                      value: op.id,
+                      subtitle: `Bata: ₹${op.dailyBata}/day`,
+                      inactive: !op.active,
+                    } as DropdownOption)),
+                  ]}
+                  value={reliefOperatorId}
+                  onChange={(v) => setReliefOperatorId(v)}
+                  allowOther
+                  onSaveNew={(v) => setReliefOperatorId(v)}
+                />
+
+                {/* Opening Cash Float */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Opening Cash Float (₹)</Text>
+                  <TextInput
+                    style={styles.simInput}
+                    value={openingCashFloat}
+                    onChangeText={setOpeningCashFloat}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
                 </View>
-              </View>
+              </ScrollView>
             </View>
+
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.confirmOpenBtn} onPress={handleConfirmOpenShift} activeOpacity={0.8}>
@@ -697,32 +719,34 @@ export const ShiftOperationsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.simSub}>
-                Simulate customer fueling to advance the digital totalizer meter in real time:
-              </Text>
-              <View style={styles.quickLitresRow}>
-                {['10.00', '20.00', '50.00', '100.00'].map((l) => (
-                  <TouchableOpacity
-                    key={l}
-                    style={[styles.quickLitreBtn, simLitresToAdd === l && styles.quickLitreBtnActive]}
-                    onPress={() => setSimLitresToAdd(l)}
-                  >
-                    <Text style={[styles.quickLitreText, simLitresToAdd === l && styles.quickLitreTextActive]}>
-                      +{l} L
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                <Text style={styles.simSub}>
+                  Simulate customer fueling to advance the digital totalizer meter in real time:
+                </Text>
+                <View style={styles.quickLitresRow}>
+                  {['10.00', '20.00', '50.00', '100.00'].map((l) => (
+                    <TouchableOpacity
+                      key={l}
+                      style={[styles.quickLitreBtn, simLitresToAdd === l && styles.quickLitreBtnActive]}
+                      onPress={() => setSimLitresToAdd(l)}
+                    >
+                      <Text style={[styles.quickLitreText, simLitresToAdd === l && styles.quickLitreTextActive]}>
+                        +{l} L
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-              <Text style={[styles.formLabel, { marginTop: 12 }]}>Custom Litres to Dispense</Text>
-              <TextInput
-                style={styles.simInput}
-                value={simLitresToAdd}
-                onChangeText={setSimLitresToAdd}
-                keyboardType="numeric"
-              />
-            </View>
+                <Text style={[styles.formLabel, { marginTop: 12 }]}>Custom Litres to Dispense</Text>
+                <TextInput
+                  style={styles.simInput}
+                  value={simLitresToAdd}
+                  onChangeText={setSimLitresToAdd}
+                  keyboardType="numeric"
+                />
+              </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.dispenseTriggerBtn} onPress={handleSimulateDispense} activeOpacity={0.8}>
@@ -1012,8 +1036,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   disabledInput: {
-    color: colors.textMuted,
-    backgroundColor: colors.surfaceHighlight,
+    color: colors.inactiveGrey,
+    backgroundColor: colors.inactiveBg,
+    borderColor: colors.inactiveBorder,
   },
   activeInput: {
     borderColor: colors.primary,

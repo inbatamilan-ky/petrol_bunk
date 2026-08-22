@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
+import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
 import { CashDenomination, BankDeposit } from '../types';
@@ -186,8 +187,13 @@ export const CashBankScreen: React.FC = () => {
           <Text style={styles.depositsTitle}>Bank Settlement Challans & Proofs</Text>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginTop: 4 }}>
-          <View style={{ minWidth: 520 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          style={{ marginTop: 4 }}
+          contentContainerStyle={{ minWidth: '100%' }}
+        >
+          <View style={{ width: '100%', minWidth: 520 }}>
             <View style={styles.tableHeader}>
               <Text style={[styles.tableCol, { width: 90 }]}>DATE</Text>
               <Text style={[styles.tableCol, { width: 200 }]}>BANK & ACCOUNT</Text>
@@ -223,51 +229,79 @@ export const CashBankScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Bank Account</Text>
-                <TextInput
-                  style={styles.textInput}
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                {/* Bank Account Dropdown */}
+                <DropdownPicker
+                  label="Bank Account *"
+                  placeholder="Select Bank Account..."
+                  options={[
+                    { label: 'State Bank of India (Main Branch)', value: 'State Bank of India (Main Branch)', subtitle: 'Current A/c: 30982245109' },
+                    { label: 'HDFC Bank (Commercial Branch)', value: 'HDFC Bank (Commercial Branch)', subtitle: 'Current A/c: 50200088194' },
+                    { label: 'ICICI Bank (Town Branch)', value: 'ICICI Bank (Town Branch)', subtitle: 'Current A/c: 01420500339' },
+                    { label: 'Indian Bank (Bunk Branch)', value: 'Indian Bank (Bunk Branch)', subtitle: 'Current A/c: 6612884910' },
+                    { label: 'Axis Bank (Auto Branch)', value: 'Axis Bank (Auto Branch)', subtitle: 'Current A/c: 91802004451' },
+                  ]}
                   value={bankName}
-                  onChangeText={setBankName}
+                  onChange={(v, l) => {
+                    setBankName(l || v);
+                    if (v.includes('30982245109') || l.includes('State Bank')) setAccountNo('30982245109 (Current A/c)');
+                    else if (v.includes('50200088194') || l.includes('HDFC')) setAccountNo('50200088194 (Current A/c)');
+                    else if (v.includes('01420500339') || l.includes('ICICI')) setAccountNo('01420500339 (Current A/c)');
+                    else if (v.includes('6612884910') || l.includes('Indian')) setAccountNo('6612884910 (Current A/c)');
+                  }}
+                  allowOther
+                  onSaveNew={(customName) => setBankName(customName)}
                 />
-              </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Account Number</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={accountNo}
-                  onChangeText={setAccountNo}
-                />
-              </View>
-
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Deposit Slip Ref No</Text>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Account Number</Text>
                   <TextInput
                     style={styles.textInput}
-                    value={refNo}
-                    onChangeText={setRefNo}
+                    value={accountNo}
+                    onChangeText={setAccountNo}
+                    placeholder="Account Number"
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Deposited By</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={depositedBy}
-                    onChangeText={setDepositedBy}
-                  />
-                </View>
-              </View>
 
-              <View style={styles.depositAmountBox}>
-                <Text style={styles.depositAmountLabel}>TOTAL DEPOSIT AMOUNT FROM COUNTER:</Text>
-                <Text style={styles.depositAmountVal}>
-                  {formatCurrency(totalDenominationAmount)}
-                </Text>
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Deposit Slip Ref No</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={refNo}
+                      onChangeText={setRefNo}
+                      placeholder="e.g. SBI-CHQ-1049"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <DropdownPicker
+                      label="Deposited By *"
+                      placeholder="Select staff..."
+                      options={[
+                        { label: 'Manager', value: 'Manager' },
+                        { label: 'Cashier', value: 'Cashier' },
+                        { label: 'Owner', value: 'Owner' },
+                        { label: 'Supervisor', value: 'Supervisor' },
+                      ]}
+                      value={depositedBy}
+                      onChange={(v, l) => setDepositedBy(l || v)}
+                      allowOther
+                      onSaveNew={(customName) => setDepositedBy(customName)}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.depositAmountBox}>
+                  <Text style={styles.depositAmountLabel}>TOTAL DEPOSIT AMOUNT FROM COUNTER:</Text>
+                  <Text style={styles.depositAmountVal}>
+                    {formatCurrency(totalDenominationAmount)}
+                  </Text>
+                </View>
               </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveDeposit} activeOpacity={0.8}>

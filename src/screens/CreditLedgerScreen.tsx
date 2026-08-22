@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
+import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
@@ -128,7 +129,7 @@ export const CreditLedgerScreen: React.FC = () => {
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   // Handle Add Credit Sale Submit
-  const handleAddSaleSubmit = () => {
+  const handleAddSaleSubmit = async () => {
     const cust = customers.find((c) => c.id === saleCustId);
     const prod = products.find((p) => p.id === saleProductId);
     const pump = pumps.find((p) => p.id === salePumpId);
@@ -138,7 +139,7 @@ export const CreditLedgerScreen: React.FC = () => {
 
     if (!cust || litresNum <= 0) return;
 
-    const newSale = addCreditSale({
+    const newSale = await addCreditSale({
       customerId: cust.id,
       customerName: cust.name,
       customerCode: cust.code,
@@ -184,12 +185,12 @@ export const CreditLedgerScreen: React.FC = () => {
   };
 
   // Handle Repayment Submit
-  const handleRepaymentSubmit = () => {
+  const handleRepaymentSubmit = async () => {
     const cust = customers.find((c) => c.id === payCustId);
     const amountNum = parseFloat(payAmount) || 0;
     if (!cust || amountNum <= 0) return;
 
-    const payment = recordCreditRepayment({
+    const payment = await recordCreditRepayment({
       customerId: cust.id,
       customerName: cust.name,
       customerCode: cust.code,
@@ -311,27 +312,32 @@ export const CreditLedgerScreen: React.FC = () => {
             />
           </View>
 
-          <View style={styles.custScrollContainer}>
+          <ScrollView style={styles.custScrollContainer} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
             {filteredCustomers.map((cust) => {
               const isSelected = selectedCustomer?.id === cust.id;
               const limitPct = Math.min(100, Math.round((cust.outstandingBalance / cust.creditLimit) * 100));
               const isWarning = limitPct > 80;
+              const isInactive = cust.status === 'INACTIVE' || cust.status === 'BLOCKED';
 
               return (
                 <TouchableOpacity
                   key={cust.id}
-                  style={[styles.custCard, isSelected && styles.custCardActive]}
+                  style={[
+                    styles.custCard,
+                    isSelected && styles.custCardActive,
+                    isInactive && { backgroundColor: colors.inactiveBg, borderColor: colors.inactiveBorder, opacity: 0.8 },
+                  ]}
                   onPress={() => setSelectedCustomerId(cust.id)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.custCardTop}>
                     <View style={styles.custNameGroup}>
-                      <View style={styles.custCodeBadge}>
-                        <Text style={styles.custCodeText}>{cust.code}</Text>
+                      <View style={[styles.custCodeBadge, isInactive && { backgroundColor: colors.inactiveMuted }]}>
+                        <Text style={[styles.custCodeText, isInactive && { color: '#FFFFFF' }]}>{cust.code}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.custName} numberOfLines={1}>{cust.name}</Text>
-                        <Text style={styles.custVehicles} numberOfLines={1}>
+                        <Text style={[styles.custName, isInactive && { color: colors.inactiveGrey }]} numberOfLines={1}>{cust.name}</Text>
+                        <Text style={[styles.custVehicles, isInactive && { color: colors.inactiveMuted }]} numberOfLines={1}>
                           {cust.vehicleNumbers.join(' • ') || 'No vehicles assigned'}
                         </Text>
                       </View>
@@ -339,8 +345,8 @@ export const CreditLedgerScreen: React.FC = () => {
                   </View>
 
                   <View style={styles.custBalanceRow}>
-                    <Text style={styles.custBalLabel}>Outstanding:</Text>
-                    <Text style={styles.custBalValue}>{formatCurrency(cust.outstandingBalance)}</Text>
+                    <Text style={[styles.custBalLabel, isInactive && { color: colors.inactiveMuted }]}>Outstanding:</Text>
+                    <Text style={[styles.custBalValue, isInactive && { color: colors.inactiveGrey }]}>{formatCurrency(cust.outstandingBalance)}</Text>
                   </View>
 
                   {/* Credit Utilization Bar */}
@@ -350,22 +356,22 @@ export const CreditLedgerScreen: React.FC = () => {
                         styles.limitBarFill,
                         {
                           width: `${limitPct}%` as any,
-                          backgroundColor: isWarning ? colors.danger : colors.primary,
+                          backgroundColor: isInactive ? colors.inactiveBorder : isWarning ? colors.danger : colors.primary,
                         },
                       ]}
                     />
                   </View>
 
                   <View style={styles.custCardFooter}>
-                    <Text style={styles.limitText}>Limit: {formatCurrency(cust.creditLimit)}</Text>
-                    <Text style={[styles.pctText, isWarning && { color: colors.danger, fontWeight: '700' }]}>
+                    <Text style={[styles.limitText, isInactive && { color: colors.inactiveMuted }]}>Limit: {formatCurrency(cust.creditLimit)}</Text>
+                    <Text style={[styles.pctText, isWarning && !isInactive && { color: colors.danger, fontWeight: '700' }, isInactive && { color: colors.inactiveMuted }]}>
                       {limitPct}% Used
                     </Text>
                   </View>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Selected Customer Statement & History */}
@@ -411,35 +417,44 @@ export const CreditLedgerScreen: React.FC = () => {
 
             {/* Detailed Ledger Transactions Table */}
             <View style={styles.tableCard}>
-              <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-                <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
-                <Text style={[styles.tableColHeader, { flex: 2 }]}>PARTICULARS</Text>
-                <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>DEBIT (+₹)</Text>
-                <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>CREDIT (-₹)</Text>
-              </View>
-
-              {ledgerEntries.length === 0 ? (
-                <View style={styles.emptyTable}>
-                  <Text style={styles.emptyTableText}>No transactions recorded for this customer yet.</Text>
-                </View>
-              ) : (
-                ledgerEntries.map((entry) => (
-                  <View key={entry.id} style={styles.tableDataRow}>
-                    <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(entry.date)}</Text>
-                    <Text style={[styles.tableCellMono, { width: 110 }]}>{entry.refNo}</Text>
-                    <Text style={[styles.tableCell, { flex: 2 }]} numberOfLines={2}>
-                      {entry.particulars}
-                    </Text>
-                    <Text style={[styles.tableCellDebit, { width: 110, textAlign: 'right' }]}>
-                      {entry.debitAmount > 0 ? formatCurrency(entry.debitAmount) : '-'}
-                    </Text>
-                    <Text style={[styles.tableCellCredit, { width: 110, textAlign: 'right' }]}>
-                      {entry.creditAmount > 0 ? formatCurrency(entry.creditAmount) : '-'}
-                    </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={true}
+                style={styles.tableScroll}
+                contentContainerStyle={{ minWidth: '100%' }}
+              >
+                <View style={{ width: '100%', minWidth: 620 }}>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
+                    <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
+                    <Text style={[styles.tableColHeader, { flex: 2, minWidth: 160 }]}>PARTICULARS</Text>
+                    <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>DEBIT (+₹)</Text>
+                    <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>CREDIT (-₹)</Text>
                   </View>
-                ))
-              )}
+
+                  {ledgerEntries.length === 0 ? (
+                    <View style={styles.emptyTable}>
+                      <Text style={styles.emptyTableText}>No transactions recorded for this customer yet.</Text>
+                    </View>
+                  ) : (
+                    ledgerEntries.map((entry) => (
+                      <View key={entry.id} style={styles.tableDataRow}>
+                        <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(entry.date)}</Text>
+                        <Text style={[styles.tableCellMono, { width: 110 }]}>{entry.refNo}</Text>
+                        <Text style={[styles.tableCell, { flex: 2, minWidth: 160 }]} numberOfLines={2}>
+                          {entry.particulars}
+                        </Text>
+                        <Text style={[styles.tableCellDebit, { width: 110, textAlign: 'right' }]}>
+                          {entry.debitAmount > 0 ? formatCurrency(entry.debitAmount) : '-'}
+                        </Text>
+                        <Text style={[styles.tableCellCredit, { width: 110, textAlign: 'right' }]}>
+                          {entry.creditAmount > 0 ? formatCurrency(entry.creditAmount) : '-'}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </ScrollView>
             </View>
           </View>
         ) : null}
@@ -456,45 +471,42 @@ export const CreditLedgerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              {/* Customer Selector */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Customer</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-                  {customers.map((c) => (
-                    <TouchableOpacity
-                      key={c.id}
-                      style={[styles.pillOption, saleCustId === c.id && styles.pillOptionActive]}
-                      onPress={() => {
-                        setSaleCustId(c.id);
-                        if (c.vehicleNumbers.length > 0) setSaleVehicleNo(c.vehicleNumbers[0]);
-                      }}
-                    >
-                      <Text style={[styles.pillOptionText, saleCustId === c.id && styles.pillOptionTextActive]}>
-                        {c.code}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                {/* Customer Selector */}
+                <DropdownPicker
+                  label="Select Customer *"
+                  placeholder="Select Customer..."
+                  options={customers.map((c) => ({
+                    label: `${c.code} - ${c.name}`,
+                    value: c.id,
+                    subtitle: `Outstanding: ${formatCurrency(c.outstandingBalance)} • Limit: ${formatCurrency(c.creditLimit)}`,
+                    inactive: c.status === 'INACTIVE' || c.status === 'BLOCKED',
+                  }))}
+                  value={saleCustId}
+                  onChange={(v, l) => {
+                    setSaleCustId(v);
+                    const cust = customers.find((c) => c.id === v);
+                    if (cust && cust.vehicleNumbers.length > 0) setSaleVehicleNo(cust.vehicleNumbers[0]);
+                  }}
+                  allowOther
+                  onSaveNew={(v) => setSaleCustId(v)}
+                />
 
-              {/* Product Selector */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Fuel Product</Text>
-                <View style={styles.pillRow}>
-                  {products.slice(0, 3).map((p) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[styles.pillOption, saleProductId === p.id && styles.pillOptionActive]}
-                      onPress={() => setSaleProductId(p.id)}
-                    >
-                      <Text style={[styles.pillOptionText, saleProductId === p.id && styles.pillOptionTextActive]}>
-                        {p.name} (₹{p.currentRate}/L)
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                {/* Product Selector */}
+                <DropdownPicker
+                  label="Fuel Product *"
+                  placeholder="Select Fuel Product..."
+                  options={products.map((p) => ({
+                    label: `${p.name} (₹${p.currentRate}/L)`,
+                    value: p.id,
+                    subtitle: `Current Rate: ₹${p.currentRate}/L`,
+                    color: p.color,
+                    inactive: p.active === false,
+                  }))}
+                  value={saleProductId}
+                  onChange={(v) => setSaleProductId(v)}
+                />
 
               {/* Litres & Vehicle No */}
               <View style={styles.dualFormRow}>
@@ -554,16 +566,17 @@ export const CreditLedgerScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
+          </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleAddSaleSubmit} activeOpacity={0.8}>
-                <CheckCircle2 size={16} color="#000" />
-                <Text style={styles.modalSubmitBtnText}>Issue Credit Chit & Print Thermal Slip</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleAddSaleSubmit} activeOpacity={0.8}>
+              <CheckCircle2 size={16} color="#000" />
+              <Text style={styles.modalSubmitBtnText}>Issue Credit Chit & Print Thermal Slip</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </View>
+    </Modal>
 
       {/* Modal 2: Record Repayment */}
       <Modal visible={showRepaymentModal} transparent animationType="slide" onRequestClose={() => setShowRepaymentModal(false)}>
@@ -576,77 +589,79 @@ export const CreditLedgerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Customer</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-                  {customers.map((c) => (
-                    <TouchableOpacity
-                      key={c.id}
-                      style={[styles.pillOption, payCustId === c.id && styles.pillOptionActive]}
-                      onPress={() => setPayCustId(c.id)}
-                    >
-                      <Text style={[styles.pillOptionText, payCustId === c.id && styles.pillOptionTextActive]}>
-                        {c.code} ({formatCurrency(c.outstandingBalance)})
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                {/* Customer Selector */}
+                <DropdownPicker
+                  label="Select Customer *"
+                  placeholder="Select Customer..."
+                  options={customers.map((c) => ({
+                    label: `${c.code} - ${c.name}`,
+                    value: c.id,
+                    subtitle: `Outstanding: ${formatCurrency(c.outstandingBalance)}`,
+                  }))}
+                  value={payCustId}
+                  onChange={(v) => setPayCustId(v)}
+                  allowOther
+                  onSaveNew={(v) => setPayCustId(v)}
+                />
 
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Amount Received (₹)</Text>
+                {/* Amount & Payment Mode */}
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Amount Received (₹) *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={payAmount}
+                      onChangeText={setPayAmount}
+                      keyboardType="numeric"
+                      placeholder="0.00"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <DropdownPicker
+                      label="Payment Mode *"
+                      placeholder="Select Payment Mode..."
+                      options={[
+                        { label: 'Cash', value: 'Cash' },
+                        { label: 'UPI / GPay / PhonePe', value: 'UPI' },
+                        { label: 'Cheque', value: 'Cheque' },
+                        { label: 'Bank Transfer / NEFT', value: 'NEFT' },
+                        { label: 'Bank Transfer / RTGS', value: 'Bank Transfer' },
+                      ]}
+                      value={payMode}
+                      onChange={(v) => setPayMode(v as CreditPayment['paymentMode'])}
+                      allowOther
+                      onSaveNew={(v) => setPayMode(v as CreditPayment['paymentMode'])}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Reference / Cheque No / Bank Name</Text>
                   <TextInput
                     style={styles.textInput}
-                    value={payAmount}
-                    onChangeText={setPayAmount}
-                    keyboardType="numeric"
+                    value={payRefNo}
+                    onChangeText={setPayRefNo}
+                    placeholder="e.g. SBI-NEFT-991204 / Chq #409121"
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
 
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Payment Mode</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-                    {(['Cash', 'Cheque', 'Bank Transfer', 'NEFT', 'UPI'] as CreditPayment['paymentMode'][]).map(
-                      (m) => (
-                        <TouchableOpacity
-                          key={m}
-                          style={[styles.pillOption, payMode === m && styles.pillOptionActive]}
-                          onPress={() => setPayMode(m)}
-                        >
-                          <Text style={[styles.pillOptionText, payMode === m && styles.pillOptionTextActive]}>
-                            {m}
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    )}
-                  </ScrollView>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Notes</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={payNotes}
+                    onChangeText={setPayNotes}
+                    placeholder="e.g. Monthly bill settlement"
+                    placeholderTextColor={colors.textMuted}
+                  />
                 </View>
               </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Reference / Cheque No / Bank Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={payRefNo}
-                  onChangeText={setPayRefNo}
-                  placeholder="e.g. SBI-NEFT-991204 / Chq #409121"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Notes</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={payNotes}
-                  onChangeText={setPayNotes}
-                  placeholder="e.g. Monthly bill settlement"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleRepaymentSubmit} activeOpacity={0.8}>
@@ -669,85 +684,87 @@ export const CreditLedgerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Short Code (e.g. KPJ)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newCustCode}
-                    onChangeText={setNewCustCode}
-                    placeholder="CODE"
-                    placeholderTextColor={colors.textMuted}
-                  />
+            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Short Code (e.g. KPJ)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustCode}
+                      onChangeText={setNewCustCode}
+                      placeholder="CODE"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 2 }]}>
+                    <Text style={styles.formLabel}>Full Company / Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustName}
+                      onChangeText={setNewCustName}
+                      placeholder="Customer Name"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
                 </View>
-                <View style={[styles.formGroup, { flex: 2 }]}>
-                  <Text style={styles.formLabel}>Full Company / Name</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newCustName}
-                    onChangeText={setNewCustName}
-                    placeholder="Customer Name"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-              </View>
 
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Contact Person</Text>
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Contact Person</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustPerson}
+                      onChangeText={setNewCustPerson}
+                      placeholder="Person"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Phone</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustPhone}
+                      onChangeText={setNewCustPhone}
+                      placeholder="+91 94432 ..."
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Credit Limit (₹)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustLimit}
+                      onChangeText={setNewCustLimit}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Opening Balance (₹)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newCustOpening}
+                      onChangeText={setNewCustOpening}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Authorized Vehicle Numbers (Comma separated)</Text>
                   <TextInput
                     style={styles.textInput}
-                    value={newCustPerson}
-                    onChangeText={setNewCustPerson}
-                    placeholder="Person"
+                    value={newCustVehicles}
+                    onChangeText={setNewCustVehicles}
+                    placeholder="TN 49 AB 1234, TN 49 C 5678"
                     placeholderTextColor={colors.textMuted}
                   />
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Phone</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newCustPhone}
-                    onChangeText={setNewCustPhone}
-                    placeholder="+91 94432 ..."
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
               </View>
-
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Credit Limit (₹)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newCustLimit}
-                    onChangeText={setNewCustLimit}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Opening Balance (₹)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newCustOpening}
-                    onChangeText={setNewCustOpening}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Authorized Vehicle Numbers (Comma separated)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={newCustVehicles}
-                  onChangeText={setNewCustVehicles}
-                  placeholder="TN 49 AB 1234, TN 49 C 5678"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleCreateCustomerSubmit} activeOpacity={0.8}>
@@ -1032,6 +1049,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
+  },
+  tableScroll: {
+    width: '100%',
   },
   tableHeaderRow: {
     flexDirection: 'row',

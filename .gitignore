@@ -1,46 +1,48 @@
-# Frontend dependencies and build output
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
 node_modules/
+
+# Expo
+.expo/
 dist/
-.vite/
+web-build/
+expo-env.d.ts
 
-# Environment and local configuration
-.env
-.env.*
-!.env.example
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# Python virtual environments and generated files
-.venv/
-venv/
-env/
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Metro
+.metro-health-check*
 
-# Backend runtime files
-petrol_bunk_api/uploads/*
-!petrol_bunk_api/uploads/.gitkeep
-instance/
-*.db
-*.sqlite
-*.sqlite3
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 
-# Local logs and debug output
-*.log
-debug_out.txt
-
-# Imported operational data
-# Keep seed data in src/data/ tracked; ignore local spreadsheet imports.
-data/*.xls
-data/*.xlsx
-data/*.xlsm
-
-# Editor and operating-system files
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+# macOS
 .DS_Store
-Thumbs.db
-Desktop.ini
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Python
+__pycache__/
+*.pyc
+

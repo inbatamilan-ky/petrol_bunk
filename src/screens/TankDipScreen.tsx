@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
+import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { colors, typography } from '../theme/colors';
 import { formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import {
@@ -73,19 +74,16 @@ export const TankDipScreen: React.FC = () => {
       tankId: selectedTank.id,
       tankName: selectedTank.name,
       productName: selectedTank.productName,
+      dipDate: getTodayDateString(),
       dipType,
       fuelDipCm: dipCmNum,
       fuelDipLitres: physicalStock,
       waterDipCm: waterCmNum,
       observedDensity: obsDensityNum,
-      observedTempC: obsTempNum,
-      convertedDensity15C: densityResult.convertedDensity15C,
-      standardMinDensity: densityResult.minAllowed,
-      standardMaxDensity: densityResult.maxAllowed,
-      isDensityPassed: densityResult.isPassed,
+      observedTemp: obsTempNum,
+      convertedDensity: densityResult.convertedDensity15C,
       bookStockLitres: bookStock,
-      physicalStockLitres: physicalStock,
-      varianceLitres: variance,
+      variance,
       testedBy: testedBy || 'Manager',
     });
 
@@ -103,20 +101,18 @@ export const TankDipScreen: React.FC = () => {
       'Obs Density',
       'Obs Temp (°C)',
       '15°C Converted Density',
-      'Status',
       'Tested By',
     ];
     const rows = dips.map((d) => [
-      d.date,
+      d.dipDate,
       d.tankName,
       d.dipType,
       d.fuelDipCm,
       d.fuelDipLitres,
       d.waterDipCm,
       d.observedDensity,
-      d.observedTempC,
-      d.convertedDensity15C,
-      d.isDensityPassed ? 'PASSED' : 'OUT_OF_SPEC',
+      d.observedTemp,
+      d.convertedDensity,
       d.testedBy,
     ]);
     exportToCSV(`Tank_Dip_Density_Log_${getTodayDateString()}`, headers, rows);
@@ -155,7 +151,7 @@ export const TankDipScreen: React.FC = () => {
         {tanks.map((tank) => {
           const p = products.find((prodItem) => prodItem.id === tank.productId);
           const fillPct = Math.min(100, Math.round((tank.currentStockLitres / tank.capacityLitres) * 100));
-          const isLow = tank.currentStockLitres <= tank.warningThresholdLitres;
+          const isLow = tank.currentStockLitres <= tank.capacityLitres * 0.2;
 
           return (
             <View key={tank.id} style={[styles.tankCard, { borderTopColor: p?.color || colors.primary }]}>
@@ -163,11 +159,6 @@ export const TankDipScreen: React.FC = () => {
                 <View>
                   <Text style={styles.tankTitle}>{tank.name}</Text>
                   <Text style={styles.tankProductSubtitle}>{tank.productName}</Text>
-                </View>
-                <View style={[styles.stockStatusBadge, { backgroundColor: isLow ? colors.danger + '20' : colors.success + '20' }]}>
-                  <Text style={[styles.stockStatusText, { color: isLow ? colors.danger : colors.success }]}>
-                    {isLow ? 'LOW STOCK' : 'OPTIMAL'}
-                  </Text>
                 </View>
               </View>
 
@@ -188,7 +179,7 @@ export const TankDipScreen: React.FC = () => {
                 <View style={styles.tankMetricsRight}>
                   <View style={styles.metricBlock}>
                     <Text style={styles.metricBlockLabel}>CURRENT PHYSICAL STOCK</Text>
-                    <Text style={styles.metricBlockVal}>{formatLitres(tank.currentStockLitres)}</Text>
+                    <Text style={[styles.metricBlockVal, isLow && { color: colors.danger }]}>{formatLitres(tank.currentStockLitres)}</Text>
                   </View>
 
                   <View style={styles.metricBlock}>
@@ -197,9 +188,9 @@ export const TankDipScreen: React.FC = () => {
                   </View>
 
                   <View style={styles.metricBlock}>
-                    <Text style={styles.metricBlockLabel}>DEAD STOCK / ULLAGE</Text>
+                    <Text style={styles.metricBlockLabel}>ULLAGE / FREE SPACE</Text>
                     <Text style={styles.metricBlockSubVal}>
-                      {formatLitres(tank.deadStockLitres)} dead / {formatLitres(tank.capacityLitres - tank.currentStockLitres)} free
+                      {formatLitres(Math.max(0, tank.capacityLitres - tank.currentStockLitres))} free
                     </Text>
                   </View>
                 </View>
@@ -213,51 +204,42 @@ export const TankDipScreen: React.FC = () => {
       <View style={styles.tableCard}>
         <View style={styles.tableTitleRow}>
           <Gauge size={18} color={colors.primary} />
-          <Text style={styles.tableTitle}>Dip Readings & ASTM 53B Density Compliance Log</Text>
+          <Text style={styles.tableTitle}>Dip Readings & ASTM 53B Density Quality Log</Text>
         </View>
 
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-          <Text style={[styles.tableColHeader, { flex: 1.5 }]}>TANK NAME</Text>
-          <Text style={[styles.tableColHeader, { width: 90 }]}>DIP (CM)</Text>
-          <Text style={[styles.tableColHeader, { width: 110 }]}>VOLUME (L)</Text>
-          <Text style={[styles.tableColHeader, { width: 110 }]}>DENSITY @15°C</Text>
-          <Text style={[styles.tableColHeader, { width: 90, textAlign: 'center' }]}>STATUS</Text>
-        </View>
-
-        {dips.map((d) => (
-          <View key={d.id} style={styles.tableDataRow}>
-            <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(d.date)}</Text>
-            <View style={{ flex: 1.5 }}>
-              <Text style={styles.tableCellName}>{d.tankName}</Text>
-              <Text style={styles.tableCellSub}>{d.dipType} Dip • Tested by {d.testedBy}</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          style={styles.tableScroll}
+          contentContainerStyle={{ minWidth: '100%' }}
+        >
+          <View style={{ width: '100%', minWidth: 560 }}>
+            <View style={styles.tableHeaderRow}>
+              <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 150 }]}>TANK NAME</Text>
+              <Text style={[styles.tableColHeader, { width: 100, textAlign: 'right' }]}>DIP (CM)</Text>
+              <Text style={[styles.tableColHeader, { width: 120, textAlign: 'right' }]}>VOLUME (L)</Text>
+              <Text style={[styles.tableColHeader, { width: 130, textAlign: 'right' }]}>DENSITY @15°C</Text>
             </View>
-            <Text style={[styles.tableCellMono, { width: 90 }]}>{d.fuelDipCm} cm</Text>
-            <Text style={[styles.tableCellMono, { width: 110, color: '#38BDF8' }]}>
-              {formatLitres(d.fuelDipLitres)}
-            </Text>
-            <Text style={[styles.tableCellMono, { width: 110, color: colors.cashGreen }]}>
-              {d.convertedDensity15C} kg/m³
-            </Text>
-            <View style={{ width: 90, alignItems: 'center' }}>
-              <View
-                style={[
-                  styles.passBadge,
-                  { backgroundColor: d.isDensityPassed ? colors.success + '20' : colors.danger + '20' },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.passBadgeText,
-                    { color: d.isDensityPassed ? colors.success : colors.danger },
-                  ]}
-                >
-                  {d.isDensityPassed ? 'PASSED' : 'OUT'}
+
+            {dips.map((d) => (
+              <View key={d.id} style={styles.tableDataRow}>
+                <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(d.dipDate)}</Text>
+                <View style={{ flex: 1.5, minWidth: 150 }}>
+                  <Text style={styles.tableCellName}>{d.tankName}</Text>
+                  <Text style={styles.tableCellSub}>{d.dipType} Dip • {d.testedBy}</Text>
+                </View>
+                <Text style={[styles.tableCellMono, { width: 100, textAlign: 'right' }]}>{d.fuelDipCm} cm</Text>
+                <Text style={[styles.tableCellMono, { width: 120, textAlign: 'right', color: '#38BDF8' }]}>
+                  {formatLitres(d.fuelDipLitres)}
+                </Text>
+                <Text style={[styles.tableCellMono, { width: 130, textAlign: 'right', color: colors.cashGreen }]}>
+                  {d.convertedDensity} kg/m³
                 </Text>
               </View>
-            </View>
+            ))}
           </View>
-        ))}
+        </ScrollView>
       </View>
 
       {/* Record Dip Modal */}
@@ -271,110 +253,108 @@ export const TankDipScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              {/* Select Tank */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Underground Tank</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-                  {tanks.map((t) => (
-                    <TouchableOpacity
-                      key={t.id}
-                      style={[styles.pillOption, selectedTankId === t.id && styles.pillOptionActive]}
-                      onPress={() => setSelectedTankId(t.id)}
-                    >
-                      <Text style={[styles.pillOptionText, selectedTankId === t.id && styles.pillOptionTextActive]}>
-                        {t.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.modalBody}>
+                {/* Select Tank */}
+                <DropdownPicker
+                  label="Select Underground Tank *"
+                  placeholder="Select Underground Tank..."
+                  options={tanks.map((t) => {
+                    const p = products.find((prod) => prod.id === t.productId);
+                    return {
+                      label: t.name,
+                      value: t.id,
+                      subtitle: `${t.productName} • Current: ${formatLitres(t.currentStockLitres)}`,
+                      color: p?.color,
+                    };
+                  })}
+                  value={selectedTankId}
+                  onChange={(v) => setSelectedTankId(v)}
+                />
 
-              {/* Dip Type */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Dip Type</Text>
-                <View style={styles.pillRow}>
-                  {(['Morning', 'Evening', 'After Decantation'] as const).map((dt) => (
-                    <TouchableOpacity
-                      key={dt}
-                      style={[styles.pillOption, dipType === dt && styles.pillOptionActive]}
-                      onPress={() => setDipType(dt)}
-                    >
-                      <Text style={[styles.pillOptionText, dipType === dt && styles.pillOptionTextActive]}>
-                        {dt}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                {/* Dip Type */}
+                <DropdownPicker
+                  label="Dip Type *"
+                  placeholder="Select Dip Timing / Type..."
+                  options={[
+                    { label: 'Morning Dip (Opening)', value: 'Morning', subtitle: 'Start of day physical dip' },
+                    { label: 'Evening Dip (Closing)', value: 'Evening', subtitle: 'End of day shift handover' },
+                    { label: 'After Decantation Dip', value: 'After Decantation', subtitle: 'Post-tanker unloading check' },
+                  ]}
+                  value={dipType}
+                  onChange={(v) => setDipType(v as 'Morning' | 'Evening' | 'After Decantation')}
+                  allowOther
+                  onSaveNew={(v) => setDipType(v as 'Morning' | 'Evening' | 'After Decantation')}
+                />
 
-              {/* Fuel Dip & Water Dip */}
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Fuel Dip Height (cm)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={fuelDipCm}
-                    onChangeText={setFuelDipCm}
-                    keyboardType="numeric"
-                  />
+                {/* Fuel Dip & Water Dip */}
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Fuel Dip Height (cm) *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={fuelDipCm}
+                      onChangeText={setFuelDipCm}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Water Dip (cm)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={waterDipCm}
+                      onChangeText={setWaterDipCm}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Water Dip (cm)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={waterDipCm}
-                    onChangeText={setWaterDipCm}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
 
-              {/* Observed Density & Temp */}
-              <View style={styles.dualFormRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Observed Hydrometer Density</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={observedDensity}
-                    onChangeText={setObservedDensity}
-                    keyboardType="numeric"
-                  />
+                {/* Observed Density & Temp */}
+                <View style={styles.dualFormRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Observed Hydrometer Density *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={observedDensity}
+                      onChangeText={setObservedDensity}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Observed Temp (°C) *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={observedTemp}
+                      onChangeText={setObservedTemp}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Observed Temp (°C)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={observedTemp}
-                    onChangeText={setObservedTemp}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
 
-              {/* Converted Density Result Preview */}
-              <View style={styles.densityPreviewBox}>
-                <View style={styles.densityPreviewRow}>
-                  <Text style={styles.densityPreviewLabel}>Converted Density @ 15°C:</Text>
-                  <Text style={styles.densityPreviewVal}>
-                    {densityResult.convertedDensity15C} kg/m³
+                {/* Converted Density Result Preview */}
+                <View style={styles.densityPreviewBox}>
+                  <View style={styles.densityPreviewRow}>
+                    <Text style={styles.densityPreviewLabel}>Converted Density @ 15°C:</Text>
+                    <Text style={styles.densityPreviewVal}>
+                      {densityResult.convertedDensity15C} kg/m³
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.densityStatusText,
+                      { color: densityResult.isPassed ? colors.success : colors.danger },
+                    ]}
+                  >
+                    {densityResult.message}
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.densityStatusText,
-                    { color: densityResult.isPassed ? colors.success : colors.danger },
-                  ]}
-                >
-                  {densityResult.message}
-                </Text>
-              </View>
 
-              <View style={styles.volumePreviewBox}>
-                <Text style={styles.volumePreviewLabel}>CALCULATED TANK VOLUME:</Text>
-                <Text style={styles.volumePreviewVal}>{formatLitres(computedLitres)}</Text>
+                <View style={styles.volumePreviewBox}>
+                  <Text style={styles.volumePreviewLabel}>CALCULATED TANK VOLUME:</Text>
+                  <Text style={styles.volumePreviewVal}>{formatLitres(computedLitres)}</Text>
+                </View>
               </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveDip} activeOpacity={0.8}>
@@ -543,6 +523,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
     gap: 10,
+  },
+  tableScroll: {
+    width: '100%',
   },
   tableTitleRow: {
     flexDirection: 'row',

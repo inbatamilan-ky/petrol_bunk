@@ -1,6 +1,9 @@
 // Domain Types for Petrol Pump Management Application (KY Technologies Scope)
 
-export type UserRole = 'Operator' | 'Manager' | 'Owner' | 'Admin';
+export type UserRole = 'Owner' | 'Manager';
+export type UserRoleNum = 1 | 2;
+export const ROLE_OWNER: UserRoleNum = 1;
+export const ROLE_MANAGER: UserRoleNum = 2;
 
 export interface User {
   id: string;
@@ -26,6 +29,7 @@ export interface Product {
   color: string;
   currentRate: number; // ₹ per unit
   standardDensityRange: DensityRange;
+  active?: boolean;
 }
 
 export interface Nozzle {
@@ -43,7 +47,7 @@ export interface Pump {
   id: string;
   pumpNo: number;
   name: string; // e.g. "Pump 1", "Pump 2"
-  status: 'ACTIVE' | 'IDLE' | 'MAINTENANCE';
+  status: 'ACTIVE' | 'IDLE' | 'MAINTENANCE' | 'INACTIVE';
   nozzles: Nozzle[];
 }
 
@@ -113,7 +117,7 @@ export interface CreditCustomer {
   creditLimit: number;
   outstandingBalance: number;
   openingBalance: number;
-  status: 'ACTIVE' | 'HOLD' | 'BLOCKED';
+  status: 'ACTIVE' | 'HOLD' | 'BLOCKED' | 'INACTIVE';
   address?: string;
 }
 
@@ -159,6 +163,7 @@ export interface ExpenseType {
   id: string;
   name: string;
   category: 'OPERATIONAL' | 'STAFF' | 'FINANCIAL' | 'MAINTENANCE';
+  active?: boolean;
 }
 
 export interface Expense {

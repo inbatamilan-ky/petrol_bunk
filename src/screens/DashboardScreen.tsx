@@ -33,16 +33,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     shifts,
     customers,
     expenses,
-    creditTransactions,
     activeShift,
     role,
-  } = useBunk() as any;
+  } = useBunk();
 
   const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
 
   // Compute Aggregates
-  const totalSalesToday = shifts.reduce((sum, s) => sum + s.totalSalesAmount, 0);
+  const totalSalesToday = shifts.reduce((sum: number, s) => sum + s.totalSalesAmount, 0);
   const totalLitresToday = shifts.reduce((sum, s) => sum + s.totalLitresSold, 0);
   const totalCashCollected = shifts.reduce((sum, s) => sum + s.collections.cash, 0);
   const totalExpenses = expenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
@@ -80,9 +79,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <View style={styles.topSection}>
         <View>
           <Text style={styles.greetingTitle}>Bunk Operations Overview</Text>
-          <Text style={styles.greetingSub}>
-            Live telemetry, active shift counters & station finances
-          </Text>
+          <Text style={styles.greetingSub}>Live shift, finance & inventory summary</Text>
         </View>
 
         <View style={styles.actionPills}>
@@ -91,7 +88,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             onPress={() => onNavigate('shifts')}
             activeOpacity={0.8}
           >
-             
             <Text style={styles.actionPillText}>
               {activeShift ? 'Manage Active Shift' : 'Open New Shift'}
             </Text>
@@ -144,7 +140,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Daily Expenses"
           value={formatCurrency(totalExpenses)}
-          subtitle="Bata, Tea, Testing & Operational"
+          subtitle="Bata, tea, testing & operations"
           icon={IndianRupee}
           accentColor={colors.speed}
           onPress={() => onNavigate('expenses')}
@@ -154,10 +150,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Live Pump Status Matrix */}
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-             
-            <Text style={styles.sectionTitle}>Dispenser & Nozzle Telemetry</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Dispenser & Nozzle Status</Text>
           <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
             <Text style={styles.linkText}>View Shifts</Text>
             <ChevronRight size={14} color={colors.primary} />
@@ -170,10 +163,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             return (
               <View key={pump.id} style={styles.pumpCard}>
                 <View style={styles.pumpCardHeader}>
-                  <View style={styles.pumpTitleRow}>
-                    <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
-                  </View>
-                   
+                  <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
                 </View>
 
                 {shiftForPump && (
@@ -187,10 +177,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {pump.nozzles.map((noz) => (
                     <View key={noz.id} style={styles.nozzleItem}>
                       <View style={styles.nozzleTop}>
-                        <View style={styles.nozzleTag}>
-                           
-                          <Text style={styles.nozzleNumber}>Nozzle #{noz.nozzleNo}</Text>
-                        </View>
+                        <Text style={styles.nozzleNumber}>Nozzle #{noz.nozzleNo}</Text>
                         <Text style={[styles.fuelCodeText, { color: noz.color }]}>{noz.fuelCode}</Text>
                       </View>
 
@@ -210,10 +197,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Recent Shifts & Settlement Section */}
       <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-               
-              <Text style={styles.sectionTitle}>Recent Shift Settlements</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Recent Shift Settlements</Text>
             <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
               <Text style={styles.linkText}>All Shifts</Text>
               <ChevronRight size={14} color={colors.primary} />
@@ -224,39 +208,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             {shifts.slice(0, 4).map((shift) => {
               const isClosed = shift.status === 'CLOSED';
               return (
-                <View key={shift.id} style={styles.shiftCard}>
+                <View key={shift.id} style={[styles.shiftCard, isClosed && styles.shiftCardClosed]}>
                   <View style={styles.shiftCardLeft}>
                     <View style={styles.shiftNoRow}>
-                      <Text style={styles.shiftNoText}>{shift.shiftNo}</Text>
-                      <View
-                        style={[
-                          styles.shiftStatusPill,
-                          {
-                            backgroundColor: isClosed ? colors.surfaceHighlight : colors.success + '20',
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.shiftStatusText,
-                            { color: isClosed ? colors.textSecondary : colors.success },
-                          ]}
-                        >
-                          {shift.status}
-                        </Text>
-                      </View>
+                      <Text style={[styles.shiftNoText, isClosed && { color: colors.inactiveGrey }]}>{shift.shiftNo}</Text>
                     </View>
 
-                    <Text style={styles.shiftDetailsText}>
+                    <Text style={[styles.shiftDetailsText, isClosed && { color: colors.inactiveText }]}>
                       Pump {shift.pumpNo} • {shift.operatorName} • {formatDate(shift.shiftDate)} ({shift.shiftType})
                     </Text>
-                    <Text style={styles.shiftVolumeText}>
+                    <Text style={[styles.shiftVolumeText, isClosed && { color: colors.inactiveMuted }]}>
                       Volume: {formatLitres(shift.totalLitresSold)}
                     </Text>
                   </View>
 
                   <View style={styles.shiftCardRight}>
-                    <Text style={styles.shiftAmountText}>{formatCurrency(shift.totalSalesAmount)}</Text>
+                    <Text style={[styles.shiftAmountText, isClosed && { color: colors.inactiveGrey }]}>{formatCurrency(shift.totalSalesAmount)}</Text>
                     <TouchableOpacity
                       style={styles.printSlipBtn}
                       onPress={() => openShiftThermal(shift)}
@@ -278,7 +245,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           <View>
             <Text style={styles.creditWarningTitle}>Credit Ledger Status</Text>
             <Text style={styles.creditWarningSub}>
-              Top customer accounts: KPJ ({formatCurrency(customers[0]?.outstandingBalance)}), GKS (
+              Top accounts: KPJ ({formatCurrency(customers[0]?.outstandingBalance)}), GKS (
               {formatCurrency(customers[4]?.outstandingBalance)})
             </Text>
           </View>
@@ -367,11 +334,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   sectionTitle: {
     color: colors.textPrimary,
     fontSize: 15,
@@ -409,28 +371,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  pumpTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pumpStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   pumpName: {
     color: colors.textPrimary,
     fontSize: 14,
-    fontWeight: '700',
-  },
-  pumpBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  pumpBadgeText: {
-    fontSize: 10,
     fontWeight: '700',
   },
   operatorInfoRow: {
@@ -465,16 +408,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  nozzleTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  fuelDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   nozzleNumber: {
     color: colors.textPrimary,
     fontSize: 12,
@@ -506,67 +439,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.monoFont,
     letterSpacing: 0.5,
   },
-  dualColumn: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  tanksList: {
-    gap: 12,
-  },
-  tankItem: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tankMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  tankName: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  tankCapacityText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFont,
-  },
-  tankBarTrack: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  tankBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  tankFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  tankPctText: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  lowStockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  lowStockText: {
-    color: colors.danger,
-    fontSize: 10,
-    fontWeight: '700',
-  },
   shiftsList: {
     gap: 10,
   },
@@ -583,6 +455,11 @@ const styles = StyleSheet.create({
   shiftCardLeft: {
     flex: 1,
     gap: 2,
+  },
+  shiftCardClosed: {
+    backgroundColor: colors.inactiveBg,
+    borderColor: colors.inactiveBorder,
+    opacity: 0.9,
   },
   shiftNoRow: {
     flexDirection: 'row',

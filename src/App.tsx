@@ -1,8 +1,9 @@
-﻿import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, useWindowDimensions } from 'react-native';
-import { BunkProvider } from './context/BunkContext';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, SafeAreaView, StatusBar, Dimensions, ActivityIndicator, Text } from 'react-native';
+import { BunkProvider, useBunk } from './context/BunkContext';
 import { Header } from './components/Header';
 import { NavigationBar, ScreenId } from './components/NavigationBar';
+import { LoginScreen } from './screens/LoginScreen';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { ShiftOperationsScreen } from './screens/ShiftOperationsScreen';
@@ -17,9 +18,39 @@ import { colors } from './theme/colors';
 const SIDEBAR_BREAKPOINT = 900;
 
 const MainAppContent: React.FC = () => {
+  const { isLoggedIn, login, loading, currentUser } = useBunk();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
-  const { width } = useWindowDimensions();
+  const [width, setWidth] = useState(Dimensions.get('window').width);
+
+useEffect(() => {
+  const subscription = Dimensions.addEventListener('change', ({ window }) => {
+    setWidth(window.width);
+  });
+
+  return () => subscription?.remove();
+}, []);
+
   const isDesktop = width >= SIDEBAR_BREAKPOINT;
+
+  // ── Auth gate: show login if not authenticated ───────────────────────────
+  if (!isLoggedIn && !loading) {
+    return (
+      <SafeAreaView style={styles.appRoot}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <LoginScreen onLoginSuccess={login} />
+      </SafeAreaView>
+    );
+  }
+
+  // ── Initial loading spinner (auto-login in progress) ─────────────────────
+  if (!isLoggedIn && loading) {
+    return (
+      <SafeAreaView style={[styles.appRoot, styles.centered]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Connecting…</Text>
+      </SafeAreaView>
+    );
+  }
 
   const renderActiveScreen = () => {
     switch (currentScreen) {
@@ -69,15 +100,33 @@ const styles = StyleSheet.create({
     height: '100%' as any,
     width: '100%',
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+  },
   desktopLayout: {
     flex: 1,
     flexDirection: 'row',
+    minHeight: 0,
+    minWidth: 0,
+    overflow: 'hidden' as any,
   },
   mobileLayout: {
     flex: 1,
     flexDirection: 'column',
+    minHeight: 0,
+    minWidth: 0,
+    overflow: 'hidden' as any,
   },
   contentArea: {
     flex: 1,
+    minHeight: 0,
+    minWidth: 0,
+    overflow: 'hidden' as any,
   },
 });

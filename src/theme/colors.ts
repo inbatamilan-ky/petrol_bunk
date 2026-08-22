@@ -51,6 +51,14 @@ export const colors = {
   upiPurple: '#7C3AED',
   cardBlue: '#2563EB',
   creditOrange: '#EA580C',
+
+  // Dark Deep Grey & Inactive / Unusable States
+  inactiveGrey: '#334155',        // Dark deep slate grey
+  inactiveText: '#475569',        // Deep grey text for inactive rows/items
+  inactiveMuted: '#64748B',       // Muted deep grey
+  inactiveBg: '#F1F5F9',          // Deep grey tinted background
+  inactiveBorder: '#94A3B8',      // Deep grey border
+  inactiveDarkBg: '#1E293B',      // Deep dark slate background
 };
 
 export const typography = {

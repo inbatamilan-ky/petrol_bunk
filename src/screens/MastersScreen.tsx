@@ -17,33 +17,78 @@ import {
   X,
   Gauge,
   Truck,
+  Power,
+  PowerOff,
+  RefreshCw,
+  Sliders,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency } from '../utils/formatters';
-import { ExpenseType } from '../types';
+import { ExpenseType, Product, Pump, Operator, CreditCustomer } from '../types';
+import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 
 type TabId = 'products' | 'pumps' | 'staff' | 'expenses' | 'customers';
 
 export const MastersScreen: React.FC = () => {
   const {
     products, pumps, operators, expenseTypes, customers,
-    addOperator, addPump, addProduct, addExpenseType, addCustomer, role,
+    addOperator, updateOperator,
+    addPump, updatePump,
+    addProduct, updateProduct,
+    addExpenseType, updateExpenseType,
+    addCustomer, updateCustomer,
+    role,
   } = useBunk();
 
   const [activeTab, setActiveTab] = useState<TabId>('products');
+
+  // ─── Status Toggle Helpers ────────────────────────────────────────────────
+  const toggleProductActive = (prod: Product) => {
+    updateProduct({ ...prod, active: prod.active === false ? true : false });
+  };
+
+  const cyclePumpStatus = (pump: Pump) => {
+    const sequence: Pump['status'][] = ['ACTIVE', 'IDLE', 'MAINTENANCE', 'INACTIVE'];
+    const currIdx = sequence.indexOf(pump.status);
+    const nextStatus = sequence[(currIdx + 1) % sequence.length];
+    updatePump({ ...pump, status: nextStatus });
+  };
+
+  const toggleOperatorActive = (op: Operator) => {
+    updateOperator({ ...op, active: !op.active });
+  };
+
+  const toggleExpenseTypeActive = (et: ExpenseType) => {
+    updateExpenseType({ ...et, active: et.active === false ? true : false });
+  };
+
+  const cycleCustomerStatus = (c: CreditCustomer) => {
+    const sequence: CreditCustomer['status'][] = ['ACTIVE', 'HOLD', 'BLOCKED', 'INACTIVE'];
+    const currIdx = sequence.indexOf(c.status);
+    const nextStatus = sequence[(currIdx + 1) % sequence.length];
+    updateCustomer({ ...c, status: nextStatus });
+  };
 
   // ─── New Operator Modal ────────────────────────────────────────────────────
   const [showOpModal, setShowOpModal] = useState(false);
   const [opName, setOpName] = useState('');
   const [opPhone, setOpPhone] = useState('');
   const [opBata, setOpBata] = useState('350');
+  const [opRole, setOpRole] = useState('Pump Operator');
+  const [opShiftPref, setOpShiftPref] = useState('Any');
+  const [opJoinDate, setOpJoinDate] = useState('');
+  const [opIdRef, setOpIdRef] = useState('');
+  const [opActive, setOpActive] = useState(true);
 
   // ─── New Pump Modal ────────────────────────────────────────────────────────
   const [showPumpModal, setShowPumpModal] = useState(false);
   const [pumpNoInput, setPumpNoInput] = useState(String(pumps.length + 1));
   const [pumpNameInput, setPumpNameInput] = useState(`Pump ${pumps.length + 1} (Island)`);
-  const [pumpStatus, setPumpStatus] = useState<'ACTIVE' | 'IDLE' | 'MAINTENANCE'>('ACTIVE');
+  const [pumpStatus, setPumpStatus] = useState<'ACTIVE' | 'IDLE' | 'MAINTENANCE' | 'INACTIVE'>('ACTIVE');
+  const [pumpMake, setPumpMake] = useState('');
+  const [pumpInstallDate, setPumpInstallDate] = useState('');
+  const [pumpMeterMake, setPumpMeterMake] = useState('');
   // Nozzles for new pump
   const [pumpNozzles, setPumpNozzles] = useState([
     { productId: products[0]?.id || '', nozzleNo: 1, opening: '0' },
@@ -64,11 +109,20 @@ export const MastersScreen: React.FC = () => {
   const [prodColor, setProdColor] = useState('#F59E0B');
   const [prodDensityMin, setProdDensityMin] = useState('820');
   const [prodDensityMax, setProdDensityMax] = useState('845');
+  const [prodActive, setProdActive] = useState(true);
+  const [prodHsn, setProdHsn] = useState('');
+  const [prodGst, setProdGst] = useState('0%');
+  const [prodSupplier, setProdSupplier] = useState('');
+  const [prodMinStock, setProdMinStock] = useState('');
 
   // ─── New Expense Type Modal ────────────────────────────────────────────────
   const [showEtModal, setShowEtModal] = useState(false);
   const [etName, setEtName] = useState('');
   const [etCategory, setEtCategory] = useState<ExpenseType['category']>('OPERATIONAL');
+  const [etGlCode, setEtGlCode] = useState('');
+  const [etDefaultAmount, setEtDefaultAmount] = useState('');
+  const [etRequiresReceipt, setEtRequiresReceipt] = useState(false);
+  const [etActive, setEtActive] = useState(true);
 
   // ─── New Customer Modal ────────────────────────────────────────────────────
   const [showCustModal, setShowCustModal] = useState(false);
@@ -80,12 +134,18 @@ export const MastersScreen: React.FC = () => {
   const [custOpening, setCustOpening] = useState('0');
   const [custVehicles, setCustVehicles] = useState('');
   const [custAddress, setCustAddress] = useState('');
+  const [custStatus, setCustStatus] = useState<CreditCustomer['status']>('ACTIVE');
+  const [custType, setCustType] = useState('Company');
+  const [custGst, setCustGst] = useState('');
+  const [custEmail, setCustEmail] = useState('');
+  const [custState, setCustState] = useState('Tamil Nadu');
+  const [custPayTerms, setCustPayTerms] = useState('30 Days');
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleSaveOperator = () => {
     if (!opName) return;
-    addOperator({ name: opName, phone: opPhone || '+91 98421 00000', dailyBata: parseFloat(opBata) || 350, active: true });
-    setShowOpModal(false); setOpName(''); setOpPhone(''); setOpBata('350');
+    addOperator({ name: opName, phone: opPhone || '+91 98421 00000', dailyBata: parseFloat(opBata) || 350, active: opActive });
+    setShowOpModal(false); setOpName(''); setOpPhone(''); setOpBata('350'); setOpActive(true);
   };
 
   const handleSavePump = () => {
@@ -123,15 +183,16 @@ export const MastersScreen: React.FC = () => {
       color: prodColor,
       currentRate: parseFloat(prodRate) || 0,
       standardDensityRange: { min: parseInt(prodDensityMin) || 820, max: parseInt(prodDensityMax) || 845 },
+      active: prodActive,
     });
     setShowProdModal(false);
-    setProdName(''); setProdCode(''); setProdRate('');
+    setProdName(''); setProdCode(''); setProdRate(''); setProdActive(true);
   };
 
   const handleSaveExpenseType = () => {
     if (!etName) return;
-    addExpenseType({ name: etName, category: etCategory });
-    setShowEtModal(false); setEtName('');
+    addExpenseType({ name: etName, category: etCategory, active: etActive });
+    setShowEtModal(false); setEtName(''); setEtActive(true);
   };
 
   const handleSaveCustomer = () => {
@@ -144,12 +205,12 @@ export const MastersScreen: React.FC = () => {
       vehicleNumbers: custVehicles.split(',').map((v) => v.trim()).filter(Boolean),
       creditLimit: parseFloat(custLimit) || 500000,
       openingBalance: parseFloat(custOpening) || 0,
-      status: 'ACTIVE',
+      status: custStatus,
       address: custAddress,
     });
     setShowCustModal(false);
     setCustCode(''); setCustName(''); setCustPerson(''); setCustPhone('');
-    setCustLimit('500000'); setCustOpening('0'); setCustVehicles(''); setCustAddress('');
+    setCustLimit('500000'); setCustOpening('0'); setCustVehicles(''); setCustAddress(''); setCustStatus('ACTIVE');
   };
 
   const tabs: { id: TabId; label: string; icon: any; count: number }[] = [
@@ -202,9 +263,9 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Fuel & Lubricant Products</Text>
-              <Text style={styles.sectionSub}>Manage daily selling rates and density bands</Text>
+              <Text style={styles.sectionSub}>Manage daily selling rates, density bands and active status</Text>
             </View>
-            {role === 'Owner' || role === 'Admin' ? (
+            {role === 'Owner' ? (
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowProdModal(true)}>
                 <PlusCircle size={14} color="#FFFFFF" />
                 <Text style={styles.addBtnText}>Add Product</Text>
@@ -212,28 +273,51 @@ export const MastersScreen: React.FC = () => {
             ) : null}
           </View>
 
-          {products.map((prod) => (
-            <View key={prod.id} style={[styles.itemCard, { borderLeftColor: prod.color, borderLeftWidth: 4 }]}>
-              <View style={styles.itemTop}>
-                <View style={styles.itemLeft}>
-                  <View style={[styles.colorDot, { backgroundColor: prod.color }]} />
-                  <View>
-                    <Text style={styles.itemTitle}>{prod.name}</Text>
-                    <Text style={styles.itemSub}>{prod.code} • {prod.category} • per {prod.unit}</Text>
+          {products.map((prod) => {
+            const isActive = prod.active !== false;
+            return (
+              <View key={prod.id} style={[styles.itemCard, { borderLeftColor: prod.color, borderLeftWidth: 4 }]}>
+                <View style={styles.itemTop}>
+                  <View style={styles.itemLeft}>
+                    <View>
+                      <Text style={styles.itemTitle}>{prod.name}</Text>
+                      <Text style={styles.itemSub}>{prod.code} • {prod.category} • per {prod.unit}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <View style={[styles.statusPill, { backgroundColor: isActive ? colors.success + '20' : colors.inactiveBg, borderWidth: 1, borderColor: isActive ? colors.success + '40' : colors.inactiveBorder }]}>
+                        <Text style={[styles.statusPillText, { color: isActive ? colors.success : colors.inactiveText }]}>
+                          {isActive ? 'Active' : 'Inactive'}
+                        </Text>
+                      </View>
+                      {(role === 'Owner' || role === 'Manager') && (
+                        <TouchableOpacity
+                          style={[styles.statusToggleBtn, { backgroundColor: isActive ? '#EF444415' : '#10B98115' }]}
+                          onPress={() => toggleProductActive(prod)}
+                          activeOpacity={0.7}
+                        >
+                          <Power size={11} color={isActive ? colors.danger : colors.success} />
+                          <Text style={[styles.statusToggleText, { color: isActive ? colors.danger : colors.success }]}>
+                            {isActive ? 'Deactivate' : 'Activate'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
+                      <Text style={styles.bigRate}>{formatCurrency(prod.currentRate)}</Text>
+                      <Text style={styles.perUnit}>/ {prod.unit}</Text>
+                    </View>
                   </View>
                 </View>
-                <View style={styles.itemRight}>
-                  <Text style={styles.bigRate}>{formatCurrency(prod.currentRate)}</Text>
-                  <Text style={styles.perUnit}>/ {prod.unit}</Text>
+                <View style={styles.itemFooter}>
+                  <Text style={styles.densityText}>
+                    Density: {prod.standardDensityRange?.min}–{prod.standardDensityRange?.max} kg/m³
+                  </Text>
                 </View>
               </View>
-              <View style={styles.itemFooter}>
-                <Text style={styles.densityText}>
-                  Density: {prod.standardDensityRange?.min}–{prod.standardDensityRange?.max} kg/m³
-                </Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -243,9 +327,9 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Pump Dispensers & Nozzle Config</Text>
-              <Text style={styles.sectionSub}>Each pump has one or more product nozzles</Text>
+              <Text style={styles.sectionSub}>Each pump has one or more product nozzles with live operational status</Text>
             </View>
-            {(role === 'Owner' || role === 'Admin') && (
+            {role === 'Owner' && (
               <TouchableOpacity style={styles.addBtn} onPress={() => {
                 setPumpNoInput(String(pumps.length + 1));
                 setPumpNameInput(`Pump ${pumps.length + 1} (Island)`);
@@ -257,37 +341,68 @@ export const MastersScreen: React.FC = () => {
             )}
           </View>
 
-          {pumps.map((pump) => (
-            <View key={pump.id} style={styles.itemCard}>
-              <View style={styles.itemTop}>
-                <View style={styles.itemLeft}>
-                  <Gauge size={18} color={colors.primary} />
-                  <View>
-                    <Text style={styles.itemTitle}>{pump.name}</Text>
-                    <Text style={styles.itemSub}>Pump #{pump.pumpNo} • {pump.nozzles.length} nozzle(s)</Text>
+          {pumps.map((pump) => {
+            const isPumpActive = pump.status === 'ACTIVE';
+            const statusBg =
+              pump.status === 'ACTIVE'
+                ? colors.success + '20'
+                : pump.status === 'IDLE'
+                ? colors.warning + '20'
+                : pump.status === 'MAINTENANCE'
+                ? colors.upiPurple + '20'
+                : colors.inactiveBg;
+            const statusColor =
+              pump.status === 'ACTIVE'
+                ? colors.success
+                : pump.status === 'IDLE'
+                ? colors.warning
+                : pump.status === 'MAINTENANCE'
+                ? colors.upiPurple
+                : colors.inactiveText;
+
+            return (
+              <View key={pump.id} style={styles.itemCard}>
+                <View style={styles.itemTop}>
+                  <View style={styles.itemLeft}>
+                    <Gauge size={18} color={colors.primary} />
+                    <View>
+                      <Text style={styles.itemTitle}>{pump.name}</Text>
+                      <Text style={styles.itemSub}>Pump #{pump.pumpNo} • {pump.nozzles.length} nozzle(s)</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[styles.statusPill, { backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '40' }]}>
+                      <Text style={[styles.statusPillText, { color: statusColor }]}>
+                        {pump.status}
+                      </Text>
+                    </View>
+                    {(role === 'Owner' || role === 'Manager') && (
+                      <TouchableOpacity
+                        style={styles.statusToggleBtn}
+                        onPress={() => cyclePumpStatus(pump)}
+                        activeOpacity={0.7}
+                      >
+                        <RefreshCw size={11} color={colors.accent} />
+                        <Text style={[styles.statusToggleText, { color: colors.accent }]}>Change</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
-                <View style={[styles.statusPill, { backgroundColor: pump.status === 'ACTIVE' ? colors.success + '20' : colors.warning + '20' }]}>
-                  <Text style={[styles.statusPillText, { color: pump.status === 'ACTIVE' ? colors.success : colors.warning }]}>
-                    {pump.status}
-                  </Text>
+                <View style={styles.nozzleList}>
+                  {pump.nozzles.map((noz) => (
+                    <View key={noz.id} style={styles.nozzleRow}>
+                      <Text style={styles.nozzleText}>
+                        Nozzle #{noz.nozzleNo} — {noz.productName}
+                      </Text>
+                      <Text style={styles.nozzleMeter}>
+                        {noz.currentMeterReading.toLocaleString('en-IN')} L
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               </View>
-              <View style={styles.nozzleList}>
-                {pump.nozzles.map((noz) => (
-                  <View key={noz.id} style={styles.nozzleRow}>
-                    <View style={[styles.nozzleDot, { backgroundColor: noz.color }]} />
-                    <Text style={styles.nozzleText}>
-                      Nozzle #{noz.nozzleNo} — {noz.productName}
-                    </Text>
-                    <Text style={styles.nozzleMeter}>
-                      {noz.currentMeterReading.toLocaleString('en-IN')} L
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -297,9 +412,9 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Operators & Staff Register</Text>
-              <Text style={styles.sectionSub}>Pump operators with daily bata allocation</Text>
+              <Text style={styles.sectionSub}>Pump operators with daily bata allocation and active status</Text>
             </View>
-            {(role === 'Owner' || role === 'Admin' || role === 'Manager') && (
+            {(role === 'Owner' || role === 'Manager') && (
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowOpModal(true)}>
                 <PlusCircle size={14} color="#FFFFFF" />
                 <Text style={styles.addBtnText}>Add Operator</Text>
@@ -307,31 +422,54 @@ export const MastersScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Table Header */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.colHead, { flex: 1.5 }]}>NAME</Text>
-            <Text style={[styles.colHead, { flex: 1.5 }]}>PHONE</Text>
-            <Text style={[styles.colHead, { width: 100, textAlign: 'right' }]}>DAILY BATA</Text>
-            <Text style={[styles.colHead, { width: 80, textAlign: 'center' }]}>STATUS</Text>
-          </View>
+          {/* Table */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            contentContainerStyle={{ minWidth: '100%' }}
+          >
+            <View style={{ width: '100%', minWidth: 600 }}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.colHead, { flex: 1.5, minWidth: 140 }]}>NAME</Text>
+                <Text style={[styles.colHead, { flex: 1.5, minWidth: 140 }]}>PHONE</Text>
+                <Text style={[styles.colHead, { width: 100, textAlign: 'right' }]}>DAILY BATA</Text>
+                <Text style={[styles.colHead, { width: 90, textAlign: 'center' }]}>STATUS</Text>
+                <Text style={[styles.colHead, { width: 90, textAlign: 'center' }]}>ACTION</Text>
+              </View>
 
-          {operators.map((op) => (
-            <View key={op.id} style={styles.tableRow}>
-              <View style={[styles.avatarCircle, { marginRight: 8 }]}>
-                <Text style={styles.avatarText}>{op.name.charAt(0)}</Text>
-              </View>
-              <Text style={[styles.cellPrimary, { flex: 1.5 }]}>{op.name}</Text>
-              <Text style={[styles.cellSecondary, { flex: 1.5 }]}>{op.phone}</Text>
-              <Text style={[styles.cellMono, { width: 100, textAlign: 'right', color: colors.cashGreen }]}>
-                {formatCurrency(op.dailyBata)}
-              </Text>
-              <View style={[styles.statusPill, { width: 80, alignItems: 'center', backgroundColor: op.active ? colors.success + '20' : colors.danger + '20' }]}>
-                <Text style={[styles.statusPillText, { color: op.active ? colors.success : colors.danger }]}>
-                  {op.active ? 'Active' : 'Inactive'}
-                </Text>
-              </View>
+              {operators.map((op) => (
+                <View key={op.id} style={styles.tableRow}>
+                  <View style={[styles.avatarCircle, { marginRight: 8, backgroundColor: op.active ? colors.primary + '30' : colors.inactiveBg }]}>
+                    <Text style={[styles.avatarText, { color: op.active ? colors.primary : colors.inactiveText }]}>{op.name.charAt(0)}</Text>
+                  </View>
+                  <Text style={[styles.cellPrimary, { flex: 1.5, minWidth: 140 }]}>{op.name}</Text>
+                  <Text style={[styles.cellSecondary, { flex: 1.5, minWidth: 140 }]}>{op.phone}</Text>
+                  <Text style={[styles.cellMono, { width: 100, textAlign: 'right', color: colors.cashGreen }]}>
+                    {formatCurrency(op.dailyBata)}
+                  </Text>
+                  <View style={{ width: 90, alignItems: 'center' }}>
+                    <View style={[styles.statusPill, { width: 76, alignItems: 'center', backgroundColor: op.active ? colors.success + '20' : colors.inactiveBg, borderWidth: 1, borderColor: op.active ? colors.success + '40' : colors.inactiveBorder }]}>
+                      <Text style={[styles.statusPillText, { color: op.active ? colors.success : colors.inactiveText }]}>
+                        {op.active ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ width: 90, alignItems: 'center' }}>
+                    <TouchableOpacity
+                      style={[styles.statusToggleBtn, { backgroundColor: op.active ? '#EF444415' : '#10B98115' }]}
+                      onPress={() => toggleOperatorActive(op)}
+                      activeOpacity={0.7}
+                    >
+                      <Power size={11} color={op.active ? colors.danger : colors.success} />
+                      <Text style={[styles.statusToggleText, { color: op.active ? colors.danger : colors.success }]}>
+                        {op.active ? 'Disable' : 'Enable'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
             </View>
-          ))}
+          </ScrollView>
         </View>
       )}
 
@@ -341,7 +479,7 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Expense Heads & Categories</Text>
-              <Text style={styles.sectionSub}>Add custom expense types for daily petty cash vouchers</Text>
+              <Text style={styles.sectionSub}>Add custom expense types and manage active status for petty cash vouchers</Text>
             </View>
             <TouchableOpacity style={styles.addBtn} onPress={() => setShowEtModal(true)}>
               <PlusCircle size={14} color="#FFFFFF" />
@@ -351,6 +489,7 @@ export const MastersScreen: React.FC = () => {
 
           <View style={styles.chipGrid}>
             {expenseTypes.map((et) => {
+              const isActive = et.active !== false;
               const catColors: Record<string, string> = {
                 STAFF: colors.primary,
                 OPERATIONAL: colors.accent,
@@ -359,11 +498,23 @@ export const MastersScreen: React.FC = () => {
               };
               const col = catColors[et.category] || colors.textMuted;
               return (
-                <View key={et.id} style={[styles.etChip, { borderColor: col + '60' }]}>
-                  <View style={[styles.etChipDot, { backgroundColor: col }]} />
-                  <View>
-                    <Text style={styles.etChipName}>{et.name}</Text>
-                    <Text style={[styles.etChipCat, { color: col }]}>{et.category}</Text>
+                <View key={et.id} style={[styles.etChip, { borderColor: isActive ? col + '60' : colors.inactiveBorder, backgroundColor: isActive ? colors.surfaceCard : colors.inactiveBg }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.etChipName, !isActive && { color: colors.inactiveText }]}>{et.name}</Text>
+                    <Text style={[styles.etChipCat, { color: isActive ? col : colors.inactiveMuted }]}>{et.category}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <View style={[styles.statusPill, { paddingHorizontal: 6, paddingVertical: 1, backgroundColor: isActive ? colors.success + '20' : colors.inactiveBg, borderWidth: 1, borderColor: isActive ? colors.success + '40' : colors.inactiveBorder }]}>
+                      <Text style={[styles.statusPillText, { fontSize: 8, color: isActive ? colors.success : colors.inactiveText }]}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => toggleExpenseTypeActive(et)}
+                      style={{ padding: 2 }}
+                    >
+                      <Power size={11} color={isActive ? colors.danger : colors.success} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               );
@@ -378,7 +529,7 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Credit Customer Register</Text>
-              <Text style={styles.sectionSub}>{customers.length} customers loaded from ledger data</Text>
+              <Text style={styles.sectionSub}>{customers.length} customers registered with active/hold/blocked status</Text>
             </View>
             <TouchableOpacity style={styles.addBtn} onPress={() => setShowCustModal(true)}>
               <PlusCircle size={14} color="#FFFFFF" />
@@ -387,20 +538,43 @@ export const MastersScreen: React.FC = () => {
           </View>
 
           {/* Table */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-            <View style={{ minWidth: 620 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            contentContainerStyle={{ minWidth: '100%' }}
+          >
+            <View style={{ width: '100%', minWidth: 680 }}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.colHead, { width: 65 }]}>CODE</Text>
                 <Text style={[styles.colHead, { width: 160 }]}>NAME</Text>
-                <Text style={[styles.colHead, { width: 130 }]}>CONTACT</Text>
+                <Text style={[styles.colHead, { width: 120 }]}>CONTACT</Text>
                 <Text style={[styles.colHead, { width: 100, textAlign: 'right' }]}>LIMIT (₹)</Text>
                 <Text style={[styles.colHead, { width: 120, textAlign: 'right' }]}>OUTSTANDING (₹)</Text>
-                <Text style={[styles.colHead, { width: 70, textAlign: 'center' }]}>STATUS</Text>
+                <Text style={[styles.colHead, { width: 85, textAlign: 'center' }]}>STATUS</Text>
+                <Text style={[styles.colHead, { width: 80, textAlign: 'center' }]}>ACTION</Text>
               </View>
 
               {customers.map((c) => {
                 const usedPct = c.creditLimit > 0 ? Math.round((c.outstandingBalance / c.creditLimit) * 100) : 0;
                 const isWarning = usedPct >= 80;
+                const isCustActive = c.status === 'ACTIVE';
+                const statusBg =
+                  c.status === 'ACTIVE'
+                    ? colors.success + '20'
+                    : c.status === 'HOLD'
+                    ? colors.warning + '20'
+                    : c.status === 'BLOCKED'
+                    ? colors.danger + '20'
+                    : colors.inactiveBg;
+                const statusColor =
+                  c.status === 'ACTIVE'
+                    ? colors.success
+                    : c.status === 'HOLD'
+                    ? colors.warning
+                    : c.status === 'BLOCKED'
+                    ? colors.danger
+                    : colors.inactiveText;
+
                 return (
                   <View key={c.id} style={styles.tableRow}>
                     <Text style={[styles.cellMono, { width: 65, color: colors.accent }]}>{c.code}</Text>
@@ -410,7 +584,7 @@ export const MastersScreen: React.FC = () => {
                         <Text style={styles.cellSecondarySmall}>{c.contactPerson}</Text>
                       )}
                     </View>
-                    <Text style={[styles.cellSecondary, { width: 130 }]}>{c.phone}</Text>
+                    <Text style={[styles.cellSecondary, { width: 120 }]}>{c.phone}</Text>
                     <Text style={[styles.cellMono, { width: 100, textAlign: 'right' }]}>
                       {formatCurrency(c.creditLimit)}
                     </Text>
@@ -422,10 +596,22 @@ export const MastersScreen: React.FC = () => {
                         {usedPct}% used
                       </Text>
                     </View>
-                    <View style={[styles.statusPill, { width: 70, alignItems: 'center', backgroundColor: c.status === 'ACTIVE' ? colors.success + '20' : colors.danger + '20' }]}>
-                      <Text style={[styles.statusPillText, { color: c.status === 'ACTIVE' ? colors.success : colors.danger, fontSize: 9 }]}>
-                        {c.status}
-                      </Text>
+                    <View style={{ width: 85, alignItems: 'center' }}>
+                      <View style={[styles.statusPill, { width: 74, alignItems: 'center', backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '40' }]}>
+                        <Text style={[styles.statusPillText, { color: statusColor, fontSize: 9 }]}>
+                          {c.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ width: 80, alignItems: 'center' }}>
+                      <TouchableOpacity
+                        style={styles.statusToggleBtn}
+                        onPress={() => cycleCustomerStatus(c)}
+                        activeOpacity={0.7}
+                      >
+                        <RefreshCw size={11} color={colors.primary} />
+                        <Text style={[styles.statusToggleText, { color: colors.primary }]}>Cycle</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 );
@@ -538,7 +724,7 @@ export const MastersScreen: React.FC = () => {
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Status</Text>
                   <View style={styles.segmentRow}>
-                    {(['ACTIVE', 'IDLE', 'MAINTENANCE'] as const).map((s) => (
+                    {(['ACTIVE', 'IDLE', 'MAINTENANCE', 'INACTIVE'] as const).map((s) => (
                       <TouchableOpacity key={s} style={[styles.segBtn, pumpStatus === s && styles.segBtnActive]} onPress={() => setPumpStatus(s)}>
                         <Text style={[styles.segBtnText, pumpStatus === s && styles.segBtnTextActive]}>{s}</Text>
                       </TouchableOpacity>
@@ -604,22 +790,60 @@ export const MastersScreen: React.FC = () => {
               <Text style={styles.modalTitle}>Add Staff / Operator</Text>
               <TouchableOpacity onPress={() => setShowOpModal(false)}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Full Name</Text>
-                <TextInput style={styles.textInput} value={opName} onChangeText={setOpName} placeholder="Operator Name" placeholderTextColor={colors.textMuted} />
-              </View>
-              <View style={styles.dualRow}>
-                <View style={[styles.formGroup, { flex: 1.5 }]}>
-                  <Text style={styles.formLabel}>Phone Number</Text>
-                  <TextInput style={styles.textInput} value={opPhone} onChangeText={setOpPhone} placeholder="+91 98421 00000" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Full Name *</Text>
+                  <TextInput style={styles.textInput} value={opName} onChangeText={setOpName} placeholder="Operator Name" placeholderTextColor={colors.textMuted} />
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Daily Bata (₹)</Text>
-                  <TextInput style={styles.textInput} value={opBata} onChangeText={setOpBata} keyboardType="numeric" placeholder="350" placeholderTextColor={colors.textMuted} />
+                <View style={styles.dualRow}>
+                  <View style={[styles.formGroup, { flex: 1.5 }]}>
+                    <Text style={styles.formLabel}>Phone Number</Text>
+                    <TextInput style={styles.textInput} value={opPhone} onChangeText={setOpPhone} placeholder="+91 98421 00000" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Daily Bata (₹)</Text>
+                    <TextInput style={styles.textInput} value={opBata} onChangeText={setOpBata} keyboardType="numeric" placeholder="350" placeholderTextColor={colors.textMuted} />
+                  </View>
+                </View>
+                <DropdownPicker
+                  label="Role / Designation"
+                  value={opRole}
+                  options={[
+                    { label: 'Pump Operator', value: 'Pump Operator' },
+                    { label: 'Cashier', value: 'Cashier' },
+                    { label: 'Manager', value: 'Manager' },
+                    { label: 'Security Guard', value: 'Security Guard' },
+                    { label: 'Supervisor', value: 'Supervisor' },
+                  ]}
+                  onChange={(v, l) => setOpRole(l)}
+                  allowOther
+                  onSaveNew={(txt) => setOpRole(txt)}
+                />
+                <DropdownPicker
+                  label="Shift Preference"
+                  value={opShiftPref}
+                  options={[
+                    { label: 'Any Shift', value: 'Any' },
+                    { label: 'Morning Shift', value: 'Morning' },
+                    { label: 'Evening Shift', value: 'Evening' },
+                    { label: 'Night Shift', value: 'Night' },
+                  ]}
+                  onChange={(v, l) => setOpShiftPref(v)}
+                  searchable={false}
+                />
+                <View style={styles.dualRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Join Date</Text>
+                    <TextInput style={styles.textInput} value={opJoinDate} onChangeText={setOpJoinDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textMuted} />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Aadhaar / ID Ref</Text>
+                    <TextInput style={styles.textInput} value={opIdRef} onChangeText={setOpIdRef} placeholder="XXXX XXXX XXXX" placeholderTextColor={colors.textMuted} />
+                  </View>
                 </View>
               </View>
-            </View>
+            </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.submitBtn} onPress={handleSaveOperator}>
                 <CheckCircle2 size={16} color="#FFFFFF" />
@@ -638,26 +862,53 @@ export const MastersScreen: React.FC = () => {
               <Text style={styles.modalTitle}>Add Expense Head</Text>
               <TouchableOpacity onPress={() => setShowEtModal(false)}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Expense Head Name</Text>
-                <TextInput style={styles.textInput} value={etName} onChangeText={setEtName} placeholder="e.g. Generator Diesel, Water Bill" placeholderTextColor={colors.textMuted} />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Category</Text>
-                <View style={styles.chipPickerRow}>
-                  {(['OPERATIONAL', 'STAFF', 'FINANCIAL', 'MAINTENANCE'] as const).map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.categoryChip, etCategory === cat && styles.categoryChipActive]}
-                      onPress={() => setEtCategory(cat)}
-                    >
-                      <Text style={[styles.categoryChipText, etCategory === cat && styles.categoryChipTextActive]}>{cat}</Text>
-                    </TouchableOpacity>
-                  ))}
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Expense Head Name *</Text>
+                  <TextInput style={styles.textInput} value={etName} onChangeText={setEtName} placeholder="e.g. Generator Diesel, Water Bill" placeholderTextColor={colors.textMuted} />
+                </View>
+                <DropdownPicker
+                  label="Category *"
+                  placeholder="Select Category..."
+                  options={[
+                    { label: 'OPERATIONAL', value: 'OPERATIONAL', subtitle: 'Station running costs, supplies & utilities' },
+                    { label: 'STAFF', value: 'STAFF', subtitle: 'Bata, wages, tea & staff welfare' },
+                    { label: 'FINANCIAL', value: 'FINANCIAL', subtitle: 'Bank charges, chits, loan EMIs' },
+                    { label: 'MAINTENANCE', value: 'MAINTENANCE', subtitle: 'Repairs, servicing, nozzle parts' },
+                    { label: 'ADMINISTRATIVE', value: 'ADMINISTRATIVE', subtitle: 'License, inspection, auditing' },
+                  ]}
+                  value={etCategory}
+                  onChange={(v) => setEtCategory(v as any)}
+                  allowOther
+                  onSaveNew={(v) => setEtCategory(v as any)}
+                />
+                <View style={styles.dualRow}>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>GL Account Code</Text>
+                    <TextInput style={styles.textInput} value={etGlCode} onChangeText={setEtGlCode} placeholder="e.g. EXP-5001" placeholderTextColor={colors.textMuted} />
+                  </View>
+                  <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Default Amount (₹)</Text>
+                    <TextInput style={styles.textInput} value={etDefaultAmount} onChangeText={setEtDefaultAmount} keyboardType="numeric" placeholder="0.00" placeholderTextColor={colors.textMuted} />
+                  </View>
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Requires Receipt / Bill?</Text>
+                  <View style={styles.segmentRow}>
+                    {[['Yes', true], ['No', false]].map(([lbl, val]) => (
+                      <TouchableOpacity
+                        key={String(lbl)}
+                        style={[styles.segBtn, etRequiresReceipt === val && styles.segBtnActive]}
+                        onPress={() => setEtRequiresReceipt(val as boolean)}
+                      >
+                        <Text style={[styles.segBtnText, etRequiresReceipt === val && styles.segBtnTextActive]}>{lbl as string}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
+            </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.submitBtn} onPress={handleSaveExpenseType}>
                 <CheckCircle2 size={16} color="#FFFFFF" />
@@ -676,7 +927,7 @@ export const MastersScreen: React.FC = () => {
               <Text style={styles.modalTitle}>Add Credit Customer</Text>
               <TouchableOpacity onPress={() => setShowCustModal(false)}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false}>
               <View style={styles.modalBody}>
                 <View style={styles.dualRow}>
                   <View style={[styles.formGroup, { width: 90 }]}>
@@ -800,6 +1051,12 @@ const styles = StyleSheet.create({
   // Status pills
   statusPill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   statusPillText: { fontSize: 10, fontWeight: '700' },
+  statusToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border,
+  },
+  statusToggleText: { fontSize: 10, fontWeight: '700' },
 
   // Table
   tableHeader: {

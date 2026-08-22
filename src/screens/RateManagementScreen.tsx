@@ -43,9 +43,7 @@ export const RateManagementScreen: React.FC = () => {
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.screenTitle}>Daily Fuel Rates & Pricing Broadcast</Text>
-          <Text style={styles.screenSubtitle}>
-            Update daily retail selling prices (RSP) across all pumps and shifts
-          </Text>
+           
         </View>
       </View>
 
@@ -67,7 +65,7 @@ export const RateManagementScreen: React.FC = () => {
             <View key={prod.id} style={[styles.rateCard, { borderTopColor: prod.color }]}>
               <View style={styles.cardTop}>
                 <View style={styles.prodInfo}>
-                  <View style={[styles.colorDot, { backgroundColor: prod.color }]} />
+                   
                   <View>
                     <Text style={styles.prodName}>{prod.name}</Text>
                     <Text style={styles.prodCode}>
@@ -75,11 +73,7 @@ export const RateManagementScreen: React.FC = () => {
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.densityTag, { backgroundColor: prod.color + '20' }]}>
-                  <Text style={[styles.densityTagText, { color: prod.color }]}>
-                    {prod.standardDensityRange.min}-{prod.standardDensityRange.max} kg/m³
-                  </Text>
-                </View>
+                 
               </View>
 
               {/* Price Display / Edit Form */}
@@ -133,17 +127,7 @@ export const RateManagementScreen: React.FC = () => {
       </View>
 
       {/* Statutory Guidelines Card */}
-      <View style={styles.guidelineCard}>
-        <View style={styles.guidelineHeader}>
-          <AlertCircle size={18} color={colors.accent} />
-          <Text style={styles.guidelineTitle}>Daily Dynamic Fuel Pricing Rules</Text>
-        </View>
-        <Text style={styles.guidelineBody}>
-          • Rates updated here take effect immediately for new shift openings and meter calculations.{'\n'}
-          • Statutory Density testing must be performed whenever a new tanker delivery decantation is completed.{'\n'}
-          • Past historical shifts retain the specific rate active at the time the shift was opened.
-        </Text>
-      </View>
+       
     </ScrollView>
   );
 };
@@ -278,7 +262,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rateInput: {
-    backgroundColor: '#070A12',
+    backgroundColor: '#e3e6ef',
     color: '#000',
     fontSize: 18,
     fontWeight: '800',
