@@ -160,14 +160,15 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   logoCircle: {
-    width: 52,
-    height: 52,
+    width: 54,
+    height: 54,
     borderRadius: 14,
-    backgroundColor: '#0284C7',
+    backgroundColor: '#007DC6', // Bharat Petroleum Blue
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: '#0284C7',
+    position: 'relative',
+    shadowColor: '#007DC6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -185,15 +186,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   proTag: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FFFDEB',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#FFDE00',
   },
   proTagText: {
-    color: '#1D4ED8',
+    color: '#B45309',
     fontSize: 10,
     fontWeight: '800',
   },
@@ -245,12 +246,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loginBtn: {
-    backgroundColor: '#0284C7',
+    backgroundColor: '#007DC6', // BP Blue
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 18,
-    shadowColor: '#0284C7',
+    shadowColor: '#007DC6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -285,3 +286,4 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
 });
+
