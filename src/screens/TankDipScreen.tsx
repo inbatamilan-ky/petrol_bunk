@@ -419,7 +419,8 @@ export const TankDipScreen: React.FC = () => {
         {/* Product Filter Pills */}
         <View style={styles.filterPillsGroup}>
           <Text style={styles.filterLabel}>FUEL:</Text>
-          {['ALL', 'MS', 'HSD'].map((f) => (
+          {/* {['ALL', 'MS', 'HSD'].map((f) => ( */}
+          {['ALL'].map((f) => (
             <TouchableOpacity
               key={f}
               style={[styles.filterPill, selectedProductFilter === f && styles.filterPillActive]}

@@ -64,9 +64,9 @@ export const CashBankScreen: React.FC = () => {
   // Denomination State
   const [denoms, setDenoms] = useState<CashDenomination>({
     note2000: 0,
-    note500: 300,
-    note200: 100,
-    note100: 100,
+    note500: 0,
+    note200: 0,
+    note100: 0,
     note50: 0,
     note20: 0,
     note10: 0,
@@ -74,13 +74,13 @@ export const CashBankScreen: React.FC = () => {
   });
 
   const totalDenominationAmount =
-    (denoms.note2000 || 0) * 2000 +
-    (denoms.note500 || 0) * 500 +
-    (denoms.note200 || 0) * 200 +
-    (denoms.note100 || 0) * 100 +
-    (denoms.note50 || 0) * 50 +
-    (denoms.note20 || 0) * 20 +
-    (denoms.note10 || 0) * 10 +
+    (denoms.note2000 || 0) * 0 +
+    (denoms.note500 || 0) * 0 +
+    (denoms.note200 || 0) * 0 +
+    (denoms.note100 || 0) * 0 +
+    (denoms.note50 || 0) * 0 +
+    (denoms.note20 || 0) * 0 +
+    (denoms.note10 || 0) * 0 +
     (denoms.coins || 0);
 
   // Filter shifts, credit payments, expenses, deposits based on date filter
@@ -257,10 +257,6 @@ export const CashBankScreen: React.FC = () => {
         <View style={{ flex: 1, minWidth: 260 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.screenTitle}>Cash & Digital Settlements</Text>
-            <View style={styles.vaultPill}>
-              <ShieldCheck size={13} color={colors.success} />
-              <Text style={styles.vaultPillText}>Safe Vault Active</Text>
-            </View>
           </View>
            
         </View>

@@ -67,6 +67,9 @@ export const DropdownPicker: React.FC<DropdownPickerProps> = ({
   // Filter options based on what is typed, or show all if match or empty
   const filteredOptions = options.filter((o) => {
     if (!inputText.trim()) return true;
+    // If the input text is exactly the currently selected option, show all options
+    if (selectedOption && inputText.trim().toLowerCase() === selectedOption.label.toLowerCase()) return true;
+    
     return (
       o.label.toLowerCase().includes(inputText.trim().toLowerCase()) ||
       (o.subtitle ?? '').toLowerCase().includes(inputText.trim().toLowerCase())
