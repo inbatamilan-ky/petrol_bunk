@@ -139,26 +139,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={styles.header}>
             <View style={styles.logoCircle}>
               <Fuel size={28} color="#FFFFFF" />
+              <View style={styles.logoDot} />
             </View>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>FuelPulse</Text>
-              <View style={styles.proTag}>
-                <Text style={styles.proTagText}>PRO</Text>
-              </View>
+              <Text style={styles.title}>PETROL BUNK</Text>
             </View>
             <Text style={styles.subtitle}>Petrol Bunk Management System</Text>
           </View>
 
           {/* Form Fields */}
           <View style={styles.form}>
-            <Text style={styles.label}>Username / Login ID</Text>
+            <Text style={styles.label}>Mobile Number</Text>
             <View style={styles.inputWrapper}>
               <User size={16} color="#64748B" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={username}
                 onChangeText={setUsername}
-                placeholder="e.g. admin or manager"
+                placeholder="Enter your mobile number"
                 placeholderTextColor="#94A3B8"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -220,15 +218,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.loginBtnText}>Sign In to Dashboard</Text>
+                <Text style={styles.loginBtnText}>Sign In</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <View style={styles.roleHintBox}>
+          {/* <View style={styles.roleHintBox}>
             <ShieldCheck size={13} color="#64748B" />
             <Text style={styles.roleHintText}>Supported Roles: 1 = Owner • 2 = Manager</Text>
-          </View>
+          </View> */}
 
           <Text style={styles.footer}>KY Technologies © {new Date().getFullYear()}</Text>
         </View>
@@ -434,6 +432,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  logoDot: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#FFDE00', // Bharat Petroleum Yellow
   },
   titleRow: {
     flexDirection: 'row',

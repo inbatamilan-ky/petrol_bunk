@@ -802,7 +802,7 @@ export const MastersScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>Expense Heads & Categories ({filteredExpenseTypes.length})</Text>
-              <Text style={styles.sectionSub}>Custom petty cash voucher heads and active billing accounts</Text>
+              <Text style={styles.sectionSub}>Custom  cash voucher heads and active billing accounts</Text>
             </View>
             <TouchableOpacity style={styles.addBtn} onPress={openAddExpenseType}>
               <PlusCircle size={14} color="#FFFFFF" />

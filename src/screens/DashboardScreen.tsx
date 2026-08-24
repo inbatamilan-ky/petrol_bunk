@@ -109,7 +109,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Today's Fuel Sales"
           value={formatCurrency(totalSalesToday)}
-          subtitle={`${formatLitres(totalLitresToday)} dispensed`}
           icon={Fuel}
           accentColor={colors.petrol}
            
@@ -120,7 +119,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Cash on Hand"
           value={formatCurrency(netCashOnHand)}
-          subtitle={`After ₹${totalExpenses.toFixed(0)} expenses`}
           icon={Banknote}
           accentColor={colors.cashGreen}
           onPress={() => onNavigate('cashbank')}
@@ -129,10 +127,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Credit Outstanding"
           value={formatCurrency(totalCreditOutstanding)}
-          subtitle={`${customers.length} active customer accounts`}
           icon={CreditCard}
           accentColor={colors.creditOrange}
-          trend={`${customers.filter(c => c.outstandingBalance > c.creditLimit * 0.8).length} near limit`}
           trendPositive={false}
           onPress={() => onNavigate('credit')}
         />
