@@ -28,6 +28,9 @@ import {
 import { useBunk } from '../context/BunkContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
 import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
+import { DatePickerInput } from '../components/DatePickerInput';
+import { NoDataView } from '../components/NoDataView';
+import { usePaymentModes } from '../hooks/useMasters';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
@@ -45,8 +48,11 @@ export const CreditLedgerScreen: React.FC = () => {
     addCustomer,
   } = useBunk();
 
+  const { options: paymentModeOptions } = usePaymentModes();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
+  const [selectedDateFilter, setSelectedDateFilter] = useState<string>('');
 
   // Modals
   const [showAddSaleModal, setShowAddSaleModal] = useState(false);
@@ -61,6 +67,18 @@ export const CreditLedgerScreen: React.FC = () => {
   const [saleLitres, setSaleLitres] = useState('100.00');
   const [saleDriverName, setSaleDriverName] = useState('');
   const [saleRemarks, setSaleRemarks] = useState('');
+
+  const [saleAmount, setSaleAmount] = useState('');
+const [amountManuallyEdited, setAmountManuallyEdited] = useState(false);
+
+React.useEffect(() => {
+  if (!amountManuallyEdited) {
+    const rate = products.find((p) => p.id === saleProductId)?.currentRate || 92.71;
+    const litresNum = parseFloat(saleLitres) || 0;
+    const computed = Math.round(litresNum * rate * 100) / 100;
+    setSaleAmount(computed ? computed.toFixed(2) : '');
+  }
+}, [saleLitres, saleProductId, amountManuallyEdited, products]);
 
   // Repayment Form
   const [payCustId, setPayCustId] = useState(customers[0]?.id || '');
@@ -107,7 +125,7 @@ export const CreditLedgerScreen: React.FC = () => {
     creditAmount: number;
   }
 
-  const ledgerEntries: LedgerEntry[] = [
+  const allEntries: LedgerEntry[] = [
     ...customerSales.map((s) => ({
       id: s.id,
       date: s.date,
@@ -128,6 +146,10 @@ export const CreditLedgerScreen: React.FC = () => {
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
+  const ledgerEntries = selectedDateFilter
+    ? allEntries.filter((e) => e.date === selectedDateFilter)
+    : allEntries;
+
   // Handle Add Credit Sale Submit
   const handleAddSaleSubmit = async () => {
     const cust = customers.find((c) => c.id === saleCustId);
@@ -135,9 +157,9 @@ export const CreditLedgerScreen: React.FC = () => {
     const pump = pumps.find((p) => p.id === salePumpId);
     const litresNum = parseFloat(saleLitres) || 0;
     const rate = prod?.currentRate || 95.0;
-    const totalAmount = Math.round(litresNum * rate * 100) / 100;
+    const totalAmount = parseFloat(saleAmount) || Math.round(litresNum * rate * 100) / 100;
 
-    if (!cust || litresNum <= 0) return;
+    if (!cust || litresNum <= 0 || totalAmount <= 0) return;
 
     const newSale = await addCreditSale({
       customerId: cust.id,
@@ -262,15 +284,16 @@ export const CreditLedgerScreen: React.FC = () => {
       <View style={styles.topBar}>
         <View>
           <Text style={styles.screenTitle}>Digital Credit Customer Ledger</Text>
-          <Text style={styles.screenSubtitle}>
-            Credit bills, vehicle authorizations, running balances & repayments
-          </Text>
+           
         </View>
 
         <View style={styles.topBtnGroup}>
           <TouchableOpacity
             style={[styles.primaryActionBtn, { backgroundColor: colors.creditOrange }]}
-            onPress={() => setShowAddSaleModal(true)}
+            onPress={() => {
+  setAmountManuallyEdited(false);
+  setShowAddSaleModal(true);
+}}
             activeOpacity={0.8}
           >
             <PlusCircle size={15} color="#000" />
@@ -402,7 +425,17 @@ export const CreditLedgerScreen: React.FC = () => {
                   </Text>
                 </View>
 
-                <View style={styles.statementActions}>
+                <View style={[styles.statementActions, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                  <View style={{ minWidth: 160 }}>
+                    <DatePickerInput
+                      value={selectedDateFilter}
+                      onChange={(d) => setSelectedDateFilter(d)}
+                      placeholder="Filter by date..."
+                      maxDate={getTodayDateString()}
+                      allowClear
+                      onClear={() => setSelectedDateFilter('')}
+                    />
+                  </View>
                   <TouchableOpacity
                     style={styles.statementBtn}
                     onPress={handleExportStatement}
@@ -433,9 +466,18 @@ export const CreditLedgerScreen: React.FC = () => {
                   </View>
 
                   {ledgerEntries.length === 0 ? (
-                    <View style={styles.emptyTable}>
-                      <Text style={styles.emptyTableText}>No transactions recorded for this customer yet.</Text>
-                    </View>
+                    <NoDataView
+                      title="No Transactions Found"
+                      selectedDate={selectedDateFilter || undefined}
+                      message={
+                        selectedDateFilter
+                          ? `No ledger transactions recorded on ${formatDate(selectedDateFilter)} for ${selectedCustomer.name}.`
+                          : 'No transactions recorded for this customer yet.'
+                      }
+                      onResetDate={selectedDateFilter ? () => setSelectedDateFilter('') : undefined}
+                      actionLabel="Issue Credit Chit"
+                      onAction={() => setShowAddSaleModal(true)}
+                    />
                   ) : (
                     ledgerEntries.map((entry) => (
                       <View key={entry.id} style={styles.tableDataRow}>
@@ -556,15 +598,24 @@ export const CreditLedgerScreen: React.FC = () => {
               </View>
 
               {/* Amount Preview */}
-              <View style={styles.totalPreviewBox}>
-                <Text style={styles.previewLabel}>TOTAL CREDIT BILL AMOUNT:</Text>
-                <Text style={styles.previewAmount}>
-                  {formatCurrency(
-                    (parseFloat(saleLitres) || 0) *
-                      (products.find((p) => p.id === saleProductId)?.currentRate || 92.71)
-                  )}
-                </Text>
-              </View>
+               {/* Amount Preview / Manual Override */}
+<View style={styles.formGroup}>
+  <Text style={styles.formLabel}>Total Credit Bill Amount (₹) — editable</Text>
+  <View style={styles.totalPreviewBox}>
+    <Text style={styles.previewLabel}>TOTAL CREDIT BILL AMOUNT</Text>
+    <TextInput
+      style={styles.previewAmount}
+      value={saleAmount}
+      onChangeText={(v) => {
+        setSaleAmount(v);
+        setAmountManuallyEdited(true);
+      }}
+      keyboardType="numeric"
+      placeholder="0.00"
+      placeholderTextColor={colors.textMuted}
+    />
+  </View>
+</View>
             </View>
           </ScrollView>
 
@@ -624,7 +675,7 @@ export const CreditLedgerScreen: React.FC = () => {
                     <DropdownPicker
                       label="Payment Mode *"
                       placeholder="Select Payment Mode..."
-                      options={[
+                      options={paymentModeOptions.length > 0 ? paymentModeOptions : [
                         { label: 'Cash', value: 'Cash' },
                         { label: 'UPI / GPay / PhonePe', value: 'UPI' },
                         { label: 'Cheque', value: 'Cheque' },
@@ -1223,4 +1274,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+   
+// ADD THIS NEW STYLE:
+previewAmountInput: {
+  color: colors.creditOrange,
+  fontSize: 18,
+  fontWeight: '900',
+  fontFamily: typography.monoFont,
+  marginTop: 2,
+  textAlign: 'center',
+  minWidth: 140,
+  paddingVertical: 2,
+},
 });

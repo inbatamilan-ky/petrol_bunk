@@ -1,11 +1,28 @@
 -- =====================================================================
 -- Petrol Bunk Management System — PostgreSQL Schema (API version)
--- This is the schema you supplied, plus a `users` table for JWT auth.
+-- This is the schema you supplied, plus a `users` table for JWT auth,
+-- plus 10 master/lookup tables for all enum-style dropdowns.
 -- NOTE: You do not need to run this by hand — `python init_db.py`
 -- creates the exact same tables from the SQLAlchemy models. This file
 -- is kept for reference / manual psql use if you prefer.
+--
+-- To apply only the master tables to an EXISTING database without
+-- dropping transactional data, run:
+--   psql -d <dbname> -f petrolbunk-api/sql/master_seed.sql
 -- =====================================================================
 
+-- ----- Master / Lookup tables -----------------------------------------
+DROP TABLE IF EXISTS master_dip_types CASCADE;
+DROP TABLE IF EXISTS master_bank_account_types CASCADE;
+DROP TABLE IF EXISTS master_omc_brands CASCADE;
+DROP TABLE IF EXISTS master_customer_statuses CASCADE;
+DROP TABLE IF EXISTS master_pump_statuses CASCADE;
+DROP TABLE IF EXISTS master_expense_categories CASCADE;
+DROP TABLE IF EXISTS master_product_categories CASCADE;
+DROP TABLE IF EXISTS master_payment_modes CASCADE;
+DROP TABLE IF EXISTS master_shift_types CASCADE;
+
+-- ----- Transactional tables -------------------------------------------
 DROP TABLE IF EXISTS credit_payments CASCADE;
 DROP TABLE IF EXISTS credit_transactions CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
@@ -241,7 +258,7 @@ CREATE TABLE bank_deposits (
 );
 
 -- ---------------------------------------------------------------------
--- Helpful indexes
+-- Helpful indexes (transactional tables)
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_shifts_date ON shifts(shift_date);
 CREATE INDEX idx_shifts_pump ON shifts(pump_id);
@@ -251,3 +268,199 @@ CREATE INDEX idx_credit_pay_customer ON credit_payments(customer_id);
 CREATE INDEX idx_expenses_date ON expenses(date);
 CREATE INDEX idx_expenses_type ON expenses(expense_type_id);
 CREATE INDEX idx_bank_deposits_date ON bank_deposits(deposit_date);
+
+-- =====================================================================
+-- MASTER / LOOKUP TABLES  (10 tables)
+-- All use:  id SERIAL PK  |  code VARCHAR UNIQUE  |  sort_order INT
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. MASTER_SHIFT_TYPES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_shift_types (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    subtitle    VARCHAR(150),
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_shift_types (code, label, subtitle, sort_order) VALUES
+    ('Morning',  'Morning Shift',  '06:00 AM – 02:00 PM',      1),
+    ('Evening',  'Evening Shift',  '02:00 PM – 10:00 PM',      2),
+    ('Night',    'Night Shift',    '10:00 PM – 06:00 AM',      3),
+    ('Full Day', 'Full Day Shift', '24 Hours / Extended Hours', 4);
+
+-- ---------------------------------------------------------------------
+-- 2. MASTER_PAYMENT_MODES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_payment_modes (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    icon        VARCHAR(50),
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_payment_modes (code, label, icon, sort_order) VALUES
+    ('Cash',          'Cash',                      'banknote',         1),
+    ('Cheque',        'Cheque',                    'file-text',        2),
+    ('UPI',           'UPI / GPay / PhonePe',      'smartphone',       3),
+    ('NEFT',          'NEFT / Bank Transfer',      'arrow-right-left', 4),
+    ('Bank Transfer', 'RTGS / Bank Transfer',      'building-2',       5),
+    ('Fleet Card',    'Fleet Card / IOCL HP Card', 'credit-card',      6),
+    ('POS Card',      'POS / Debit Card',          'credit-card',      7);
+
+-- ---------------------------------------------------------------------
+-- 3. MASTER_PRODUCT_CATEGORIES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_product_categories (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    color       VARCHAR(10)  DEFAULT '#6366F1',
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_product_categories (code, label, description, color, sort_order) VALUES
+    ('FUEL',      'Fuel',      'Petrol, Diesel, CNG, Premium fuels sold at the nozzle',  '#F59E0B', 1),
+    ('LUBRICANT', 'Lubricant', 'Engine oils, gear oils, greases sold across the counter', '#6366F1', 2);
+
+-- ---------------------------------------------------------------------
+-- 4. MASTER_EXPENSE_CATEGORIES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_expense_categories (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    color       VARCHAR(10)  DEFAULT '#6366F1',
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_expense_categories (code, label, description, color, sort_order) VALUES
+    ('OPERATIONAL',   'Operational',   'Day-to-day running expenses — power, fuel, consumables',  '#3B82F6', 1),
+    ('STAFF',         'Staff',         'Salaries, bata, ESI, PF, bonus and staff welfare',         '#8B5CF6', 2),
+    ('FINANCIAL',     'Financial',     'Bank charges, interest, taxes, audit & legal fees',        '#10B981', 3),
+    ('MAINTENANCE',   'Maintenance',   'Pump, nozzle, canopy, vehicle & equipment repairs',        '#F59E0B', 4),
+    ('MISCELLANEOUS', 'Miscellaneous', 'One-off or uncategorised expenses',                         '#6B7280', 5);
+
+-- ---------------------------------------------------------------------
+-- 5. MASTER_PUMP_STATUSES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_pump_statuses (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    color       VARCHAR(10)  DEFAULT '#6366F1',
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_pump_statuses (code, label, color, sort_order) VALUES
+    ('ACTIVE',      'Active',      '#22C55E', 1),
+    ('IDLE',        'Idle',        '#F59E0B', 2),
+    ('MAINTENANCE', 'Maintenance', '#EF4444', 3),
+    ('INACTIVE',    'Inactive',    '#6B7280', 4);
+
+-- ---------------------------------------------------------------------
+-- 6. MASTER_CUSTOMER_STATUSES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_customer_statuses (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    color       VARCHAR(10)  DEFAULT '#6366F1',
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_customer_statuses (code, label, description, color, sort_order) VALUES
+    ('ACTIVE',   'Active',   'Account active — credit sales allowed',                   '#22C55E', 1),
+    ('HOLD',     'On Hold',  'Paused — no new credit, collections in progress',          '#F59E0B', 2),
+    ('BLOCKED',  'Blocked',  'Blocked — credit refused, dues overdue',                  '#EF4444', 3),
+    ('INACTIVE', 'Inactive', 'Account closed or deactivated',                           '#6B7280', 4);
+
+-- ---------------------------------------------------------------------
+-- 7. MASTER_OMC_BRANDS
+-- ---------------------------------------------------------------------
+CREATE TABLE master_omc_brands (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(30)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    sms_number  VARCHAR(20),
+    color       VARCHAR(10)  DEFAULT '#6366F1',
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Only BPCL is supported — system is locked to Bharat Petroleum
+INSERT INTO master_omc_brands (code, label, sms_number, color, sort_order) VALUES
+    ('BPCL', 'Bharat Petroleum (BPCL)', '9223112222', '#FFD700', 1);
+
+-- NOTE: master_states removed — state is fixed to Tamil Nadu (BPCL Chennai).
+
+-- ---------------------------------------------------------------------
+-- 9. MASTER_BANK_ACCOUNT_TYPES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_bank_account_types (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(40)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_bank_account_types (code, label, description, sort_order) VALUES
+    ('Current', 'Current Account',    'Primary operating account for day-to-day transactions',           1),
+    ('Savings', 'Savings Account',    'Interest-bearing savings account',                                 2),
+    ('CC/OD',   'CC / OD Account',    'Cash Credit or Overdraft limit account (OMC decantation credit)', 3),
+    ('FCNR',    'FCNR / NRE Account', 'Foreign currency or NRE account',                                 4);
+
+-- ---------------------------------------------------------------------
+-- 10. MASTER_DIP_TYPES
+-- ---------------------------------------------------------------------
+CREATE TABLE master_dip_types (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(60)  NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    sort_order  INT          NOT NULL DEFAULT 0,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+INSERT INTO master_dip_types (code, label, description, sort_order) VALUES
+    ('Morning',           'Morning Dip',         'Opening dip at start of day before any sales',        1),
+    ('Evening',           'Evening Dip',          'Closing dip at end of day after all sales',           2),
+    ('After Decantation', 'After Decantation',    'Dip taken immediately after tanker delivery',         3),
+    ('Mid-Day',           'Mid-Day / Spot Check', 'Surprise or regulatory spot-check dip',               4),
+    ('Pre-Decantation',   'Before Decantation',   'Dip taken before tanker offloading begins',           5);
+
+-- ---------------------------------------------------------------------
+-- Indexes on master tables
+-- ---------------------------------------------------------------------
+CREATE INDEX idx_mst_shift_types_active  ON master_shift_types       (is_active);
+CREATE INDEX idx_mst_pay_modes_active    ON master_payment_modes      (is_active);
+CREATE INDEX idx_mst_prod_cat_active     ON master_product_categories (is_active);
+CREATE INDEX idx_mst_exp_cat_active      ON master_expense_categories (is_active);
+CREATE INDEX idx_mst_pump_stat_active    ON master_pump_statuses      (is_active);
+CREATE INDEX idx_mst_cust_stat_active    ON master_customer_statuses  (is_active);
+CREATE INDEX idx_mst_omc_brands_active   ON master_omc_brands         (is_active);
+CREATE INDEX idx_mst_bank_acc_t_active   ON master_bank_account_types (is_active);
+CREATE INDEX idx_mst_dip_types_active    ON master_dip_types          (is_active);

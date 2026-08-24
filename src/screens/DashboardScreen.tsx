@@ -79,7 +79,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <View style={styles.topSection}>
         <View>
           <Text style={styles.greetingTitle}>Bunk Operations Overview</Text>
-          <Text style={styles.greetingSub}>Live shift, finance & inventory summary</Text>
+           
         </View>
 
         <View style={styles.actionPills}>
@@ -112,7 +112,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           subtitle={`${formatLitres(totalLitresToday)} dispensed`}
           icon={Fuel}
           accentColor={colors.petrol}
-          trend="+12.4% vs y'day"
+           
           trendPositive={true}
           onPress={() => onNavigate('reports')}
         />
@@ -140,7 +140,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Daily Expenses"
           value={formatCurrency(totalExpenses)}
-          subtitle="Bata, tea, testing & operations"
+           
           icon={IndianRupee}
           accentColor={colors.speed}
           onPress={() => onNavigate('expenses')}
@@ -239,26 +239,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </View>
         </View>
       {/* High-Risk Credit Customers Warning Bar */}
-      <View style={styles.creditWarningCard}>
-        <View style={styles.creditWarningLeft}>
-          <AlertTriangle size={20} color={colors.creditOrange} />
-          <View>
-            <Text style={styles.creditWarningTitle}>Credit Ledger Status</Text>
-            <Text style={styles.creditWarningSub}>
-              Top accounts: KPJ ({formatCurrency(customers[0]?.outstandingBalance)}), GKS (
-              {formatCurrency(customers[4]?.outstandingBalance)})
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.creditViewBtn}
-          onPress={() => onNavigate('credit')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.creditViewBtnText}>Open Ledger</Text>
-          <ArrowUpRight size={14} color="#000" />
-        </TouchableOpacity>
-      </View>
+       
 
       {/* Thermal Receipt Modal */}
       <ThermalReceiptModal

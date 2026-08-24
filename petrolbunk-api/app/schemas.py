@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,7 +11,10 @@ class UserCreate(BaseModel):
     username: str
     password: str
     email: Optional[str] = None
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    dob: Optional[date] = None
+    employment_status: int = Field(default=1, ge=0, le=1)  # 0 = Unemployed, 1 = Employed
     role: int = Field(default=2, ge=1, le=2)  # 1 = Owner, 2 = Manager
 
 
@@ -20,16 +23,36 @@ class PasswordChange(BaseModel):
     new_password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    username: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ShiftUpdate(BaseModel):
+    operator_id: Optional[str] = None
+    shift_type: Optional[str] = None
+    shift_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     username: str
     email: Optional[str] = None
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    dob: Optional[date] = None
+    employment_status: int = 1  # 0 = Unemployed, 1 = Employed
     role: int
     is_active: bool
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class Token(BaseModel):
@@ -70,6 +93,48 @@ class ProductUpdate(BaseModel):
 class ProductOut(ProductBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    created_at: Optional[datetime] = None
+
+
+class BatchRateItem(BaseModel):
+    product_id: str
+    current_rate: float
+
+
+class BatchRateUpdate(BaseModel):
+    rates: List[BatchRateItem]
+    changed_by: Optional[str] = "Manager"
+    remarks: Optional[str] = None
+    change_source: Optional[str] = "MANUAL_ENTRY"
+
+
+class SmsParseRequest(BaseModel):
+    sms_text: str
+
+
+class SmsWebhookPayload(BaseModel):
+    sender: str
+    sms_text: str
+    timestamp: Optional[str] = None
+    auto_apply: bool = False
+
+
+# ---------------------------------------------------------------------
+# FUEL RATE HISTORY
+# ---------------------------------------------------------------------
+class FuelRateHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    product_id: str
+    product_code: str
+    product_name: str
+    effective_date: date
+    old_rate: float
+    new_rate: float
+    change_source: str
+    changed_by: str
+    remarks: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
@@ -514,4 +579,212 @@ class ShiftDraft(BaseModel):
     cheque_collected: Optional[float] = None
     expenses_deducted: Optional[float] = None
     notes: Optional[str] = None
+
+
+# ---------------------------------------------------------------------
+# BUNK OMC PROFILE
+# ---------------------------------------------------------------------
+class BunkProfileBase(BaseModel):
+    bunk_name: str = "KY Petrol Bunk"
+    omc_brand: str = "IOCL"
+    dealer_code: str = "184920"
+    state: str = "Karnataka"
+    city: str = "Bengaluru (Karnataka)"
+    registered_phone: Optional[str] = None
+    auto_fetch_enabled: bool = True
+    auto_apply_enabled: bool = True
+
+
+class BunkProfileUpdate(BaseModel):
+    bunk_name: Optional[str] = None
+    omc_brand: Optional[str] = None
+    dealer_code: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
+    registered_phone: Optional[str] = None
+    auto_fetch_enabled: Optional[bool] = None
+    auto_apply_enabled: Optional[bool] = None
+
+
+class BunkProfileOut(BunkProfileBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    last_sync_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------
+# DAILY NOZZLE METERS
+# ---------------------------------------------------------------------
+class DailyNozzleMeterIn(BaseModel):
+    nozzle_id: str
+    pump_id: str
+    product_id: str
+    opening_meter: float
+    closing_meter: float
+    testing_litres: float = 0.0
+    selling_rate: float
+    recorded_by: Optional[str] = "Manager"
+
+
+class BatchDailyNozzleMeterCreate(BaseModel):
+    reading_date: date
+    readings: List[DailyNozzleMeterIn]
+    recorded_by: Optional[str] = "Manager"
+
+
+class DailyNozzleMeterOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    reading_date: date
+    pump_id: str
+    nozzle_id: str
+    product_id: str
+    opening_meter: float
+    closing_meter: float
+    testing_litres: float
+    litres_sold: float
+    selling_rate: float
+    gross_amount: float
+    recorded_by: Optional[str] = "Manager"
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------
+# SMS RATE LOGS
+# ---------------------------------------------------------------------
+class SmsRateLogCreate(BaseModel):
+    sender: str
+    raw_text: str
+    omc: str
+    effective_datetime: Optional[str] = None
+    parsed_rates: List[Dict[str, Any]]
+    status: Optional[str] = "PENDING_REVIEW"
+    applied_by: Optional[str] = None
+
+
+class SmsRateLogStatusUpdate(BaseModel):
+    status: str
+    applied_by: Optional[str] = None
+
+
+class SmsRateLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    sender: str
+    received_at: datetime
+    raw_text: str
+    omc: str
+    effective_datetime: Optional[str] = None
+    parsed_rates: Any
+    status: str
+    applied_at: Optional[datetime] = None
+    applied_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------
+# BANK ACCOUNTS
+# ---------------------------------------------------------------------
+class BankAccountBase(BaseModel):
+    bank_name: str
+    account_number: str
+    account_type: str = "Current"
+    branch_name: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    opening_balance: float = 0.0
+    current_balance: float = 0.0
+    is_primary: bool = False
+    is_active: bool = True
+
+
+class BankAccountCreate(BankAccountBase):
+    pass
+
+
+class BankAccountUpdate(BaseModel):
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_type: Optional[str] = None
+    branch_name: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    opening_balance: Optional[float] = None
+    current_balance: Optional[float] = None
+    is_primary: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class BankAccountOut(BankAccountBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------
+# POS / DIGITAL SETTLEMENTS
+# ---------------------------------------------------------------------
+class PosSettlementCreate(BaseModel):
+    settlement_date: date
+    channel_type: str
+    terminal_id: Optional[str] = None
+    batch_no: Optional[str] = None
+    gross_amount: float
+    mdr_fee: float = 0.0
+    net_settled_amount: float
+    bank_account_id: Optional[str] = None
+    status: Optional[str] = "SETTLED"
+
+
+class PosSettlementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    settlement_date: date
+    channel_type: str
+    terminal_id: Optional[str] = None
+    batch_no: Optional[str] = None
+    gross_amount: float
+    mdr_fee: float
+    net_settled_amount: float
+    bank_account_id: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------
+# CASH SAFE DAY BOOK / LEDGER
+# ---------------------------------------------------------------------
+class CashSafeLedgerCreate(BaseModel):
+    ledger_date: date
+    opening_safe_cash: float = 0.0
+    shift_cash_inflow: float = 0.0
+    credit_cash_recovered: float = 0.0
+    petty_cash_expenses: float = 0.0
+    bank_deposits_dropped: float = 0.0
+    expected_safe_cash: float
+    physical_counted_cash: float
+    cash_variance: float = 0.0
+    denominations: Dict[str, Any]
+    audited_by: str = "Manager"
+    notes: Optional[str] = None
+
+
+class CashSafeLedgerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    ledger_date: date
+    opening_safe_cash: float
+    shift_cash_inflow: float
+    credit_cash_recovered: float
+    petty_cash_expenses: float
+    bank_deposits_dropped: float
+    expected_safe_cash: float
+    physical_counted_cash: float
+    cash_variance: float
+    denominations: Any
+    audited_by: str
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
 
