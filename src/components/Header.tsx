@@ -123,7 +123,7 @@ export const Header: React.FC = () => {
   };
 
   const usernameDisplay = currentUser?.username || (role === 'Owner' ? 'Admin' : 'Operator');
-  const roleLabel = role === 'Owner' ? 'Owner / Admin' : 'Manager / Operator';
+  const roleLabel = role === 'Owner' ? 'Owner/ Admin' : 'Manager';
   const initial = (usernameDisplay.charAt(0) || 'U').toUpperCase();
 
   return (
@@ -145,7 +145,7 @@ export const Header: React.FC = () => {
                 <Text style={styles.versionText}>BP PRO</Text>
               </View>
             </View>
-            <Text style={styles.stationSub}>KY Petrol Bunk • IOC/BP-49821</Text>
+            <Text style={styles.stationSub}>IOC/BP-49821</Text>
           </View>
         </View>
 
@@ -186,7 +186,7 @@ export const Header: React.FC = () => {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.popoverName}>{usernameDisplay}</Text>
                     <Text style={styles.popoverRole}>{roleLabel}</Text>
-                    <Text style={styles.popoverEmail}>Station: KY Petrol Bunk</Text>
+                     
                   </View>
                 </View>
 
@@ -213,7 +213,7 @@ export const Header: React.FC = () => {
           <UserCheck size={13} color={isActive ? '#FFFFFF' : '#64748B'} />
         )}
         <Text style={[styles.popoverRoleTabText, isActive && styles.popoverRoleTabTextActive]}>
-          {r === 'Owner' ? 'Owner' : 'Manager / Operator'}
+          {r === 'Owner' ? 'Owner' : 'Manager'}
         </Text>
       </TouchableOpacity>
     );
@@ -235,7 +235,7 @@ export const Header: React.FC = () => {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.popoverItemTitle}>Change Password</Text>
-                    <Text style={styles.popoverItemSub}>Update your login credentials</Text>
+                     
                   </View>
                 </TouchableOpacity>
 
@@ -249,7 +249,7 @@ export const Header: React.FC = () => {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.popoverItemTitle, { color: '#DC2626' }]}>Log Out</Text>
-                    <Text style={styles.popoverItemSub}>Sign out of this workstation</Text>
+                     
                   </View>
                 </TouchableOpacity>
               </View>

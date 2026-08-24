@@ -29,11 +29,11 @@
     {
       "id": "prod-003",
       "code": "MS2",
-      "name": "MS Power (Petrol II)",
+      "name": "Speed (Petrol Type 2)",
       "category": "FUEL",
       "unit": "Litre",
       "color": "#8B5CF6",
-      "currentRate": 101.08,
+      "currentRate": 104.90,
       "standardDensityRange": {
         "min": 720,
         "max": 775

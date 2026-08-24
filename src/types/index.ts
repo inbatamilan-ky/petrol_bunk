@@ -237,3 +237,107 @@ export interface TankDip {
   testedBy: string;
   remarks?: string;
 }
+
+export interface SmsLogEntry {
+  id: string;
+  sender: string; // e.g. 'VK-BPCLTD', 'AX-IOCLTD', 'VM-HPCLLTD', 'Manual Import'
+  receivedAt: string; // ISO string
+  rawText: string;
+  omc: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE' | 'GENERIC';
+  effectiveDateTime?: string;
+  parsedRates: {
+    fuelKey: string;
+    rate: number;
+    matchedProductName?: string;
+    matchedProductId?: string;
+  }[];
+  status: 'APPLIED' | 'PENDING' | 'DISMISSED';
+  appliedAt?: string;
+  appliedBy?: string;
+}
+
+export interface BunkProfile {
+  id: string;
+  bunkName: string;
+  omcBrand: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE';
+  dealerCode: string;
+  state: string;
+  city: string;
+  registeredPhone?: string;
+  autoFetchEnabled: boolean;
+  autoApplyEnabled: boolean;
+  lastSyncAt?: string;
+}
+
+export interface DailyNozzleMeter {
+  id: string;
+  readingDate: string;
+  pumpId: string;
+  nozzleId: string;
+  productId: string;
+  openingMeter: number;
+  closingMeter: number;
+  testingLitres: number;
+  litresSold: number;
+  sellingRate: number;
+  grossAmount: number;
+  recordedBy?: string;
+}
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountType: 'Current' | 'CC/OD' | 'Savings';
+  branchName?: string;
+  ifscCode?: string;
+  openingBalance: number;
+  currentBalance: number;
+  isPrimary: boolean;
+  isActive: boolean;
+}
+
+export interface PosSettlement {
+  id: string;
+  settlementDate: string;
+  channelType: 'UPI' | 'POS_CARD' | 'FLEET_CARD' | 'NEFT';
+  terminalId?: string;
+  batchNo?: string;
+  grossAmount: number;
+  mdrFee: number;
+  netSettledAmount: number;
+  bankAccountId?: string;
+  status: 'SETTLED' | 'PENDING';
+}
+
+export interface CashSafeLedger {
+  id: string;
+  ledgerDate: string;
+  openingSafeCash: number;
+  shiftCashInflow: number;
+  creditCashRecovered: number;
+  pettyCashExpenses: number;
+  bankDepositsDropped: number;
+  expectedSafeCash: number;
+  physicalCountedCash: number;
+  cashVariance: number;
+  denominations: CashDenomination;
+  auditedBy: string;
+  notes?: string;
+}
+
+export type RateChangeSource = 'MANUAL_ENTRY' | 'SMS_AUTO' | 'SMS_MANUAL_APPLY' | 'BATCH_IMPORT';
+
+export interface FuelRateHistory {
+  id: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  effectiveDate: string;   // ISO date YYYY-MM-DD
+  oldRate: number;
+  newRate: number;
+  changeSource: RateChangeSource;
+  changedBy: string;
+  remarks?: string;
+  createdAt?: string;
+}

@@ -2,10 +2,10 @@
 Creates (or resets the password of) an admin user for logging in.
 
 Usage:
-    python create_admin.py <username> <password> [full_name]
+    python create_admin.py <username> <password> [first_name] [last_name]
 
 Example:
-    python create_admin.py admin admin123 "Bunk Owner"
+    python create_admin.py admin admin123 "Abdul" "Rahman"
 """
 import sys
 
@@ -16,12 +16,13 @@ from app.security import hash_password
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python create_admin.py <username> <password> [full_name]")
+        print("Usage: python create_admin.py <username> <password> [first_name] [last_name]")
         sys.exit(1)
 
     username = sys.argv[1]
     password = sys.argv[2]
-    full_name = sys.argv[3] if len(sys.argv) > 3 else "Administrator"
+    first_name = sys.argv[3] if len(sys.argv) > 3 else None
+    last_name = sys.argv[4] if len(sys.argv) > 4 else None
 
     db = SessionLocal()
     try:
@@ -35,7 +36,8 @@ def main():
             user = models.User(
                 username=username,
                 hashed_password=hash_password(password),
-                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
                 role=1,
                 is_active=True,
             )

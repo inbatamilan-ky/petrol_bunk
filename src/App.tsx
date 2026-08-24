@@ -7,6 +7,7 @@ import { LoginScreen } from './screens/LoginScreen';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { ShiftOperationsScreen } from './screens/ShiftOperationsScreen';
+import { TankDipScreen } from './screens/TankDipScreen';
 import { CreditLedgerScreen } from './screens/CreditLedgerScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { RateManagementScreen } from './screens/RateManagementScreen';
@@ -56,6 +57,7 @@ useEffect(() => {
     switch (currentScreen) {
       case 'dashboard': return <DashboardScreen onNavigate={setCurrentScreen} />;
       case 'shifts':   return <ShiftOperationsScreen />;
+      case 'tanks':    return <TankDipScreen />;
       case 'credit':   return <CreditLedgerScreen />;
       case 'expenses': return <ExpensesScreen />;
       case 'rates':    return <RateManagementScreen />;

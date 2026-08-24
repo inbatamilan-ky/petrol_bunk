@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -24,14 +25,24 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(60), unique=True, nullable=False, index=True)
     email = Column(String(120), unique=True, nullable=True)
-    full_name = Column(String(150), nullable=True)
+    first_name = Column(String(80), nullable=True)
+    last_name = Column(String(80), nullable=True)
+    dob = Column(Date, nullable=True)  # Date of birth
+    employment_status = Column(Integer, nullable=False, default=1)
+    # 0 = Unemployed, 1 = Employed
+
     hashed_password = Column(String(255), nullable=False)
     role = Column(Integer, nullable=False, default=2)  # 1 = Owner, 2 = Manager
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    # ── Forgot-password reset flow ─────────────────────────────────────
+    password_reset_token = Column(String(64), nullable=True, index=True)
+    password_reset_expires = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint("role IN (1, 2)", name="ck_users_role"),
+        CheckConstraint("employment_status IN (0, 1)", name="ck_users_employment_status"),
     )
 
 
@@ -273,7 +284,7 @@ class TankDip(Base):
     tank_name = Column(String(100), nullable=False)
     product_name = Column(String(100), nullable=False)
     dip_date = Column(Date, nullable=False)
-    dip_type = Column(String(30), nullable=False)  # Morning, Evening, After Decantation
+    dip_type = Column(String(60), nullable=False)  # from master_dip_types.code
     fuel_dip_cm = Column(Numeric(8, 2), nullable=False)
     fuel_dip_litres = Column(Numeric(12, 2), nullable=False)
     water_dip_cm = Column(Numeric(8, 2), nullable=False, default=0)
@@ -287,3 +298,270 @@ class TankDip(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tank = relationship("Tank")
+
+
+class BunkProfile(Base):
+    __tablename__ = "bunk_profile"
+
+    id = Column(String(20), primary_key=True, default="default")
+    bunk_name = Column(String(150), nullable=False, default="KY Petrol Bunk")
+    omc_brand = Column(String(30), nullable=False, default="BPCL")  # locked to BPCL
+    dealer_code = Column(String(50), nullable=False, default="184920")
+    state = Column(String(100), nullable=False, default="Karnataka")
+    city = Column(String(100), nullable=False, default="Bengaluru (Karnataka)")
+    registered_phone = Column(String(20), nullable=True)
+    auto_fetch_enabled = Column(Boolean, nullable=False, default=True)
+    auto_apply_enabled = Column(Boolean, nullable=False, default=True)
+    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DailyNozzleMeter(Base):
+    __tablename__ = "daily_nozzle_meters"
+
+    id = Column(String(40), primary_key=True)
+    reading_date = Column(Date, nullable=False)
+    pump_id = Column(String(20), ForeignKey("pumps.id", ondelete="CASCADE"), nullable=False)
+    nozzle_id = Column(String(20), ForeignKey("nozzles.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(String(20), ForeignKey("products.id"), nullable=False)
+    opening_meter = Column(Numeric(14, 2), nullable=False, default=0)
+    closing_meter = Column(Numeric(14, 2), nullable=False, default=0)
+    testing_litres = Column(Numeric(10, 2), nullable=False, default=0)
+    litres_sold = Column(Numeric(14, 2), nullable=False, default=0)
+    selling_rate = Column(Numeric(10, 2), nullable=False, default=0)
+    gross_amount = Column(Numeric(14, 2), nullable=False, default=0)
+    recorded_by = Column(String(100), default="Manager")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    pump = relationship("Pump")
+    nozzle = relationship("Nozzle")
+    product = relationship("Product")
+
+    __table_args__ = (UniqueConstraint("reading_date", "nozzle_id", name="uq_reading_date_nozzle"),)
+
+
+class SmsRateLog(Base):
+    __tablename__ = "sms_rate_logs"
+
+    id = Column(String(40), primary_key=True)
+    sender = Column(String(60), nullable=False)
+    received_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    raw_text = Column(Text, nullable=False)
+    omc = Column(String(30), nullable=False)  # BPCL (locked)
+    effective_datetime = Column(String(60), nullable=True)
+    parsed_rates = Column(JSON, nullable=False)  # list of dicts: [{"fuelKey": "MS", "rate": 102.86}, ...]
+    status = Column(String(20), nullable=False, default="PENDING_REVIEW")  # PENDING_REVIEW, APPLIED, FAILED
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+    applied_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+
+    id = Column(String(30), primary_key=True)
+    bank_name = Column(String(150), nullable=False)
+    account_number = Column(String(60), nullable=False, unique=True)
+    account_type = Column(String(30), nullable=False, default="Current")  # from master_bank_account_types.code
+    branch_name = Column(String(100), nullable=True)
+    ifsc_code = Column(String(30), nullable=True)
+    opening_balance = Column(Numeric(14, 2), nullable=False, default=0)
+    current_balance = Column(Numeric(14, 2), nullable=False, default=0)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PosSettlement(Base):
+    __tablename__ = "pos_settlements"
+
+    id = Column(String(40), primary_key=True)
+    settlement_date = Column(Date, nullable=False)
+    channel_type = Column(String(30), nullable=False)  # UPI, POS_CARD, FLEET_CARD, NEFT
+    terminal_id = Column(String(50), nullable=True)
+    batch_no = Column(String(50), nullable=True)
+    gross_amount = Column(Numeric(14, 2), nullable=False, default=0)
+    mdr_fee = Column(Numeric(10, 2), nullable=False, default=0)
+    net_settled_amount = Column(Numeric(14, 2), nullable=False, default=0)
+    bank_account_id = Column(String(30), ForeignKey("bank_accounts.id"), nullable=True)
+    status = Column(String(20), nullable=False, default="SETTLED")  # SETTLED, PENDING
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    bank_account = relationship("BankAccount")
+
+
+class CashSafeLedger(Base):
+    __tablename__ = "cash_safe_ledger"
+
+    id = Column(String(40), primary_key=True)
+    ledger_date = Column(Date, nullable=False, unique=True)
+    opening_safe_cash = Column(Numeric(14, 2), nullable=False, default=0)
+    shift_cash_inflow = Column(Numeric(14, 2), nullable=False, default=0)
+    credit_cash_recovered = Column(Numeric(14, 2), nullable=False, default=0)
+    petty_cash_expenses = Column(Numeric(14, 2), nullable=False, default=0)
+    bank_deposits_dropped = Column(Numeric(14, 2), nullable=False, default=0)
+    expected_safe_cash = Column(Numeric(14, 2), nullable=False, default=0)
+    physical_counted_cash = Column(Numeric(14, 2), nullable=False, default=0)
+    cash_variance = Column(Numeric(14, 2), nullable=False, default=0)
+    denominations = Column(JSON, nullable=False)  # {"note500": 300, ...}
+    audited_by = Column(String(100), nullable=False, default="Manager")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class FuelRateHistory(Base):
+    """
+    Audit trail for every fuel rate change — manual or SMS-sourced.
+    Written whenever /api/products/batch-rates is called or an SMS rate is applied.
+    """
+    __tablename__ = "fuel_rate_history"
+
+    id = Column(String(40), primary_key=True)
+    product_id = Column(String(20), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    product_code = Column(String(20), nullable=False)          # e.g. MS, HSD, XP95
+    product_name = Column(String(100), nullable=False)
+    effective_date = Column(Date, nullable=False)               # Date the rate is valid from
+    old_rate = Column(Numeric(10, 2), nullable=False, default=0)
+    new_rate = Column(Numeric(10, 2), nullable=False)
+    change_source = Column(String(30), nullable=False, default="MANUAL_ENTRY")
+    # MANUAL_ENTRY | SMS_AUTO | SMS_MANUAL_APPLY | BATCH_IMPORT
+    changed_by = Column(String(100), nullable=False, default="Manager")
+    remarks = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    product = relationship("Product")
+
+    __table_args__ = (
+        CheckConstraint(
+            "change_source IN ('MANUAL_ENTRY','SMS_AUTO','SMS_MANUAL_APPLY','BATCH_IMPORT')",
+            name="ck_fuel_rate_history_source",
+        ),
+    )
+
+
+# ======================================================================
+# MASTER / LOOKUP TABLES  (10 tables)
+# Each stores enum-style reference values that drive every dropdown in
+# the frontend.  Uniform shape: id SERIAL PK | code UNIQUE | label | sort_order | is_active
+# ======================================================================
+
+class MasterShiftType(Base):
+    """Shift types — Morning, Evening, Night, Full Day."""
+    __tablename__ = "master_shift_types"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    code       = Column(String(40),  nullable=False, unique=True)
+    label      = Column(String(100), nullable=False)
+    subtitle   = Column(String(150), nullable=True)   # e.g. "06:00 AM – 02:00 PM"
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active  = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterPaymentMode(Base):
+    """Payment modes — Cash, Cheque, UPI, NEFT, Bank Transfer, Fleet Card, POS Card."""
+    __tablename__ = "master_payment_modes"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    code       = Column(String(40),  nullable=False, unique=True)
+    label      = Column(String(100), nullable=False)
+    icon       = Column(String(50),  nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active  = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterProductCategory(Base):
+    """Product categories — FUEL, LUBRICANT."""
+    __tablename__ = "master_product_categories"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    color       = Column(String(10),  nullable=True, default="#6366F1")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterExpenseCategory(Base):
+    """Expense categories — OPERATIONAL, STAFF, FINANCIAL, MAINTENANCE, MISCELLANEOUS."""
+    __tablename__ = "master_expense_categories"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    color       = Column(String(10),  nullable=True, default="#6366F1")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterPumpStatus(Base):
+    """Pump statuses — ACTIVE, IDLE, MAINTENANCE, INACTIVE."""
+    __tablename__ = "master_pump_statuses"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    code       = Column(String(40),  nullable=False, unique=True)
+    label      = Column(String(100), nullable=False)
+    color      = Column(String(10),  nullable=True, default="#6366F1")
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active  = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterCustomerStatus(Base):
+    """Customer account statuses — ACTIVE, HOLD, BLOCKED, INACTIVE."""
+    __tablename__ = "master_customer_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    color       = Column(String(10),  nullable=True, default="#6366F1")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterOmcBrand(Base):
+    """OMC brands — only BPCL (Bharat Petroleum). System is locked to BPCL."""
+    __tablename__ = "master_omc_brands"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    code       = Column(String(30),  nullable=False, unique=True)
+    label      = Column(String(100), nullable=False)
+    sms_number = Column(String(20),  nullable=True)   # Rate SMS sender number
+    color      = Column(String(10),  nullable=True, default="#FFD700")
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active  = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterBankAccountType(Base):
+    """Bank account types — Current, Savings, CC/OD, FCNR."""
+    __tablename__ = "master_bank_account_types"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterDipType(Base):
+    """Tank dip reading types — Morning, Evening, After Decantation, Mid-Day, Pre-Decantation."""
+    __tablename__ = "master_dip_types"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(60),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())

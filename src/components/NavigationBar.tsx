@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 
 import {
   LayoutDashboard,
   Fuel,
+  Database,
+  Gauge,
   CreditCard,
   Receipt,
   TrendingUp,
@@ -21,6 +23,7 @@ import { UserRole } from '../types';
 export type ScreenId =
   | 'dashboard'
   | 'shifts'
+  | 'tanks'
   | 'credit'
   | 'expenses'
   | 'rates'
@@ -45,6 +48,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard',     icon: LayoutDashboard, roles: ['Owner', 'Manager'] },
   { id: 'shifts',    label: 'Shift Ops',     icon: Fuel,            roles: ['Owner', 'Manager'] },
+  { id: 'tanks',     label: 'Nozzle Meters', icon: Gauge,           roles: ['Owner', 'Manager'] },
   { id: 'credit',    label: 'Credit Ledger', icon: CreditCard,      roles: ['Owner', 'Manager'] },
   { id: 'expenses',  label: 'Expenses',      icon: Receipt,         roles: ['Owner', 'Manager'] },
   { id: 'rates',     label: 'Daily Rates',   icon: TrendingUp,      roles: ['Owner', 'Manager'] },

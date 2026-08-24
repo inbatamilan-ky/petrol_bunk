@@ -1,9 +1,13 @@
 import {
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   FileSpreadsheet,
   PlusCircle,
-  Sparkles,
-  X
+  Search,
+  X,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import {
@@ -16,6 +20,8 @@ import {
   View,
 } from 'react-native';
 import { DropdownPicker } from '../components/DropdownPicker';
+import { DatePickerInput } from '../components/DatePickerInput';
+import { NoDataView } from '../components/NoDataView';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
 import { exportToCSV } from '../utils/exportHelpers';
@@ -33,27 +39,11 @@ export const ExpensesScreen: React.FC = () => {
   const [isCreditNote, setIsCreditNote] = useState(false);
   const [remarks, setRemarks] = useState('');
 
-  // Quick preset bata fill
-  const handleSelectBataPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Bata'))?.id || expenseTypes[0]?.id || '');
-    setAmount('1300.00');
-    setPaidTo('Day Shift Operators (4 staff)');
-    setRemarks('Daily shift operator bata @ ₹325 each');
-  };
-
-  const handleSelectTeaPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Tea'))?.id || expenseTypes[0]?.id || '');
-    setAmount('100.00');
-    setPaidTo('Sri Murugan Tea Stall');
-    setRemarks('Staff tea & snacks');
-  };
-
-  const handleSelectDensityPreset = () => {
-    setSelectedTypeId(expenseTypes.find((t) => t.name.includes('Density'))?.id || expenseTypes[0]?.id || '');
-    setAmount('110.00');
-    setPaidTo('Morning Density Calibration Test');
-    setRemarks('5 Litres test jar sample');
-  };
+  // Search & Pagination & Date Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDateFilter, setSelectedDateFilter] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const handleAddExpenseSubmit = () => {
     const rawTypeId = selectedTypeId.startsWith('__other__:') ? selectedTypeId.replace('__other__:', '') : selectedTypeId;
@@ -104,10 +94,37 @@ export const ExpensesScreen: React.FC = () => {
     categoryTotals[cat] = (categoryTotals[cat] || 0) + signedAmt;
   });
 
+  // Filtered expenses based on search query & date filter
+  const filteredExpenses = expenses.filter((e) => {
+    if (selectedDateFilter && e.date !== selectedDateFilter) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchVoucher = e.voucherNo.toLowerCase().includes(q);
+      const matchHead = e.expenseTypeName.toLowerCase().includes(q);
+      const matchPaidTo = e.paidTo.toLowerCase().includes(q);
+      const matchRemarks = (e.remarks || '').toLowerCase().includes(q);
+      const matchDate = e.date.toLowerCase().includes(q);
+      const matchPaidBy = (e.paidBy || '').toLowerCase().includes(q);
+      if (!matchVoucher && !matchHead && !matchPaidTo && !matchRemarks && !matchDate && !matchPaidBy) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredExpenses.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredExpenses.length);
+  const paginatedExpenses = filteredExpenses.slice(startIndex, endIndex);
+
   // Export CSV
   const handleExportCSV = () => {
     const headers = ['Voucher No', 'Date', 'Expense Head', 'Paid To', 'Paid By', 'Amount (₹)', 'Type', 'Remarks'];
-    const rows = expenses.map((e) => [
+    const rows = filteredExpenses.map((e) => [
       e.voucherNo,
       e.date,
       e.expenseTypeName,
@@ -126,9 +143,6 @@ export const ExpensesScreen: React.FC = () => {
       <View style={styles.topBar}>
         <View>
           <Text style={styles.screenTitle}>Daily Expenses & Petty Cash</Text>
-          <Text style={styles.screenSubtitle}>
-            Staff bata, tea, density test loss, loan chits & credit notes
-          </Text>
         </View>
 
         <View style={styles.btnGroup}>
@@ -153,156 +167,277 @@ export const ExpensesScreen: React.FC = () => {
         <View style={[styles.summaryCard, { borderLeftColor: colors.speed }]}>
           <Text style={styles.summaryLabel}>NET DAILY EXPENSES</Text>
           <Text style={styles.summaryValue}>{formatCurrency(netExpenses)}</Text>
-          <Text style={styles.summarySub}>Total deducted from cash register</Text>
         </View>
 
         <View style={[styles.summaryCard, { borderLeftColor: colors.diesel }]}>
-          <Text style={styles.summaryLabel}>STAFF & BATA EXPENSES</Text>
+          <Text style={styles.summaryLabel}>STAFF EXPENSES</Text>
           <Text style={styles.summaryValue}>{formatCurrency(categoryTotals['STAFF'] || 0)}</Text>
-          <Text style={styles.summarySub}>Operator shift bata & salaries</Text>
         </View>
 
         <View style={[styles.summaryCard, { borderLeftColor: colors.petrol }]}>
           <Text style={styles.summaryLabel}>CREDIT NOTE REVERSALS</Text>
           <Text style={styles.summaryValue}>{formatCurrency(totalCreditNotes)}</Text>
-          <Text style={styles.summarySub}>Refunds & expense reversals</Text>
         </View>
       </View>
 
-      {/* Quick Presets Bar */}
-      <View style={styles.presetsCard}>
-        <Text style={styles.presetsTitle}>Quick One-Tap Vouchers:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsRow}>
-          <TouchableOpacity
-            style={styles.presetPill}
-            onPress={() => {
-              handleSelectBataPreset();
-              setShowAddModal(true);
-            }}
-          >
-            <Sparkles size={12} color={colors.accent} />
-            <Text style={styles.presetPillText}>Operator Bata (₹1,300)</Text>
-          </TouchableOpacity>
+      {/* Search & Page Size Controls */}
+      <View style={styles.tableControlsCard}>
+        {/* Search Bar & Date Filter & Page Size Row */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Search size={16} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search voucher #, head, paid to, remarks..."
+              placeholderTextColor={colors.textMuted}
+              value={searchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                setCurrentPage(1);
+              }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setCurrentPage(1); }}>
+                <X size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-          <TouchableOpacity
-            style={styles.presetPill}
-            onPress={() => {
-              handleSelectTeaPreset();
-              setShowAddModal(true);
-            }}
-          >
-            <Sparkles size={12} color={colors.accent} />
-            <Text style={styles.presetPillText}>Staff Tea (₹100)</Text>
-          </TouchableOpacity>
+          {/* Date Filter Picker */}
+          <View style={{ minWidth: 170 }}>
+            <DatePickerInput
+              value={selectedDateFilter}
+              onChange={(d) => {
+                setSelectedDateFilter(d);
+                setCurrentPage(1);
+              }}
+              placeholder="Filter by date..."
+              maxDate={getTodayDateString()}
+              allowClear
+              onClear={() => {
+                setSelectedDateFilter('');
+                setCurrentPage(1);
+              }}
+            />
+          </View>
 
-          <TouchableOpacity
-            style={styles.presetPill}
-            onPress={() => {
-              handleSelectDensityPreset();
-              setShowAddModal(true);
-            }}
-          >
-            <Sparkles size={12} color={colors.accent} />
-            <Text style={styles.presetPillText}>Density Sample (₹110)</Text>
-          </TouchableOpacity>
-        </ScrollView>
+          {/* Page Size Selector */}
+          <View style={styles.pageSizeContainer}>
+            <Text style={styles.pageSizeLabel}>Show:</Text>
+            {[10, 25, 50, 100].map((size) => (
+              <TouchableOpacity
+                key={size}
+                style={[styles.pageSizePill, pageSize === size && styles.pageSizePillActive]}
+                onPress={() => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+              >
+                <Text style={[styles.pageSizePillText, pageSize === size && styles.pageSizePillTextActive]}>
+                  {size}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
 
-      {/* Expenses Table */}
+      {/* Expenses Table with Vertical Scroll + Horizontal Scroll */}
       <View style={styles.tableCard}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={true}
-          style={styles.tableScroll}
+          style={styles.tableScrollHorizontal}
           contentContainerStyle={{ minWidth: '100%' }}
         >
-          <View style={{ width: '100%', minWidth: 640 }}>
+          <View style={{ width: '100%', minWidth: 680 }}>
+            {/* Table Header */}
             <View style={styles.tableHeaderRow}>
               <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
               <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
-              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 140 }]}>EXPENSE HEAD</Text>
-              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 140 }]}>PAID TO / REMARKS</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.4, minWidth: 140 }]}>EXPENSE HEAD</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.6, minWidth: 160 }]}>PAID TO / REMARKS</Text>
+              <Text style={[styles.tableColHeader, { width: 100 }]}>PAID BY</Text>
               <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>AMOUNT (₹)</Text>
             </View>
- {expenses.map((e) => (
-  <View key={e.id} style={styles.tableDataRow}>
-    {/* Date */}
-    <Text style={[styles.tableCell, { width: 90 }]}>
-      {formatDate(e.date)}
-    </Text>
 
-    {/* Voucher Number */}
-    <Text style={[styles.tableCellMono, { width: 110 }]}>
-      {e.voucherNo}
-    </Text>
+            {/* Scrollable Table Body */}
+            <ScrollView
+              style={styles.tableBodyScroll}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
+              {paginatedExpenses.length === 0 ? (
+                <NoDataView
+                  title="No Expenses Found"
+                  selectedDate={selectedDateFilter || undefined}
+                  message={
+                    selectedDateFilter
+                      ? `No expense entries found for ${formatDate(selectedDateFilter)}.`
+                      : 'No matching expense vouchers found for current filters.'
+                  }
+                  onResetDate={selectedDateFilter ? () => { setSelectedDateFilter(''); setCurrentPage(1); } : undefined}
+                  actionLabel="Add Expense"
+                  onAction={() => setShowAddModal(true)}
+                />
+              ) : (
+                paginatedExpenses.map((e) => (
+                  <View key={e.id} style={styles.tableDataRow}>
+                    {/* Date */}
+                    <Text style={[styles.tableCell, { width: 90 }]}>
+                      {formatDate(e.date)}
+                    </Text>
 
-    {/* Expense Head */}
-    <View
-      style={{
-        flex: 1.5,
-        minWidth: 140,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-      }}
-    >
-      <Text style={styles.tableCellHead}>
-        {e.expenseTypeName}
-      </Text>
+                    {/* Voucher Number */}
+                    <Text style={[styles.tableCellMono, { width: 110 }]}>
+                      {e.voucherNo}
+                    </Text>
 
-      {e.isCreditNote && (
-        <View style={styles.creditNoteBadge}>
-          <Text style={styles.creditNoteText}>
-            REVERSAL
-          </Text>
-        </View>
-      )}
-    </View>
+                    {/* Expense Head */}
+                    <View
+                      style={{
+                        flex: 1.4,
+                        minWidth: 140,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Text style={styles.tableCellHead}>
+                        {e.expenseTypeName}
+                      </Text>
 
-    {/* Paid To / Remarks */}
-    <View
-      style={{
-        flex: 1.5,
-        minWidth: 140,
-      }}
-    >
-      <Text
-        style={styles.tableCellPaidTo}
-        numberOfLines={1}
-      >
-        {e.paidTo}
-      </Text>
+                      {e.isCreditNote && (
+                        <View style={styles.creditNoteBadge}>
+                          <Text style={styles.creditNoteText}>
+                            REVERSAL
+                          </Text>
+                        </View>
+                      )}
+                    </View>
 
-      {e.remarks ? (
-        <Text
-          style={styles.tableCellRemarks}
-          numberOfLines={1}
-        >
-          {e.remarks}
-        </Text>
-      ) : null}
-    </View>
+                    {/* Paid To / Remarks */}
+                    <View
+                      style={{
+                        flex: 1.6,
+                        minWidth: 160,
+                      }}
+                    >
+                      <Text
+                        style={styles.tableCellPaidTo}
+                        numberOfLines={1}
+                      >
+                        {e.paidTo}
+                      </Text>
 
-    {/* Amount */}
-    <Text
-      style={[
-        styles.tableCellAmount,
-        {
-          color: e.isCreditNote
-            ? colors.cashGreen
-            : colors.speed,
-          width: 110,
-          textAlign: 'right',
-        },
-      ]}
-    >
-      {e.isCreditNote ? '-' : ''}
-      {formatCurrency(e.amount)}
-    </Text>
-  </View>
-))}
+                      {e.remarks ? (
+                        <Text
+                          style={styles.tableCellRemarks}
+                          numberOfLines={1}
+                        >
+                          {e.remarks}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {/* Paid By */}
+                    <Text style={[styles.tableCell, { width: 100 }]}>
+                      {e.paidBy}
+                    </Text>
+
+                    {/* Amount */}
+                    <Text
+                      style={[
+                        styles.tableCellAmount,
+                        {
+                          color: e.isCreditNote
+                            ? colors.cashGreen
+                            : colors.speed,
+                          width: 110,
+                          textAlign: 'right',
+                        },
+                      ]}
+                    >
+                      {e.isCreditNote ? '-' : ''}
+                      {formatCurrency(e.amount)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
           </View>
         </ScrollView>
+
+        {/* Pagination Footer Controls */}
+        <View style={styles.paginationContainer}>
+          <Text style={styles.paginationInfo}>
+            Showing <Text style={styles.paginationInfoBold}>{filteredExpenses.length === 0 ? 0 : startIndex + 1}</Text> -{' '}
+            <Text style={styles.paginationInfoBold}>{endIndex}</Text> of{' '}
+            <Text style={styles.paginationInfoBold}>{filteredExpenses.length}</Text> entries
+          </Text>
+
+          <View style={styles.paginationControls}>
+            {/* First Page */}
+            <TouchableOpacity
+              style={[styles.pageBtn, safeCurrentPage <= 1 && styles.pageBtnDisabled]}
+              onPress={() => setCurrentPage(1)}
+              disabled={safeCurrentPage <= 1}
+            >
+              <ChevronsLeft size={16} color={safeCurrentPage <= 1 ? colors.textMuted : colors.textPrimary} />
+            </TouchableOpacity>
+
+            {/* Prev Page */}
+            <TouchableOpacity
+              style={[styles.pageBtn, safeCurrentPage <= 1 && styles.pageBtnDisabled]}
+              onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage <= 1}
+            >
+              <ChevronLeft size={16} color={safeCurrentPage <= 1 ? colors.textMuted : colors.textPrimary} />
+            </TouchableOpacity>
+
+            {/* Page Numbers */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((page) => {
+                return page === 1 || page === totalPages || Math.abs(page - safeCurrentPage) <= 1;
+              })
+              .map((page, idx, arr) => {
+                const prev = arr[idx - 1];
+                const hasGap = prev && page - prev > 1;
+
+                return (
+                  <React.Fragment key={page}>
+                    {hasGap && <Text style={styles.paginationEllipsis}>...</Text>}
+                    <TouchableOpacity
+                      style={[styles.pageNumberBtn, safeCurrentPage === page && styles.pageNumberBtnActive]}
+                      onPress={() => setCurrentPage(page)}
+                    >
+                      <Text style={[styles.pageNumberText, safeCurrentPage === page && styles.pageNumberTextActive]}>
+                        {page}
+                      </Text>
+                    </TouchableOpacity>
+                  </React.Fragment>
+                );
+              })}
+
+            {/* Next Page */}
+            <TouchableOpacity
+              style={[styles.pageBtn, safeCurrentPage >= totalPages && styles.pageBtnDisabled]}
+              onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage >= totalPages}
+            >
+              <ChevronRight size={16} color={safeCurrentPage >= totalPages ? colors.textMuted : colors.textPrimary} />
+            </TouchableOpacity>
+
+            {/* Last Page */}
+            <TouchableOpacity
+              style={[styles.pageBtn, safeCurrentPage >= totalPages && styles.pageBtnDisabled]}
+              onPress={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage >= totalPages}
+            >
+              <ChevronsRight size={16} color={safeCurrentPage >= totalPages ? colors.textMuted : colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* Add Expense Modal */}
@@ -538,40 +673,70 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 11,
   },
-  presetsCard: {
+  tableControlsCard: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
+    padding: 12,
+    gap: 10,
   },
-  presetsTitle: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  presetsRow: {
+  searchRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
-  presetPill: {
+  searchBar: {
+    flex: 1,
+    minWidth: 260,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceElevated,
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#000',
+    fontSize: 12,
+    padding: 0,
+  },
+  pageSizeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageSizeLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pageSizePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
-    gap: 5,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  presetPillText: {
-    color: colors.textPrimary,
+  pageSizePillActive: {
+    backgroundColor: colors.speed,
+    borderColor: colors.speed,
+  },
+  pageSizePillText: {
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '600',
+  },
+  pageSizePillTextActive: {
+    color: '#000',
+    fontWeight: '700',
   },
   tableCard: {
     backgroundColor: colors.surface,
@@ -579,9 +744,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
+    gap: 10,
   },
-  tableScroll: {
+  tableScrollHorizontal: {
     width: '100%',
+  },
+  tableBodyScroll: {
+    maxHeight: 420,
+  },
+  emptyTableState: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTableText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
   },
   tableHeaderRow: {
     flexDirection: 'row',
@@ -643,6 +822,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     fontFamily: typography.monoFont,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 10,
+  },
+  paginationInfo: {
+    color: colors.textSecondary,
+    fontSize: 11,
+  },
+  paginationInfoBold: {
+    color: '#000',
+    fontWeight: '700',
+  },
+  paginationControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageBtnDisabled: {
+    opacity: 0.4,
+  },
+  pageNumberBtn: {
+    minWidth: 28,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageNumberBtnActive: {
+    backgroundColor: colors.speed,
+    borderColor: colors.speed,
+  },
+  pageNumberText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pageNumberTextActive: {
+    color: '#000',
+    fontWeight: '700',
+  },
+  paginationEllipsis: {
+    color: colors.textMuted,
+    paddingHorizontal: 2,
+    fontSize: 11,
   },
   modalOverlay: {
     flex: 1,

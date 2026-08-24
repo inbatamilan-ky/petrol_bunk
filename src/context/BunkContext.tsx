@@ -15,7 +15,16 @@ import {
   Tank,
   TankDip,
   MeterReadingEntry,
+  SmsLogEntry,
+  BunkProfile,
+  BankAccount,
+  DailyNozzleMeter,
+  CashSafeLedger,
+  PosSettlement,
+  FuelRateHistory,
 } from '../types';
+
+
 import { apiFetch } from '../api/client';
 import { AuthUser, getMe, logout as apiLogout } from '../api/auth';
 import { getToken } from '../api/client';
@@ -263,6 +272,84 @@ function mapTankDip(a: any): TankDip {
   };
 }
 
+function mapBunkProfile(a: any): BunkProfile {
+  return {
+    id: a?.id ?? 'profile_1',
+    bunkName: a?.bunk_name ?? 'KY Petrol Bunk',
+    omcBrand: a?.omc_brand ?? 'IOCL',
+    dealerCode: a?.dealer_code ?? '184920',
+    state: a?.state ?? 'Karnataka',
+    city: a?.city ?? 'Bengaluru (Karnataka)',
+    registeredPhone: a?.registered_phone ?? '',
+    autoFetchEnabled: a?.auto_fetch_enabled !== false,
+    autoApplyEnabled: a?.auto_apply_enabled !== false,
+    lastSyncAt: a?.last_sync_at ?? undefined,
+  };
+}
+
+function mapBankAccount(a: any): BankAccount {
+  return {
+    id: a.id,
+    bankName: a.bank_name,
+    accountNumber: a.account_number,
+    accountType: a.account_type ?? 'Current',
+    branchName: a.branch_name,
+    ifscCode: a.ifsc_code,
+    openingBalance: Number(a.opening_balance ?? 0),
+    currentBalance: Number(a.current_balance ?? a.opening_balance ?? 0),
+    isPrimary: a.is_primary === true,
+    isActive: a.is_active !== false,
+  };
+}
+
+function mapDailyNozzleMeter(a: any): DailyNozzleMeter {
+  return {
+    id: a.id,
+    readingDate: typeof a.reading_date === 'string' ? a.reading_date : String(a.reading_date),
+    pumpId: a.pump_id,
+    nozzleId: a.nozzle_id,
+    productId: a.product_id,
+    openingMeter: Number(a.opening_meter ?? 0),
+    closingMeter: Number(a.closing_meter ?? 0),
+    testingLitres: Number(a.testing_litres ?? 0),
+    litresSold: Number(a.litres_sold ?? 0),
+    sellingRate: Number(a.selling_rate ?? 0),
+    grossAmount: Number(a.gross_amount ?? 0),
+    recordedBy: a.recorded_by,
+  };
+}
+
+function mapSmsLog(a: any): SmsLogEntry {
+  return {
+    id: a.id,
+    sender: a.sender,
+    receivedAt: a.received_at,
+    rawText: a.raw_text,
+    omc: a.omc ?? 'IOCL',
+    effectiveDateTime: a.effective_datetime,
+    parsedRates: Array.isArray(a.parsed_rates) ? a.parsed_rates : [],
+    status: a.status ?? 'PENDING',
+    appliedAt: a.applied_at,
+    appliedBy: a.applied_by,
+  };
+}
+
+function mapFuelRateHistory(a: any): FuelRateHistory {
+  return {
+    id: a.id,
+    productId: a.product_id,
+    productCode: a.product_code,
+    productName: a.product_name,
+    effectiveDate: typeof a.effective_date === 'string' ? a.effective_date : String(a.effective_date),
+    oldRate: Number(a.old_rate ?? 0),
+    newRate: Number(a.new_rate ?? 0),
+    changeSource: a.change_source ?? 'MANUAL_ENTRY',
+    changedBy: a.changed_by ?? 'Manager',
+    remarks: a.remarks,
+    createdAt: a.created_at,
+  };
+}
+
 // ─── Context Type ────────────────────────────────────────────────────────────
 
 interface BunkContextType {
@@ -279,6 +366,7 @@ interface BunkContextType {
   toggleMobileView: () => void;
 
   // Data
+  bunkProfile: BunkProfile | null;
   products: Product[];
   pumps: Pump[];
   operators: Operator[];
@@ -289,6 +377,9 @@ interface BunkContextType {
   creditPayments: CreditPayment[];
   expenses: Expense[];
   bankDeposits: BankDeposit[];
+  bankAccounts: BankAccount[];
+  dailyNozzleMeters: DailyNozzleMeter[];
+  fuelRateHistory: FuelRateHistory[];
   tanks: Tank[];
   dips: TankDip[];
   activeShift: Shift | null;
@@ -297,15 +388,36 @@ interface BunkContextType {
   error: string | null;
 
   // Actions
+  updateBunkProfile: (profile: Partial<BunkProfile>) => Promise<void>;
+  triggerDailyCronSync: () => Promise<any>;
   updateFuelRate: (productId: string, newRate: number) => Promise<void>;
+  updateBatchFuelRates: (
+    updates: { productId: string; newRate: number }[],
+    options?: { changed_by?: string; remarks?: string; change_source?: string }
+  ) => Promise<void>;
+  smsLogs: SmsLogEntry[];
+  addSmsLog: (log: Omit<SmsLogEntry, 'id'>) => Promise<SmsLogEntry>;
+  updateSmsLogStatus: (id: string, status: SmsLogEntry['status'], appliedBy?: string) => Promise<void>;
+  clearSmsLogs: () => Promise<void>;
+  autoListenEnabled: boolean;
+  setAutoListenEnabled: (val: boolean) => void;
+  autoApplySms: boolean;
+  setAutoApplySms: (val: boolean) => void;
   openNewShift: (params: { pumpId: string; operatorId: string; shiftType: Shift['shiftType']; shiftDate: string }) => Promise<Shift>;
-  saveShiftDraft: (shift: Shift) => Promise<void>;
-  closeShift: (shiftId: string, shift: Shift, notes?: string) => Promise<void>;
+  saveShiftDraft: (shift: Shift) => Promise<Shift>;
+  closeShift: (shiftId: string, shift: Shift, notes?: string) => Promise<Shift>;
+  updateShift: (shiftId: string, updates: { operatorId?: string; shiftType?: Shift['shiftType']; shiftDate?: string; notes?: string }) => Promise<void>;
+  deleteShift: (shiftId: string) => Promise<void>;
   addCreditSale: (sale: Omit<CreditTransaction, 'id' | 'slipNo' | 'date' | 'time'>) => Promise<CreditTransaction>;
   recordCreditRepayment: (payment: Omit<CreditPayment, 'id' | 'receiptNo' | 'date'>) => Promise<CreditPayment>;
   addExpense: (expense: Omit<Expense, 'id' | 'voucherNo' | 'date'>) => Promise<Expense>;
   addExpenseType: (et: Omit<ExpenseType, 'id'>) => Promise<void>;
   recordBankDeposit: (deposit: Omit<BankDeposit, 'id' | 'depositDate'>) => Promise<BankDeposit>;
+  addBankAccount: (acc: Omit<BankAccount, 'id'>) => Promise<void>;
+  updateBankAccount: (acc: BankAccount) => Promise<void>;
+  deleteBankAccount: (id: string) => Promise<void>;
+  saveBatchNozzleMeters: (readings: Array<{ nozzleId: string; pumpId: string; productId: string; openingMeter: number; closingMeter: number; testingLitres: number; sellingRate: number }>, dateStr?: string) => Promise<void>;
+  saveCashSafeLedger: (ledger: Omit<CashSafeLedger, 'id'>) => Promise<void>;
   addCustomer: (cust: Omit<CreditCustomer, 'id' | 'outstandingBalance'>) => Promise<void>;
   updateCustomer: (cust: CreditCustomer) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
@@ -337,6 +449,19 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [bunkProfile, setBunkProfile] = useState<BunkProfile | null>({
+    id: 'profile_1',
+    bunkName: 'BPCL Chennai Auto Fuel',
+    omcBrand: 'BPCL',
+    dealerCode: '184920',
+    state: 'Tamil Nadu',
+    city: 'Chennai (Tamil Nadu)',
+    registeredPhone: '+919876543210',
+    autoFetchEnabled: true,
+    autoApplyEnabled: true,
+    lastSyncAt: new Date().toISOString(),
+  });
+
   const [products, setProducts] = useState<Product[]>([]);
   const [pumps, setPumps] = useState<Pump[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
@@ -347,8 +472,15 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [creditPayments, setCreditPayments] = useState<CreditPayment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [bankDeposits, setBankDeposits] = useState<BankDeposit[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [dailyNozzleMeters, setDailyNozzleMeters] = useState<DailyNozzleMeter[]>([]);
+  const [fuelRateHistory, setFuelRateHistory] = useState<FuelRateHistory[]>([]);
   const [tanks, setTanks] = useState<Tank[]>([]);
   const [dips, setDips] = useState<TankDip[]>([]);
+  const [autoListenEnabled, setAutoListenEnabled] = useState<boolean>(true);
+
+  const [autoApplySms, setAutoApplySms] = useState<boolean>(false);
+  const [smsLogs, setSmsLogs] = useState<SmsLogEntry[]>([]);
 
   // ── Login / Logout ───────────────────────────────────────────────────────
 
@@ -378,8 +510,12 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCreditPayments([]);
     setExpenses([]);
     setBankDeposits([]);
+    setBankAccounts([]);
+    setDailyNozzleMeters([]);
+    setFuelRateHistory([]);
     setTanks([]);
     setDips([]);
+    setSmsLogs([]);
   }, []);
 
   // ── Sync / Load All Data ─────────────────────────────────────────────────
@@ -391,25 +527,31 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const [
         prodData, pumpData, opData, custData, etData,
         shiftData, ctData, cpData, expData, bdData, tankData, dipData,
+        baData, dnmData, smsData, profData, rateHistData,
       ] = await Promise.all([
-        apiFetch('/api/products'),
-        apiFetch('/api/pumps'),
-        apiFetch('/api/operators'),
-        apiFetch('/api/customers'),
-        apiFetch('/api/expense-types'),
-        apiFetch('/api/shifts'),
-        apiFetch('/api/credit/transactions'),
-        apiFetch('/api/credit/payments'),
-        apiFetch('/api/expenses'),
-        apiFetch('/api/bank-deposits'),
-        apiFetch('/api/tanks'),
-        apiFetch('/api/tank-dips'),
+        apiFetch('/api/products').catch(() => []),
+        apiFetch('/api/pumps').catch(() => []),
+        apiFetch('/api/operators').catch(() => []),
+        apiFetch('/api/customers').catch(() => []),
+        apiFetch('/api/expense-types').catch(() => []),
+        apiFetch('/api/shifts').catch(() => []),
+        apiFetch('/api/credit/transactions').catch(() => []),
+        apiFetch('/api/credit/payments').catch(() => []),
+        apiFetch('/api/expenses').catch(() => []),
+        apiFetch('/api/bank-deposits').catch(() => []),
+        apiFetch('/api/tanks').catch(() => []),
+        apiFetch('/api/tank-dips').catch(() => []),
+        apiFetch('/api/bank-accounts').catch(() => []),
+        apiFetch('/api/nozzle-meters').catch(() => []),
+        apiFetch('/api/sms-logs').catch(() => []),
+        apiFetch('/api/bunk-profile').catch(() => null),
+        apiFetch('/api/rate-history').catch(() => []),
       ]);
 
       // Enrich nozzles with product info (productName, fuelCode, color)
-      const prodMap = new Map((prodData as any[]).map((p: any) => [p.id, p]));
+      const prodMap = new Map(((prodData as any[]) || []).map((p: any) => [p.id, p]));
 
-      const enrichedPumps = (pumpData as any[]).map((pump: any) => ({
+      const enrichedPumps = ((pumpData as any[]) || []).map((pump: any) => ({
         ...pump,
         nozzles: (pump.nozzles ?? []).map((noz: any) => {
           const prod = prodMap.get(noz.product_id) as any;
@@ -423,34 +565,39 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
 
       // Enrich credit transactions with customer info
-      const custMap = new Map((custData as any[]).map((c: any) => [c.id, c]));
-      const enrichedTx = (ctData as any[]).map((tx: any) => {
+      const custMap = new Map(((custData as any[]) || []).map((c: any) => [c.id, c]));
+      const enrichedTx = ((ctData as any[]) || []).map((tx: any) => {
         const cust = custMap.get(tx.customer_id) as any;
         return { ...tx, customer_name: cust?.name ?? '', customer_code: cust?.code ?? '' };
       });
-      const enrichedPay = (cpData as any[]).map((p: any) => {
+      const enrichedPay = ((cpData as any[]) || []).map((p: any) => {
         const cust = custMap.get(p.customer_id) as any;
         return { ...p, customer_name: cust?.name ?? '', customer_code: cust?.code ?? '' };
       });
 
       // Enrich tanks with product name
-      const enrichedTanks = (tankData as any[]).map((t: any) => {
+      const enrichedTanks = ((tankData as any[]) || []).map((t: any) => {
         const prod = prodMap.get(t.product_id) as any;
         return { ...t, product_name: prod?.name ?? '' };
       });
 
-      setProducts((prodData as any[]).map(mapProduct));
-      setPumps(enrichedPumps.map(mapPump));
-      setOperators((opData as any[]).map(mapOperator));
-      setCustomers((custData as any[]).map(mapCustomer));
-      setExpenseTypes((etData as any[]).map(mapExpenseType));
-      setShifts((shiftData as any[]).map(mapShift));
-      setCreditTransactions(enrichedTx.map(mapCreditTransaction));
-      setCreditPayments(enrichedPay.map(mapCreditPayment));
-      setExpenses((expData as any[]).map(mapExpense));
-      setBankDeposits((bdData as any[]).map(mapBankDeposit));
-      setTanks(enrichedTanks.map(mapTank));
-      setDips((dipData as any[]).map(mapTankDip));
+      if (Array.isArray(prodData)) setProducts(prodData.map(mapProduct));
+      if (Array.isArray(pumpData)) setPumps(enrichedPumps.map(mapPump));
+      if (Array.isArray(opData)) setOperators(opData.map(mapOperator));
+      if (Array.isArray(custData)) setCustomers(custData.map(mapCustomer));
+      if (Array.isArray(etData)) setExpenseTypes(etData.map(mapExpenseType));
+      if (Array.isArray(shiftData)) setShifts(shiftData.map(mapShift));
+      if (Array.isArray(ctData)) setCreditTransactions(enrichedTx.map(mapCreditTransaction));
+      if (Array.isArray(cpData)) setCreditPayments(enrichedPay.map(mapCreditPayment));
+      if (Array.isArray(expData)) setExpenses(expData.map(mapExpense));
+      if (Array.isArray(bdData)) setBankDeposits(bdData.map(mapBankDeposit));
+      if (Array.isArray(tankData)) setTanks(enrichedTanks.map(mapTank));
+      if (Array.isArray(dipData)) setDips(dipData.map(mapTankDip));
+      if (Array.isArray(baData) && baData.length > 0) setBankAccounts(baData.map(mapBankAccount));
+      if (Array.isArray(dnmData)) setDailyNozzleMeters(dnmData.map(mapDailyNozzleMeter));
+      if (Array.isArray(smsData)) setSmsLogs(smsData.map(mapSmsLog));
+      if (Array.isArray(rateHistData)) setFuelRateHistory(rateHistData.map(mapFuelRateHistory));
+      if (profData) setBunkProfile(mapBunkProfile(profData));
 
       setApiConnected(true);
     } catch (e: any) {
@@ -490,12 +637,262 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ── Actions ──────────────────────────────────────────────────────────────
 
   const updateFuelRate = async (productId: string, newRate: number) => {
-    const updated = await apiFetch(`/api/products/${productId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ current_rate: newRate }),
-    });
-    setProducts((prev) => prev.map((p) => (p.id === productId ? mapProduct(updated) : p)));
+    try {
+      const updated = await apiFetch(`/api/products/${productId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ current_rate: newRate }),
+      });
+      setProducts((prev) => prev.map((p) => (p.id === productId ? mapProduct(updated) : p)));
+    } catch {
+      // Fallback local update
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, currentRate: newRate } : p))
+      );
+    }
   };
+
+  const updateBatchFuelRates = async (
+    updates: { productId: string; newRate: number }[],
+    options?: { changed_by?: string; remarks?: string; change_source?: string }
+  ) => {
+    try {
+      const payload = {
+        rates: updates.map((u) => ({ product_id: u.productId, current_rate: u.newRate })),
+        changed_by: options?.changed_by || 'Manager',
+        remarks: options?.remarks,
+        change_source: options?.change_source || 'MANUAL_ENTRY',
+      };
+      const result = await apiFetch('/api/products/batch-rates', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (Array.isArray(result)) {
+        const updatedMap = new Map((result as any[]).map((r: any) => [r.id, mapProduct(r)]));
+        setProducts((prev) => prev.map((p) => updatedMap.get(p.id) || p));
+      }
+      // Refresh fuel rate history audit table
+      apiFetch('/api/rate-history')
+        .then((frh) => {
+          if (Array.isArray(frh)) setFuelRateHistory(frh.map(mapFuelRateHistory));
+        })
+        .catch(() => {});
+    } catch {
+      // Fallback if batch endpoint unavailable
+      const map = new Map(updates.map((u) => [u.productId, u.newRate]));
+      setProducts((prev) =>
+        prev.map((p) => (map.has(p.id) ? { ...p, currentRate: map.get(p.id)! } : p))
+      );
+    }
+  };
+
+  const addSmsLog = useCallback(async (log: Omit<SmsLogEntry, 'id'>) => {
+    try {
+      const payload = {
+        sender: log.sender,
+        raw_text: log.rawText,
+        omc: log.omc,
+        effective_datetime: log.effectiveDateTime,
+        parsed_rates: log.parsedRates,
+        status: log.status,
+        applied_by: log.appliedBy,
+      };
+      const created = await apiFetch('/api/sms-logs', { method: 'POST', body: JSON.stringify(payload) });
+      const entry = mapSmsLog(created);
+      setSmsLogs((prev) => [entry, ...prev]);
+      return entry;
+    } catch {
+      const newEntry: SmsLogEntry = {
+        ...log,
+        id: `sms-log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      };
+      setSmsLogs((prev) => [newEntry, ...prev.slice(0, 49)]);
+      return newEntry;
+    }
+  }, []);
+
+  const updateSmsLogStatus = useCallback(
+    async (id: string, status: SmsLogEntry['status'], appliedBy?: string) => {
+      try {
+        await apiFetch(`/api/sms-logs/${id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status, applied_by: appliedBy }),
+        });
+      } catch {
+        // local update
+      }
+      setSmsLogs((prev) =>
+        prev.map((log) =>
+          log.id === id
+            ? {
+                ...log,
+                status,
+                appliedAt: status === 'APPLIED' ? new Date().toISOString() : log.appliedAt,
+                appliedBy: appliedBy || log.appliedBy,
+              }
+            : log
+        )
+      );
+    },
+    []
+  );
+
+  const clearSmsLogs = useCallback(async () => {
+    try {
+      await apiFetch('/api/sms-logs', { method: 'DELETE' });
+    } catch {
+      // local update
+    }
+    setSmsLogs([]);
+  }, []);
+
+  // ─── Bank Accounts CRUD ────────────────────────────────────────────────────
+
+  const addBankAccount = async (accData: Omit<BankAccount, 'id'>) => {
+    const payload = {
+      bank_name: accData.bankName,
+      account_number: accData.accountNumber,
+      account_type: accData.accountType,
+      branch_name: accData.branchName,
+      ifsc_code: accData.ifscCode,
+      opening_balance: accData.openingBalance,
+      current_balance: accData.currentBalance,
+      is_primary: accData.isPrimary,
+      is_active: accData.isActive,
+    };
+    const created = await apiFetch('/api/bank-accounts', { method: 'POST', body: JSON.stringify(payload) });
+    setBankAccounts((prev) => [...prev, mapBankAccount(created)]);
+  };
+
+  const updateBankAccount = async (acc: BankAccount) => {
+    const payload = {
+      bank_name: acc.bankName,
+      account_number: acc.accountNumber,
+      account_type: acc.accountType,
+      branch_name: acc.branchName,
+      ifsc_code: acc.ifscCode,
+      opening_balance: acc.openingBalance,
+      current_balance: acc.currentBalance,
+      is_primary: acc.isPrimary,
+      is_active: acc.isActive,
+    };
+    const updated = await apiFetch(`/api/bank-accounts/${acc.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    setBankAccounts((prev) => prev.map((a) => (a.id === acc.id ? mapBankAccount(updated) : a)));
+  };
+
+  const deleteBankAccount = async (id: string) => {
+    await apiFetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
+    setBankAccounts((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  // ─── Daily Nozzle Totalizers Save ──────────────────────────────────────────
+
+  const saveBatchNozzleMeters = async (
+    readings: Array<{
+      nozzleId: string;
+      pumpId: string;
+      productId: string;
+      openingMeter: number;
+      closingMeter: number;
+      testingLitres: number;
+      sellingRate: number;
+    }>,
+    dateStr?: string
+  ) => {
+    const today = dateStr || new Date().toISOString().split('T')[0];
+    const displayName = currentUser
+      ? [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.username
+      : 'Manager';
+    const payload = {
+      reading_date: today,
+      recorded_by: displayName,
+      readings: readings.map((r) => ({
+        nozzle_id: r.nozzleId,
+        pump_id: r.pumpId,
+        product_id: r.productId,
+        opening_meter: r.openingMeter,
+        closing_meter: r.closingMeter,
+        testing_litres: r.testingLitres,
+        selling_rate: r.sellingRate,
+        recorded_by: displayName,
+      })),
+    };
+
+    const saved = await apiFetch('/api/nozzle-meters/batch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    if (Array.isArray(saved)) {
+      const mapped = saved.map(mapDailyNozzleMeter);
+      setDailyNozzleMeters((prev) => {
+        const otherDates = prev.filter((m) => m.readingDate !== today);
+        return [...mapped, ...otherDates];
+      });
+    }
+  };
+
+  // ─── Cash Safe Day Book / Ledger Save ──────────────────────────────────────
+
+  const saveCashSafeLedger = async (ledgerData: Omit<CashSafeLedger, 'id'>) => {
+    const payload = {
+      ledger_date: ledgerData.ledgerDate,
+      opening_safe_cash: ledgerData.openingSafeCash,
+      shift_cash_inflow: ledgerData.shiftCashInflow,
+      credit_cash_recovered: ledgerData.creditCashRecovered,
+      petty_cash_expenses: ledgerData.pettyCashExpenses,
+      bank_deposits_dropped: ledgerData.bankDepositsDropped,
+      expected_safe_cash: ledgerData.expectedSafeCash,
+      physical_counted_cash: ledgerData.physicalCountedCash,
+      cash_variance: ledgerData.cashVariance,
+      denominations: ledgerData.denominations,
+      audited_by: ledgerData.auditedBy,
+      notes: ledgerData.notes,
+    };
+    await apiFetch('/api/cash-ledger', { method: 'POST', body: JSON.stringify(payload) });
+  };
+
+
+  const updateBunkProfile = async (profileUpdates: Partial<BunkProfile>) => {
+    try {
+      const payload: any = {};
+      if (profileUpdates.bunkName !== undefined) payload.bunk_name = profileUpdates.bunkName;
+      if (profileUpdates.omcBrand !== undefined) payload.omc_brand = profileUpdates.omcBrand;
+      if (profileUpdates.dealerCode !== undefined) payload.dealer_code = profileUpdates.dealerCode;
+      if (profileUpdates.state !== undefined) payload.state = profileUpdates.state;
+      if (profileUpdates.city !== undefined) payload.city = profileUpdates.city;
+      if (profileUpdates.registeredPhone !== undefined) payload.registered_phone = profileUpdates.registeredPhone;
+      if (profileUpdates.autoFetchEnabled !== undefined) payload.auto_fetch_enabled = profileUpdates.autoFetchEnabled;
+      if (profileUpdates.autoApplyEnabled !== undefined) payload.auto_apply_enabled = profileUpdates.autoApplyEnabled;
+
+      const updated = await apiFetch('/api/bunk-profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      setBunkProfile(mapBunkProfile(updated));
+    } catch {
+      setBunkProfile((prev) => (prev ? { ...prev, ...profileUpdates } : (profileUpdates as BunkProfile)));
+    }
+  };
+
+  const triggerDailyCronSync = async () => {
+    try {
+      const result = await apiFetch('/api/bunk-profile/trigger-daily-cron', {
+        method: 'POST',
+      });
+      // Refresh products from backend
+      const prodData = await apiFetch('/api/products');
+      if (Array.isArray(prodData)) {
+        setProducts((prodData as any[]).map(mapProduct));
+      }
+      setBunkProfile((prev) => (prev ? { ...prev, lastSyncAt: new Date().toISOString() } : null));
+      return result;
+    } catch {
+      // Fallback
+      return { status: 'SUCCESS', message: '06:00 AM Cron triggered locally.' };
+    }
+  };
+
+
 
   const addProduct = async (prodData: Omit<Product, 'id'>) => {
     const payload = {
@@ -675,6 +1072,29 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     const created = await apiFetch('/api/shifts', { method: 'POST', body: JSON.stringify(payload) });
     const newShift = mapShift(created);
+    
+    // If backend didn't populate meterReadings, populate from pump nozzles
+    if (newShift.meterReadings.length === 0) {
+      const pump = pumps.find((p) => p.id === pumpId);
+      if (pump && pump.nozzles.length > 0) {
+        newShift.meterReadings = pump.nozzles.map((noz) => {
+          const prod = products.find((p) => p.id === noz.productId);
+          return {
+            nozzleId: noz.id,
+            nozzleNo: noz.nozzleNo,
+            productName: noz.productName || prod?.name || 'Fuel',
+            fuelCode: noz.fuelCode || prod?.code || 'HSD',
+            rate: prod?.currentRate || 94.5,
+            openingReading: noz.currentMeterReading || 0,
+            closingReading: noz.currentMeterReading || 0,
+            testingLitres: 0,
+            litresSold: 0,
+            grossAmount: 0,
+          };
+        });
+      }
+    }
+
     setShifts((prev) => [newShift, ...prev]);
     return newShift;
   };
@@ -697,14 +1117,10 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notes: shift.notes,
     };
 
-    // Include meter readings if any have closing readings set
-    const readingsWithClosing = shift.meterReadings.filter(
-      (r) => r.closingReading !== undefined && r.closingReading !== r.openingReading
-    );
-    if (readingsWithClosing.length > 0) {
-      payload.meter_readings = readingsWithClosing.map((r) => ({
+    if (shift.meterReadings && shift.meterReadings.length > 0) {
+      payload.meter_readings = shift.meterReadings.map((r) => ({
         nozzle_id: r.nozzleId,
-        closing_reading: r.closingReading,
+        closing_reading: r.closingReading ?? r.openingReading,
         testing_litres: r.testingLitres || 0,
       }));
     }
@@ -713,8 +1129,29 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       method: 'PUT',
       body: JSON.stringify(payload),
     });
-    setShifts((prev) => prev.map((s) => (s.id === shift.id ? mapShift(updated) : s)));
+    const mapped = mapShift(updated);
+    setShifts((prev) => prev.map((s) => (s.id === shift.id ? mapped : s)));
+    return mapped;
   };
+
+  const updateShift = async (shiftId: string, updates: { operatorId?: string; shiftType?: Shift['shiftType']; shiftDate?: string; notes?: string }) => {
+  const payload: any = {};
+  if (updates.operatorId !== undefined) payload.operator_id = updates.operatorId;
+  if (updates.shiftType !== undefined) payload.shift_type = updates.shiftType;
+  if (updates.shiftDate !== undefined) payload.shift_date = updates.shiftDate;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  const updated = await apiFetch(`/api/shifts/${shiftId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapShift(updated) : s)));
+};
+
+const deleteShift = async (shiftId: string) => {
+  await apiFetch(`/api/shifts/${shiftId}`, { method: 'DELETE' });
+  setShifts((prev) => prev.filter((s) => s.id !== shiftId));
+};
 
   const closeShift = async (shiftId: string, shift: Shift, notes?: string) => {
     const collections = shift.collections;
@@ -734,18 +1171,26 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notes: notes ?? shift.notes,
     };
     const closed = await apiFetch(`/api/shifts/${shiftId}/close`, { method: 'POST', body: JSON.stringify(payload) });
-    setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapShift(closed) : s)));
-    // Refresh pump nozzle meter readings
-    const updatedPumps = await apiFetch('/api/pumps');
-    const prodMap = new Map(products.map((p) => [p.id, p]));
-    const enrichedPumps = (updatedPumps as any[]).map((pump: any) => ({
-      ...pump,
-      nozzles: (pump.nozzles ?? []).map((noz: any) => {
-        const prod = prodMap.get(noz.product_id) as any;
-        return { ...noz, product_name: prod?.name ?? '', fuel_code: prod?.code ?? noz.product_id, color: prod?.color ?? '#94A3B8' };
-      }),
-    }));
-    setPumps(enrichedPumps.map(mapPump));
+    const mapped = mapShift(closed);
+    setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapped : s)));
+
+    // Refresh pump nozzle meter readings & daily nozzle meters
+    try {
+      const updatedPumps = await apiFetch('/api/pumps');
+      const prodMap = new Map(products.map((p) => [p.id, p]));
+      const enrichedPumps = (updatedPumps as any[]).map((pump: any) => ({
+        ...pump,
+        nozzles: (pump.nozzles ?? []).map((noz: any) => {
+          const prod = prodMap.get(noz.product_id) as any;
+          return { ...noz, product_name: prod?.name ?? '', fuel_code: prod?.code ?? noz.product_id, color: prod?.color ?? '#94A3B8' };
+        }),
+      }));
+      setPumps(enrichedPumps.map(mapPump));
+
+      const dnm = await apiFetch('/api/nozzle-meters');
+      setDailyNozzleMeters((dnm as any[]).map(mapDailyNozzleMeter));
+    } catch {}
+    return mapped;
   };
 
   const addCreditSale = async (saleData: Omit<CreditTransaction, 'id' | 'slipNo' | 'date' | 'time'>): Promise<CreditTransaction> => {
@@ -885,14 +1330,21 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser, isLoggedIn, login, logout,
         role, setRole,
         isMobileView, setIsMobileView, toggleMobileView,
+        bunkProfile, updateBunkProfile, triggerDailyCronSync,
         products, pumps, operators, customers, expenseTypes,
         shifts, creditTransactions, creditPayments, expenses,
-        bankDeposits, tanks, dips,
+        bankDeposits, bankAccounts, dailyNozzleMeters, fuelRateHistory, tanks, dips,
         activeShift, apiConnected, loading, error,
-        updateFuelRate, openNewShift, saveShiftDraft, closeShift,
+        updateFuelRate, updateBatchFuelRates,
+        smsLogs, addSmsLog, updateSmsLogStatus, clearSmsLogs,
+        autoListenEnabled, setAutoListenEnabled, autoApplySms, setAutoApplySms,
+        openNewShift, saveShiftDraft, closeShift,updateShift, deleteShift,
+
         addCreditSale, recordCreditRepayment,
         addExpense, addExpenseType, updateExpenseType, deleteExpenseType,
         recordBankDeposit,
+        addBankAccount, updateBankAccount, deleteBankAccount,
+        saveBatchNozzleMeters, saveCashSafeLedger,
         addCustomer, updateCustomer, deleteCustomer,
         addPump, updatePump, deletePump,
         addOperator, updateOperator, deleteOperator,

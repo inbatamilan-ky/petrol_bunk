@@ -38,7 +38,6 @@ def get_shift(shift_id: str, db: Session = Depends(get_db), _=Depends(get_curren
         raise HTTPException(status_code=404, detail="Shift not found")
     return shift
 
-
 @router.post("", response_model=schemas.ShiftOut, status_code=status.HTTP_201_CREATED)
 def open_shift(payload: schemas.ShiftOpen, db: Session = Depends(get_db), _=Depends(get_current_user)):
     pump = db.query(models.Pump).get(payload.pump_id)
@@ -75,6 +74,33 @@ def open_shift(payload: schemas.ShiftOpen, db: Session = Depends(get_db), _=Depe
         notes=payload.notes,
     )
     db.add(shift)
+    db.flush()  # ensure shift.id is available for the meter reading rows below
+
+    # Seed one meter reading row per nozzle on this pump so the UI has
+    # editable opening/closing fields as soon as the shift opens.
+    nozzles = db.query(models.Nozzle).filter(models.Nozzle.pump_id == payload.pump_id).all()
+    if not nozzles:
+        raise HTTPException(status_code=400, detail="Selected pump has no nozzles configured")
+
+    for nozzle in nozzles:
+        product = db.query(models.Product).get(nozzle.product_id)
+        opening_reading = float(nozzle.current_meter_reading)
+
+        reading_row = models.MeterReading(
+            shift_id=shift.id,
+            nozzle_id=nozzle.id,
+            nozzle_no=nozzle.nozzle_no,
+            product_name=product.name if product else "",
+            fuel_code=product.code if product else "",
+            rate=product.current_rate if product else 0,
+            opening_reading=opening_reading,
+            closing_reading=opening_reading,  # starts equal to opening; operator edits later
+            testing_litres=0,
+            litres_sold=0,
+            gross_amount=0,
+        )
+        db.add(reading_row)
+
     db.commit()
     db.refresh(shift)
     return shift
@@ -102,32 +128,83 @@ def close_shift(
                 status_code=400, detail=f"Nozzle {mr.nozzle_id} does not belong to this pump"
             )
         product = db.query(models.Product).get(nozzle.product_id)
-        opening_reading = float(nozzle.current_meter_reading)
-        closing_reading = mr.closing_reading
+        rate = float(product.current_rate) if product else 0.0
+
+        reading_row = (
+            db.query(models.MeterReading)
+            .filter(models.MeterReading.shift_id == shift.id, models.MeterReading.nozzle_id == mr.nozzle_id)
+            .first()
+        )
+        opening_reading = float(reading_row.opening_reading) if reading_row else float(nozzle.current_meter_reading)
+        closing_reading = float(mr.closing_reading)
+        testing_litres = float(mr.testing_litres or 0)
+
         if closing_reading < opening_reading:
             raise HTTPException(
                 status_code=400,
-                detail=f"Closing reading for nozzle {mr.nozzle_id} cannot be less than opening reading",
+                detail=f"Closing reading ({closing_reading}) for nozzle #{nozzle.nozzle_no} cannot be less than opening reading ({opening_reading})",
             )
-        litres_sold = round(closing_reading - opening_reading - mr.testing_litres, 2)
-        gross_amount = round(litres_sold * float(product.current_rate), 2)
+        litres_sold = max(0.0, round(closing_reading - opening_reading - testing_litres, 2))
+        gross_amount = round(litres_sold * rate, 2)
 
-        reading_row = models.MeterReading(
-            shift_id=shift.id,
-            nozzle_id=nozzle.id,
-            nozzle_no=nozzle.nozzle_no,
-            product_name=product.name,
-            fuel_code=product.code,
-            rate=product.current_rate,
-            opening_reading=opening_reading,
-            closing_reading=closing_reading,
-            testing_litres=mr.testing_litres,
-            litres_sold=litres_sold,
-            gross_amount=gross_amount,
-        )
-        db.add(reading_row)
+        if reading_row:
+            reading_row.closing_reading = closing_reading
+            reading_row.testing_litres = testing_litres
+            reading_row.litres_sold = litres_sold
+            reading_row.gross_amount = gross_amount
+            if product:
+                reading_row.rate = product.current_rate
+        else:
+            reading_row = models.MeterReading(
+                shift_id=shift.id,
+                nozzle_id=nozzle.id,
+                nozzle_no=nozzle.nozzle_no,
+                product_name=product.name if product else "",
+                fuel_code=product.code if product else "",
+                rate=product.current_rate if product else 0,
+                opening_reading=opening_reading,
+                closing_reading=closing_reading,
+                testing_litres=testing_litres,
+                litres_sold=litres_sold,
+                gross_amount=gross_amount,
+            )
+            db.add(reading_row)
 
+        # Update live pump nozzle current meter reading
         nozzle.current_meter_reading = closing_reading
+
+        # Interconnect with Daily Nozzle Meters
+        daily_meter = (
+            db.query(models.DailyNozzleMeter)
+            .filter(
+                models.DailyNozzleMeter.reading_date == shift.shift_date,
+                models.DailyNozzleMeter.nozzle_id == nozzle.id,
+            )
+            .first()
+        )
+        if daily_meter:
+            daily_meter.closing_meter = closing_reading
+            daily_meter.testing_litres = testing_litres
+            daily_meter.litres_sold = litres_sold
+            daily_meter.selling_rate = rate
+            daily_meter.gross_amount = gross_amount
+            daily_meter.recorded_by = shift.operator_name or "Manager"
+        else:
+            daily_meter = models.DailyNozzleMeter(
+                id=f"dnm-{shift.shift_date.strftime('%Y%m%d')}-{nozzle.id}",
+                reading_date=shift.shift_date,
+                pump_id=shift.pump_id,
+                nozzle_id=nozzle.id,
+                product_id=nozzle.product_id,
+                opening_meter=opening_reading,
+                closing_meter=closing_reading,
+                testing_litres=testing_litres,
+                litres_sold=litres_sold,
+                selling_rate=rate,
+                gross_amount=gross_amount,
+                recorded_by=shift.operator_name or "Manager",
+            )
+            db.add(daily_meter)
 
         total_litres += litres_sold
         total_amount += gross_amount
@@ -203,7 +280,7 @@ def save_shift_draft(
     )
     shift.total_collected = round(total_collected, 2)
 
-    # If meter readings provided, recalculate totals (draft — don't update nozzle readings yet)
+    # If meter readings provided, update individual rows and recalculate totals
     if payload.meter_readings:
         total_litres = 0.0
         total_amount = 0.0
@@ -212,15 +289,45 @@ def save_shift_draft(
             if not nozzle:
                 continue
             product = db.query(models.Product).get(nozzle.product_id)
-            if not product:
-                continue
-            opening = float(nozzle.current_meter_reading)
-            closing = mr.closing_reading
-            if closing >= opening:
-                litres = round(closing - opening - mr.testing_litres, 2)
-                amount = round(litres * float(product.current_rate), 2)
-                total_litres += litres
-                total_amount += amount
+            rate = float(product.current_rate) if product else 0.0
+
+            reading_row = (
+                db.query(models.MeterReading)
+                .filter(models.MeterReading.shift_id == shift.id, models.MeterReading.nozzle_id == mr.nozzle_id)
+                .first()
+            )
+            opening = float(reading_row.opening_reading) if reading_row else float(nozzle.current_meter_reading)
+            closing = float(mr.closing_reading)
+            testing = float(mr.testing_litres or 0)
+            litres = max(0.0, round(closing - opening - testing, 2)) if closing >= opening else 0.0
+            amount = round(litres * rate, 2)
+
+            if reading_row:
+                reading_row.closing_reading = closing
+                reading_row.testing_litres = testing
+                reading_row.litres_sold = litres
+                reading_row.gross_amount = amount
+                if product:
+                    reading_row.rate = product.current_rate
+            else:
+                reading_row = models.MeterReading(
+                    shift_id=shift.id,
+                    nozzle_id=nozzle.id,
+                    nozzle_no=nozzle.nozzle_no,
+                    product_name=product.name if product else "",
+                    fuel_code=product.code if product else "",
+                    rate=product.current_rate if product else 0,
+                    opening_reading=opening,
+                    closing_reading=closing,
+                    testing_litres=testing,
+                    litres_sold=litres,
+                    gross_amount=amount,
+                )
+                db.add(reading_row)
+
+            total_litres += litres
+            total_amount += amount
+
         shift.total_litres_sold = round(total_litres, 2)
         shift.total_sales_amount = round(total_amount, 2)
 
@@ -231,6 +338,35 @@ def save_shift_draft(
     db.refresh(shift)
     return shift
 
+@router.put("/{shift_id}", response_model=schemas.ShiftOut)
+def update_shift(
+    shift_id: str, payload: schemas.ShiftUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)
+):
+    """Edit shift metadata (operator, shift type, date, notes). Does not touch
+    meter readings or collections — use the draft/close endpoints for those."""
+    shift = db.query(models.Shift).get(shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+
+    if payload.operator_id is not None:
+        operator = db.query(models.Operator).get(payload.operator_id)
+        if not operator:
+            raise HTTPException(status_code=400, detail="Invalid operator_id")
+        shift.operator_id = operator.id
+        shift.operator_name = operator.name
+
+    if payload.shift_type is not None:
+        shift.shift_type = payload.shift_type
+
+    if payload.shift_date is not None:
+        shift.shift_date = payload.shift_date
+
+    if payload.notes is not None:
+        shift.notes = payload.notes
+
+    db.commit()
+    db.refresh(shift)
+    return shift
 
 @router.delete("/{shift_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_shift(shift_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):

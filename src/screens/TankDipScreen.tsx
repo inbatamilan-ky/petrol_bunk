@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,192 +6,574 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
 } from 'react-native';
 import {
-  Database,
-  PlusCircle,
-  Droplets,
-  CheckCircle2,
-  AlertTriangle,
-  FileSpreadsheet,
-  X,
   Gauge,
-  Truck,
+  Fuel,
+  Calculator,
+  FileSpreadsheet,
+  Printer,
   Sparkles,
+  Droplets,
+  Layers,
+  ArrowUpRight,
+  TrendingUp,
+  Activity,
+  CheckCircle2,
+  Filter,
+  DollarSign,
+  Zap,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
-import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { colors, typography } from '../theme/colors';
-import { formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
-import {
-  calculateConvertedDensity,
-  calculateLitresFromDip,
-} from '../utils/densityCalculator';
+import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
+import { DatePickerInput } from '../components/DatePickerInput';
+import { NoDataView } from '../components/NoDataView';
 
 export const TankDipScreen: React.FC = () => {
-  const { tanks, products, dips, recordTankDip, role } = useBunk();
+  const { products, pumps, shifts, role, dailyNozzleMeters, saveBatchNozzleMeters } = useBunk();
 
-  const [showDipModal, setShowDipModal] = useState(false);
-  const [selectedTankId, setSelectedTankId] = useState<string>(tanks[0]?.id || '');
-  const [dipType, setDipType] = useState<'Morning' | 'Evening' | 'After Decantation'>('Morning');
-  const [fuelDipCm, setFuelDipCm] = useState('185.0');
-  const [waterDipCm, setWaterDipCm] = useState('0.0');
-  const [observedDensity, setObservedDensity] = useState('830.0');
-  const [observedTemp, setObservedTemp] = useState('29.0');
-  const [testedBy, setTestedBy] = useState('Manager');
+  const [selectedPumpFilter, setSelectedPumpFilter] = useState<string>('ALL');
+  const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const selectedTank = tanks.find((t) => t.id === selectedTankId) || tanks[0];
-  const prod = products.find((p) => p.id === selectedTank?.productId);
+  // Full-Day Nozzle Readings State (Starting morning value & ending closing value per nozzle)
+  const [dailyNozzleReadings, setDailyNozzleReadings] = useState<
+    Record<
+      string,
+      {
+        startingMeter: string;
+        endingMeter: string;
+        testingLitres: string;
+      }
+    >
+  >({});
 
-  // Live Density Calculation
-  const densityResult = calculateConvertedDensity(
-    parseFloat(observedDensity) || 0,
-    parseFloat(observedTemp) || 0,
-    prod?.code || 'HSD'
-  );
+  // Helper to get or compute default starting/ending readings for a nozzle
+  const getNozzleReadingValues = (noz: (typeof pumps)[0]['nozzles'][0]) => {
+    if (dailyNozzleReadings[noz.id]) {
+      return dailyNozzleReadings[noz.id];
+    }
+    
+    // Check if reading exists in database
+    const dbReading = dailyNozzleMeters.find(
+      (m) => m.nozzleId === noz.id && m.readingDate === selectedDate
+    );
+    if (dbReading) {
+      return {
+        startingMeter: String(dbReading.openingMeter),
+        endingMeter: String(dbReading.closingMeter),
+        testingLitres: String(dbReading.testingLitres),
+      };
+    }
 
-  // Live Litres from Dip
-  const computedLitres = calculateLitresFromDip(
-    parseFloat(fuelDipCm) || 0,
-    selectedTank?.capacityLitres || 20000,
-    selectedTank?.diameterCm || 250
-  );
+    const todayShifts = shifts.filter((s) => s.shiftDate === selectedDate);
+    const shiftEntries = todayShifts
+      .flatMap((s) => s.meterReadings)
+      .filter((r) => r.nozzleId === noz.id);
 
-  const handleSaveDip = () => {
-    if (!selectedTank) return;
-    const dipCmNum = parseFloat(fuelDipCm) || 0;
-    const waterCmNum = parseFloat(waterDipCm) || 0;
-    const obsDensityNum = parseFloat(observedDensity) || 0;
-    const obsTempNum = parseFloat(observedTemp) || 0;
+    let start = noz.currentMeterReading;
+    let end = noz.currentMeterReading;
+    let testing = 0;
 
-    const bookStock = selectedTank.currentStockLitres;
-    const physicalStock = computedLitres;
-    const variance = physicalStock - bookStock;
+    if (shiftEntries.length > 0) {
+      start = shiftEntries[shiftEntries.length - 1].openingReading;
+      end = shiftEntries[0].closingReading ?? shiftEntries[0].openingReading;
+      testing = shiftEntries.reduce((sum, r) => sum + (r.testingLitres || 0), 0);
+    } else {
+      start = Math.max(0, noz.currentMeterReading - 280);
+      end = noz.currentMeterReading;
+    }
 
-    recordTankDip({
-      tankId: selectedTank.id,
-      tankName: selectedTank.name,
-      productName: selectedTank.productName,
-      dipDate: getTodayDateString(),
-      dipType,
-      fuelDipCm: dipCmNum,
-      fuelDipLitres: physicalStock,
-      waterDipCm: waterCmNum,
-      observedDensity: obsDensityNum,
-      observedTemp: obsTempNum,
-      convertedDensity: densityResult.convertedDensity15C,
-      bookStockLitres: bookStock,
-      variance,
-      testedBy: testedBy || 'Manager',
-    });
-
-    setShowDipModal(false);
+    return {
+      startingMeter: String(start),
+      endingMeter: String(end),
+      testingLitres: String(testing),
+    };
   };
 
+  const updateNozzleReading = (
+    nozzleId: string,
+    field: 'startingMeter' | 'endingMeter' | 'testingLitres',
+    val: string,
+    defaultVals: { startingMeter: string; endingMeter: string; testingLitres: string }
+  ) => {
+    setDailyNozzleReadings((prev) => {
+      const existing = prev[nozzleId] || defaultVals;
+      return {
+        ...prev,
+        [nozzleId]: {
+          ...existing,
+          [field]: val,
+        },
+      };
+    });
+  };
+
+  // Aggregates & Product Breakdown
+  const {
+    stationTotalLitres,
+    stationTotalAmount,
+    stationTotalTesting,
+    productBreakdown,
+    totalNozzlesCount,
+  } = useMemo(() => {
+    let totLitres = 0;
+    let totAmount = 0;
+    let totTest = 0;
+    let nozCount = 0;
+
+    const prodMap = new Map<string, { name: string; code: string; color: string; litres: number; amount: number }>();
+    products.forEach((p) => {
+      prodMap.set(p.id, { name: p.name, code: p.code, color: p.color, litres: 0, amount: 0 });
+    });
+
+    pumps.forEach((pump) => {
+      pump.nozzles.forEach((noz) => {
+        nozCount += 1;
+        const p = products.find((prodItem) => prodItem.id === noz.productId);
+        const rate = p?.currentRate || 94.5;
+        const vals = getNozzleReadingValues(noz);
+        const start = parseFloat(vals.startingMeter) || 0;
+        const end = parseFloat(vals.endingMeter) || 0;
+        const test = parseFloat(vals.testingLitres) || 0;
+        const sold = Math.max(0, end - start - test);
+        const gross = sold * rate;
+
+        totLitres += sold;
+        totAmount += gross;
+        totTest += test;
+
+        if (p && prodMap.has(p.id)) {
+          const entry = prodMap.get(p.id)!;
+          entry.litres += sold;
+          entry.amount += gross;
+        }
+      });
+    });
+
+    return {
+      stationTotalLitres: totLitres,
+      stationTotalAmount: totAmount,
+      stationTotalTesting: totTest,
+      productBreakdown: Array.from(prodMap.values()).filter((item) => item.litres > 0 || item.amount > 0),
+      totalNozzlesCount: nozCount,
+    };
+  }, [pumps, products, dailyNozzleReadings, shifts, selectedDate]);
+
+  // Filtered Pumps based on filter
+  const filteredPumps = useMemo(() => {
+    return pumps.filter((pump) => {
+      if (selectedPumpFilter !== 'ALL' && String(pump.pumpNo) !== selectedPumpFilter) {
+        return false;
+      }
+      if (selectedProductFilter !== 'ALL') {
+        const hasProduct = pump.nozzles.some((noz) => {
+          const prod = products.find((p) => p.id === noz.productId);
+          return prod?.code === selectedProductFilter;
+        });
+        if (!hasProduct) return false;
+      }
+      return true;
+    });
+  }, [pumps, products, selectedPumpFilter, selectedProductFilter]);
+
+  // Export to Excel
   const handleExportCSV = () => {
     const headers = [
       'Date',
-      'Tank Name',
-      'Dip Type',
-      'Dip (cm)',
-      'Physical Volume (L)',
-      'Water Dip (cm)',
-      'Obs Density',
-      'Obs Temp (°C)',
-      '15°C Converted Density',
-      'Tested By',
+      'Pump Island',
+      'Nozzle Number',
+      'Product Name',
+      'Fuel Code',
+      'Morning Starting Meter (L)',
+      'Evening Ending Meter (L)',
+      'Quality Testing Deducted (L)',
+      'Net Litres Sold (L)',
+      'Selling Rate (₹/L)',
+      'Gross Sales Amount (₹)',
     ];
-    const rows = dips.map((d) => [
-      d.dipDate,
-      d.tankName,
-      d.dipType,
-      d.fuelDipCm,
-      d.fuelDipLitres,
-      d.waterDipCm,
-      d.observedDensity,
-      d.observedTemp,
-      d.convertedDensity,
-      d.testedBy,
-    ]);
-    exportToCSV(`Tank_Dip_Density_Log_${getTodayDateString()}`, headers, rows);
+
+    const nozzleRows: any[] = [];
+    pumps.forEach((pump) => {
+      pump.nozzles.forEach((noz) => {
+        const p = products.find((prodItem) => prodItem.id === noz.productId);
+        const rate = p?.currentRate || 94.5;
+        const vals = getNozzleReadingValues(noz);
+        const start = parseFloat(vals.startingMeter) || 0;
+        const end = parseFloat(vals.endingMeter) || 0;
+        const test = parseFloat(vals.testingLitres) || 0;
+        const sold = Math.max(0, end - start - test);
+        const amt = sold * rate;
+
+        nozzleRows.push([
+          selectedDate,
+          `Pump #${pump.pumpNo} (${pump.name})`,
+          `Nozzle #${noz.nozzleNo}`,
+          noz.productName,
+          noz.fuelCode,
+          start.toFixed(2),
+          end.toFixed(2),
+          test.toFixed(2),
+          sold.toFixed(2),
+          `₹${rate.toFixed(2)}`,
+          `₹${amt.toFixed(2)}`,
+        ]);
+      });
+    });
+
+    exportToCSV(`Nozzle_Totalizers_Meter_Log_${selectedDate}`, headers, nozzleRows);
+  };
+
+  const handleSaveToDatabase = async () => {
+    try {
+      setIsSaving(true);
+      const readingsToSave: Array<{
+        nozzleId: string;
+        pumpId: string;
+        productId: string;
+        openingMeter: number;
+        closingMeter: number;
+        testingLitres: number;
+        sellingRate: number;
+      }> = [];
+
+      pumps.forEach((pump) => {
+        pump.nozzles.forEach((noz) => {
+          const p = products.find((prodItem) => prodItem.id === noz.productId);
+          const rate = p?.currentRate || 94.5;
+          const vals = getNozzleReadingValues(noz);
+          readingsToSave.push({
+            nozzleId: noz.id,
+            pumpId: pump.id,
+            productId: noz.productId,
+            openingMeter: parseFloat(vals.startingMeter) || 0,
+            closingMeter: parseFloat(vals.endingMeter) || 0,
+            testingLitres: parseFloat(vals.testingLitres) || 0,
+            sellingRate: rate,
+          });
+        });
+      });
+
+      await saveBatchNozzleMeters(readingsToSave, selectedDate);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (e: any) {
+      alert(`Error saving meter readings to database: ${e.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-      {/* Top Bar */}
+      {/* ── Top Bar ───────────────────────────────────────────────────────── */}
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.screenTitle}>Underground Tanks & Density Quality Log</Text>
-          <Text style={styles.screenSubtitle}>
-            Daily dip measurement, ASTM 53B density conversion @ 15°C & water detection
-          </Text>
+        <View style={{ flex: 1, minWidth: 260 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.screenTitle}>Daily Nozzle Totalizers & Meters</Text>
+            <View style={styles.liveTag}>
+              <Activity size={12} color={colors.success} />
+              <Text style={styles.liveTagText}>Live Totalizers</Text>
+            </View>
+          </View>
+           
         </View>
 
-        <View style={styles.btnGroup}>
+        {/* Top Actions */}
+        <View style={styles.topActionsRow}>
           <TouchableOpacity
-            style={styles.addDipBtn}
-            onPress={() => setShowDipModal(true)}
+            style={[
+              styles.actionPillBtn,
+              { backgroundColor: savedSuccess ? colors.success + '20' : colors.primary, borderColor: colors.primary },
+            ]}
+            onPress={handleSaveToDatabase}
+            disabled={isSaving}
             activeOpacity={0.8}
           >
-            <PlusCircle size={15} color="#000" />
-            <Text style={styles.addDipBtnText}>Record Daily Dip / Density</Text>
+            <CheckCircle2 size={15} color={savedSuccess ? colors.success : '#000'} />
+            <Text style={[styles.actionPillText, { color: savedSuccess ? colors.success : '#000', fontWeight: '800' }]}>
+              {isSaving ? 'Saving to DB...' : savedSuccess ? 'Saved to Database!' : 'Save Readings to DB'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.8}>
+            <Printer size={15} color={colors.textPrimary} />
+            <Text style={styles.actionPillText}>Print Log</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV} activeOpacity={0.8}>
-            <FileSpreadsheet size={15} color="#000" />
-            <Text style={styles.exportBtnText}>Export Log</Text>
+            <FileSpreadsheet size={15} color="#16A34A" />
+            <Text style={styles.exportBtnText}>Export Excel Log</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Tanks Capacity & Live Inventory Matrix */}
-      <View style={styles.tanksGrid}>
-        {tanks.map((tank) => {
-          const p = products.find((prodItem) => prodItem.id === tank.productId);
-          const fillPct = Math.min(100, Math.round((tank.currentStockLitres / tank.capacityLitres) * 100));
-          const isLow = tank.currentStockLitres <= tank.capacityLitres * 0.2;
+      {/* ── Executive Meter KPI Summary Matrix (4 High-Impact Cards) ────────── */}
+      <View style={styles.kpiGrid}>
+        {/* Card 1: Total Volume Dispensed */}
+        <View style={[styles.kpiCard, { borderLeftColor: colors.primary }]}>
+          <View style={styles.kpiCardTop}>
+            <Text style={styles.kpiLabel}>TOTAL DISPENSED VOLUME</Text>
+            <Droplets size={16} color={colors.primary} />
+          </View>
+          <Text style={styles.kpiValue}>{formatLitres(stationTotalLitres)}</Text>
+          <Text style={styles.kpiSub}>Across all {totalNozzlesCount} active pump nozzles</Text>
+        </View>
+
+        {/* Card 2: Total Gross Fuel Revenue */}
+        <View style={[styles.kpiCard, { borderLeftColor: colors.cashGreen }]}>
+          <View style={styles.kpiCardTop}>
+            <Text style={styles.kpiLabel}>TOTAL GROSS FUEL TURNOVER</Text>
+            <DollarSign size={16} color={colors.cashGreen} />
+          </View>
+          <Text style={[styles.kpiValue, { color: colors.cashGreen }]}>{formatCurrency(stationTotalAmount)}</Text>
+          <Text style={styles.kpiSub}>Calculated at nozzle selling rates</Text>
+        </View>
+
+        {/* Card 3: Quality Testing Litres */}
+        <View style={[styles.kpiCard, { borderLeftColor: colors.warning }]}>
+          <View style={styles.kpiCardTop}>
+            <Text style={styles.kpiLabel}>QUALITY TESTING DEDUCTED</Text>
+            <Fuel size={16} color={colors.warning} />
+          </View>
+          <Text style={[styles.kpiValue, { color: colors.warning }]}>{formatLitres(stationTotalTesting)}</Text>
+          <Text style={styles.kpiSub}>Sample measures returned to tank</Text>
+        </View>
+
+        {/* Card 4: Active Dispenser Islands */}
+        <View style={[styles.kpiCard, { borderLeftColor: colors.upiPurple }]}>
+          <View style={styles.kpiCardTop}>
+            <Text style={styles.kpiLabel}>DISPENSER ISLANDS</Text>
+            <Gauge size={16} color={colors.upiPurple} />
+          </View>
+          <Text style={[styles.kpiValue, { color: colors.upiPurple }]}>{pumps.length} Islands</Text>
+          <Text style={styles.kpiSub}>{totalNozzlesCount} electronic totalizer meters</Text>
+        </View>
+      </View>
+
+      {/* ── Product-wise Fuel Dispensed Ribbon ─────────────────────────────── */}
+      <View style={styles.productMixCard}>
+        <View style={styles.productMixHeader}>
+          <Text style={styles.productMixTitle}>Product-Wise Fuel Dispensed Summary</Text>
+          <View style={{ minWidth: 170 }}>
+            <DatePickerInput
+              value={selectedDate}
+              onChange={(d) => setSelectedDate(d)}
+              maxDate={getTodayDateString()}
+            />
+          </View>
+        </View>
+
+        {productBreakdown.length === 0 ? (
+          <NoDataView
+            title="No Meter Readings Found"
+            selectedDate={selectedDate}
+            message={`No fuel nozzle sales or readings recorded for ${formatDate(selectedDate)}.`}
+            onResetDate={() => setSelectedDate(getTodayDateString())}
+          />
+        ) : (
+          <View style={styles.productChipsRow}>
+            {productBreakdown.map((item) => (
+              <View key={item.code} style={[styles.productChip, { borderLeftColor: item.color, borderLeftWidth: 3 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={[styles.prodDot, { backgroundColor: item.color }]} />
+                  <Text style={styles.prodNameText}>{item.name}</Text>
+                </View>
+                <View style={styles.prodStatsCol}>
+                  <Text style={styles.prodLitresVal}>{formatLitres(item.litres)}</Text>
+                  <Text style={styles.prodAmtVal}>{formatCurrency(item.amount)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ── Filter Bar ────────────────────────────────────────────────────── */}
+      <View style={styles.filterBar}>
+        {/* Pump Filter Pills */}
+        <View style={styles.filterPillsGroup}>
+          <Text style={styles.filterLabel}>PUMP ISLAND:</Text>
+          <TouchableOpacity
+            style={[styles.filterPill, selectedPumpFilter === 'ALL' && styles.filterPillActive]}
+            onPress={() => setSelectedPumpFilter('ALL')}
+          >
+            <Text style={[styles.filterPillText, selectedPumpFilter === 'ALL' && styles.filterPillTextActive]}>
+              All Islands ({pumps.length})
+            </Text>
+          </TouchableOpacity>
+
+          {pumps.map((p) => (
+            <TouchableOpacity
+              key={p.id}
+              style={[styles.filterPill, selectedPumpFilter === String(p.pumpNo) && styles.filterPillActive]}
+              onPress={() => setSelectedPumpFilter(String(p.pumpNo))}
+            >
+              <Text style={[styles.filterPillText, selectedPumpFilter === String(p.pumpNo) && styles.filterPillTextActive]}>
+                Pump #{p.pumpNo}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Product Filter Pills */}
+        <View style={styles.filterPillsGroup}>
+          <Text style={styles.filterLabel}>FUEL:</Text>
+          {['ALL', 'MS', 'HSD'].map((f) => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.filterPill, selectedProductFilter === f && styles.filterPillActive]}
+              onPress={() => setSelectedProductFilter(f)}
+            >
+              <Text style={[styles.filterPillText, selectedProductFilter === f && styles.filterPillTextActive]}>
+                {f}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* ── Pump Islands & Nozzle Totalizers Grid ─────────────────────────── */}
+      <View style={styles.pumpsContainer}>
+        {filteredPumps.map((pump) => {
+          let pumpTotalLitres = 0;
+          let pumpTotalAmount = 0;
+          let pumpTotalTest = 0;
 
           return (
-            <View key={tank.id} style={[styles.tankCard, { borderTopColor: p?.color || colors.primary }]}>
-              <View style={styles.tankCardHeader}>
-                <View>
-                  <Text style={styles.tankTitle}>{tank.name}</Text>
-                  <Text style={styles.tankProductSubtitle}>{tank.productName}</Text>
+            <View key={pump.id} style={styles.pumpCard}>
+              {/* Island Header */}
+              <View style={styles.pumpCardHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={styles.pumpBadgeIcon}>
+                    <Gauge size={16} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.pumpCardTitle}>Pump #{pump.pumpNo} — {pump.name}</Text>
+                    <Text style={styles.pumpCardSub}>{pump.nozzles.length} Electronic Nozzle Totalizer(s)</Text>
+                  </View>
+                </View>
+
+                <View style={styles.activeTag}>
+                  <Text style={styles.activeTagText}>{pump.status}</Text>
                 </View>
               </View>
 
-              {/* Visual Tank Graphic */}
-              <View style={styles.tankGraphic}>
-                <View style={styles.tankGraphicTrack}>
-                  <View
-                    style={[
-                      styles.tankGraphicFill,
-                      {
-                        height: `${fillPct}%` as any,
-                        backgroundColor: p?.color || colors.primary,
-                      },
-                    ]}
-                  />
+              {/* Nozzles Table Container */}
+              <View style={styles.nozzlesTableWrapper}>
+                <View style={styles.nozzlesTableHeader}>
+                  <Text style={[styles.nozzleColHead, { width: 140 }]}>NOZZLE & FUEL</Text>
+                  <Text style={[styles.nozzleColHead, { flex: 1.2, minWidth: 120 }]}>MORNING OPENING (L)</Text>
+                  <Text style={[styles.nozzleColHead, { flex: 1.2, minWidth: 120 }]}>EVENING CLOSING (L)</Text>
+                  <Text style={[styles.nozzleColHead, { width: 90, textAlign: 'center' }]}>TEST (L)</Text>
+                  <Text style={[styles.nozzleColHead, { width: 110, textAlign: 'right' }]}>DISPENSED (L)</Text>
+                  <Text style={[styles.nozzleColHead, { width: 120, textAlign: 'right' }]}>GROSS SALES</Text>
                 </View>
 
-                <View style={styles.tankMetricsRight}>
-                  <View style={styles.metricBlock}>
-                    <Text style={styles.metricBlockLabel}>CURRENT PHYSICAL STOCK</Text>
-                    <Text style={[styles.metricBlockVal, isLow && { color: colors.danger }]}>{formatLitres(tank.currentStockLitres)}</Text>
-                  </View>
+                {pump.nozzles.map((noz) => {
+                  const p = products.find((prodItem) => prodItem.id === noz.productId);
+                  const rate = p?.currentRate || 94.5;
+                  const vals = getNozzleReadingValues(noz);
+                  const startNum = parseFloat(vals.startingMeter) || 0;
+                  const endNum = parseFloat(vals.endingMeter) || 0;
+                  const testNum = parseFloat(vals.testingLitres) || 0;
+                  const sold = Math.max(0, endNum - startNum - testNum);
+                  const gross = sold * rate;
 
-                  <View style={styles.metricBlock}>
-                    <Text style={styles.metricBlockLabel}>TOTAL CAPACITY</Text>
-                    <Text style={styles.metricBlockSubVal}>{formatLitres(tank.capacityLitres)}</Text>
-                  </View>
+                  pumpTotalLitres += sold;
+                  pumpTotalAmount += gross;
+                  pumpTotalTest += testNum;
 
-                  <View style={styles.metricBlock}>
-                    <Text style={styles.metricBlockLabel}>ULLAGE / FREE SPACE</Text>
-                    <Text style={styles.metricBlockSubVal}>
-                      {formatLitres(Math.max(0, tank.capacityLitres - tank.currentStockLitres))} free
-                    </Text>
+                  return (
+                    <View key={noz.id} style={styles.nozzleTableRow}>
+                      {/* Nozzle Badge & Fuel Tag */}
+                      <View style={{ width: 140 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={[styles.fuelDot, { backgroundColor: noz.color || colors.primary }]} />
+                          <Text style={styles.nozzleNumberText}>Noz #{noz.nozzleNo}</Text>
+                          <View style={[styles.fuelPill, { backgroundColor: (noz.color || colors.primary) + '18' }]}>
+                            <Text style={[styles.fuelPillText, { color: noz.color || colors.primary }]}>
+                              {noz.fuelCode}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.nozzleProdSub} numberOfLines={1}>
+                          {noz.productName} • ₹{rate.toFixed(2)}/L
+                        </Text>
+                      </View>
+
+                      {/* Starting Morning Value Input */}
+                      <View style={{ flex: 1.2, minWidth: 120 }}>
+                        <TextInput
+                          style={styles.meterInput}
+                          value={vals.startingMeter}
+                          onChangeText={(v) => updateNozzleReading(noz.id, 'startingMeter', v, vals)}
+                          keyboardType="numeric"
+                          placeholder="0.00"
+                        />
+                      </View>
+
+                      {/* Ending Closing Value Input */}
+                      <View style={{ flex: 1.2, minWidth: 120 }}>
+                        <TextInput
+                          style={[styles.meterInput, { borderColor: colors.primary, borderWidth: 1.5 }]}
+                          value={vals.endingMeter}
+                          onChangeText={(v) => updateNozzleReading(noz.id, 'endingMeter', v, vals)}
+                          keyboardType="numeric"
+                          placeholder="0.00"
+                        />
+                      </View>
+
+                      {/* Quality Testing Litres */}
+                      <View style={{ width: 90 }}>
+                        <TextInput
+                          style={[styles.meterInput, { textAlign: 'center' }]}
+                          value={vals.testingLitres}
+                          onChangeText={(v) => updateNozzleReading(noz.id, 'testingLitres', v, vals)}
+                          keyboardType="numeric"
+                          placeholder="0"
+                        />
+                      </View>
+
+                      {/* Net Litres Sold */}
+                      <View style={{ width: 110, alignItems: 'flex-end', justifyContent: 'center' }}>
+                        <Text style={styles.litresSoldText}>{formatLitres(sold)}</Text>
+                      </View>
+
+                      {/* Gross Fuel Amount */}
+                      <View style={{ width: 120, alignItems: 'flex-end', justifyContent: 'center' }}>
+                        <Text style={styles.grossAmountText}>{formatCurrency(gross)}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Pump Island Subtotal Footer */}
+              <View style={styles.pumpTotalFooter}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.pumpTotalLabel}>PUMP #{pump.pumpNo} ISLAND TOTAL:</Text>
+                  {pumpTotalTest > 0 && (
+                    <Text style={styles.pumpTotalTestText}>(Testing: {formatLitres(pumpTotalTest)})</Text>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                    <Text style={styles.pumpFooterSub}>Vol:</Text>
+                    <Text style={styles.pumpTotalLitres}>{formatLitres(pumpTotalLitres)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                    <Text style={styles.pumpFooterSub}>Sales:</Text>
+                    <Text style={styles.pumpTotalAmount}>{formatCurrency(pumpTotalAmount)}</Text>
                   </View>
                 </View>
               </View>
@@ -199,172 +581,6 @@ export const TankDipScreen: React.FC = () => {
           );
         })}
       </View>
-
-      {/* Historical Dip & Density Test Log Table */}
-      <View style={styles.tableCard}>
-        <View style={styles.tableTitleRow}>
-          <Gauge size={18} color={colors.primary} />
-          <Text style={styles.tableTitle}>Dip Readings & ASTM 53B Density Quality Log</Text>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          style={styles.tableScroll}
-          contentContainerStyle={{ minWidth: '100%' }}
-        >
-          <View style={{ width: '100%', minWidth: 560 }}>
-            <View style={styles.tableHeaderRow}>
-              <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-              <Text style={[styles.tableColHeader, { flex: 1.5, minWidth: 150 }]}>TANK NAME</Text>
-              <Text style={[styles.tableColHeader, { width: 100, textAlign: 'right' }]}>DIP (CM)</Text>
-              <Text style={[styles.tableColHeader, { width: 120, textAlign: 'right' }]}>VOLUME (L)</Text>
-              <Text style={[styles.tableColHeader, { width: 130, textAlign: 'right' }]}>DENSITY @15°C</Text>
-            </View>
-
-            {dips.map((d) => (
-              <View key={d.id} style={styles.tableDataRow}>
-                <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(d.dipDate)}</Text>
-                <View style={{ flex: 1.5, minWidth: 150 }}>
-                  <Text style={styles.tableCellName}>{d.tankName}</Text>
-                  <Text style={styles.tableCellSub}>{d.dipType} Dip • {d.testedBy}</Text>
-                </View>
-                <Text style={[styles.tableCellMono, { width: 100, textAlign: 'right' }]}>{d.fuelDipCm} cm</Text>
-                <Text style={[styles.tableCellMono, { width: 120, textAlign: 'right', color: '#38BDF8' }]}>
-                  {formatLitres(d.fuelDipLitres)}
-                </Text>
-                <Text style={[styles.tableCellMono, { width: 130, textAlign: 'right', color: colors.cashGreen }]}>
-                  {d.convertedDensity} kg/m³
-                </Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Record Dip Modal */}
-      <Modal visible={showDipModal} transparent animationType="slide" onRequestClose={() => setShowDipModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Record Daily Dip & Density Reading</Text>
-              <TouchableOpacity onPress={() => setShowDipModal(false)}>
-                <X size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-              <View style={styles.modalBody}>
-                {/* Select Tank */}
-                <DropdownPicker
-                  label="Select Underground Tank *"
-                  placeholder="Select Underground Tank..."
-                  options={tanks.map((t) => {
-                    const p = products.find((prod) => prod.id === t.productId);
-                    return {
-                      label: t.name,
-                      value: t.id,
-                      subtitle: `${t.productName} • Current: ${formatLitres(t.currentStockLitres)}`,
-                      color: p?.color,
-                    };
-                  })}
-                  value={selectedTankId}
-                  onChange={(v) => setSelectedTankId(v)}
-                />
-
-                {/* Dip Type */}
-                <DropdownPicker
-                  label="Dip Type *"
-                  placeholder="Select Dip Timing / Type..."
-                  options={[
-                    { label: 'Morning Dip (Opening)', value: 'Morning', subtitle: 'Start of day physical dip' },
-                    { label: 'Evening Dip (Closing)', value: 'Evening', subtitle: 'End of day shift handover' },
-                    { label: 'After Decantation Dip', value: 'After Decantation', subtitle: 'Post-tanker unloading check' },
-                  ]}
-                  value={dipType}
-                  onChange={(v) => setDipType(v as 'Morning' | 'Evening' | 'After Decantation')}
-                  allowOther
-                  onSaveNew={(v) => setDipType(v as 'Morning' | 'Evening' | 'After Decantation')}
-                />
-
-                {/* Fuel Dip & Water Dip */}
-                <View style={styles.dualFormRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Fuel Dip Height (cm) *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={fuelDipCm}
-                      onChangeText={setFuelDipCm}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Water Dip (cm)</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={waterDipCm}
-                      onChangeText={setWaterDipCm}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-
-                {/* Observed Density & Temp */}
-                <View style={styles.dualFormRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Observed Hydrometer Density *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={observedDensity}
-                      onChangeText={setObservedDensity}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Observed Temp (°C) *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={observedTemp}
-                      onChangeText={setObservedTemp}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-
-                {/* Converted Density Result Preview */}
-                <View style={styles.densityPreviewBox}>
-                  <View style={styles.densityPreviewRow}>
-                    <Text style={styles.densityPreviewLabel}>Converted Density @ 15°C:</Text>
-                    <Text style={styles.densityPreviewVal}>
-                      {densityResult.convertedDensity15C} kg/m³
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.densityStatusText,
-                      { color: densityResult.isPassed ? colors.success : colors.danger },
-                    ]}
-                  >
-                    {densityResult.message}
-                  </Text>
-                </View>
-
-                <View style={styles.volumePreviewBox}>
-                  <Text style={styles.volumePreviewLabel}>CALCULATED TANK VOLUME:</Text>
-                  <Text style={styles.volumePreviewVal}>{formatLitres(computedLitres)}</Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSaveDip} activeOpacity={0.8}>
-                <CheckCircle2 size={16} color="#000" />
-                <Text style={styles.modalSubmitBtnText}>Save Dip Log & Update Stock</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 };
@@ -376,19 +592,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 50,
     gap: 16,
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 12,
   },
   screenTitle: {
     color: '#000',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
@@ -397,30 +613,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  btnGroup: {
+  liveTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.success + '18',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  liveTagText: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  topActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
-  addDipBtn: {
+  actionPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  addDipBtnText: {
-    color: '#000',
+  actionPillText: {
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '700',
   },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
@@ -428,306 +661,327 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   exportBtnText: {
-    color: '#000',
+    color: '#16A34A',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
   },
-  tanksGrid: {
+
+  // ── KPI Grid Styles ────────────────────────────────────────────────────────
+  kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
+    gap: 12,
   },
-  tankCard: {
+  kpiCard: {
     flex: 1,
-    minWidth: 280,
+    minWidth: 220,
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    borderTopWidth: 4,
-    padding: 16,
-    gap: 14,
+    borderLeftWidth: 4,
+    padding: 14,
+    gap: 4,
   },
-  tankCardHeader: {
+  kpiCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  tankTitle: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  tankProductSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  stockStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  stockStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tankGraphic: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
   },
-  tankGraphicTrack: {
-    width: 48,
-    height: 110,
-    backgroundColor: '#070A12',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-    padding: 3,
-  },
-  tankGraphicFill: {
-    width: '100%',
-    borderRadius: 20,
-  },
-  tankMetricsRight: {
-    flex: 1,
-    gap: 8,
-  },
-  metricBlock: {
-    gap: 2,
-  },
-  metricBlockLabel: {
+  kpiLabel: {
     color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
-  metricBlockVal: {
+  kpiValue: {
     color: '#000',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     fontFamily: typography.monoFont,
   },
-  metricBlockSubVal: {
+  kpiSub: {
     color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFont,
+    fontSize: 10,
   },
-  tableCard: {
+
+  // ── Product-wise Fuel Dispensed Ribbon ─────────────────────────────────────
+  productMixCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
     gap: 10,
   },
-  tableScroll: {
-    width: '100%',
-  },
-  tableTitleRow: {
+  productMixHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
   },
-  tableTitle: {
+  productMixTitle: {
     color: '#000',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  dateBadgeText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontFamily: typography.monoFont,
+  },
+  productChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  productChip: {
+    flex: 1,
+    minWidth: 180,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  prodDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  prodNameText: {
+    color: '#000',
+    fontSize: 12,
     fontWeight: '700',
   },
-  tableHeaderRow: {
+  prodStatsCol: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  prodLitresVal: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: typography.monoFont,
+  },
+  prodAmtVal: {
+    color: colors.cashGreen,
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: typography.monoFont,
+  },
+
+  // ── Filter Bar ─────────────────────────────────────────────────────────────
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+    backgroundColor: colors.surface,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterPillsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  filterLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginRight: 4,
+  },
+  filterPill: {
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterPillText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  filterPillTextActive: {
+    color: '#000',
+    fontWeight: '800',
+  },
+
+  // ── Pump Islands & Nozzle Tables ───────────────────────────────────────────
+  pumpsContainer: {
+    gap: 16,
+  },
+  pumpCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  pumpCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingBottom: 8,
-    paddingHorizontal: 6,
   },
-  tableColHeader: {
+  pumpBadgeIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pumpCardTitle: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  pumpCardSub: {
+    color: colors.textSecondary,
+    fontSize: 11,
+  },
+  activeTag: {
+    backgroundColor: colors.success + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  activeTagText: {
+    color: colors.success,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  nozzlesTableWrapper: {
+    padding: 12,
+    gap: 8,
+  },
+  nozzlesTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  nozzleColHead: {
     color: colors.textMuted,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  tableDataRow: {
+  nozzleTableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  tableCell: {
-    color: colors.textPrimary,
-    fontSize: 11,
-  },
-  tableCellName: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  tableCellSub: {
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  tableCellMono: {
-    color: colors.textPrimary,
-    fontSize: 11,
-    fontFamily: typography.monoFont,
-    fontWeight: '600',
-  },
-  passBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  passBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 18,
-    gap: 14,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 10,
-  },
-  modalTitle: {
-    color: '#000',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalBody: {
-    gap: 12,
-  },
-  formGroup: {
-    gap: 6,
-  },
-  formLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pillRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  pillOption: {
     backgroundColor: colors.surfaceCard,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pillOptionActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  pillOptionText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pillOptionTextActive: {
-    color: '#000',
-    fontWeight: '700',
-  },
-  dualFormRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  textInput: {
-    backgroundColor: '#070A12',
-    color: '#000',
-    fontSize: 13,
-    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  densityPreviewBox: {
-    backgroundColor: colors.surfaceCard,
     borderRadius: 8,
-    padding: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
+    borderColor: colors.border + '90',
+    gap: 8,
   },
-  densityPreviewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  fuelDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  densityPreviewLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
+  nozzleNumberText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '800',
   },
-  densityPreviewVal: {
-    color: colors.cashGreen,
-    fontSize: 13,
+  fuelPill: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  fuelPillText: {
+    fontSize: 9,
     fontWeight: '800',
     fontFamily: typography.monoFont,
   },
-  densityStatusText: {
+  nozzleProdSub: {
+    color: colors.textMuted,
     fontSize: 10,
-    fontWeight: '600',
+    marginTop: 2,
   },
-  volumePreviewBox: {
-    backgroundColor: '#070A12',
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
+  meterInput: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: typography.monoFont,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  volumePreviewLabel: {
-    color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  volumePreviewVal: {
-    color: '#38BDF8',
-    fontSize: 16,
+  litresSoldText: {
+    color: colors.primary,
+    fontSize: 14,
     fontWeight: '900',
     fontFamily: typography.monoFont,
-    marginTop: 2,
   },
-  modalFooter: {
-    marginTop: 4,
+  grossAmountText: {
+    color: colors.cashGreen,
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: typography.monoFont,
   },
-  modalSubmitBtn: {
-    backgroundColor: colors.primary,
+  pumpTotalFooter: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexWrap: 'wrap',
     gap: 8,
   },
-  modalSubmitBtnText: {
+  pumpTotalLabel: {
     color: '#000',
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pumpTotalTestText: {
+    color: colors.warning,
+    fontSize: 11,
     fontWeight: '700',
+  },
+  pumpFooterSub: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pumpTotalLitres: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: typography.monoFont,
+  },
+  pumpTotalAmount: {
+    color: colors.cashGreen,
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: typography.monoFont,
   },
 });
