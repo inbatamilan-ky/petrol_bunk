@@ -151,18 +151,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={styles.form}>
             <Text style={styles.label}>Mobile Number</Text>
             <View style={styles.inputWrapper}>
-              <User size={16} color="#64748B" style={styles.inputIcon} />
+              <User size={16} color="#0e2d59" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={username}
-                onChangeText={setUsername}
-                placeholder="Enter your mobile number"
-                placeholderTextColor="#94A3B8"
+                 onChangeText={(text) => setUsername(text.replace(/[^0-9]/g, ''))}
+                      placeholder="Enter your mobile number"
+                      keyboardType="phone-pad"
+                      maxLength={10}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
               />
             </View>
+        
+                     
+
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.inputWrapper}>

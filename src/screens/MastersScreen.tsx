@@ -483,7 +483,7 @@ export const MastersScreen: React.FC = () => {
     { id: 'products', label: 'Products', icon: Fuel, count: products.length },
     { id: 'pumps', label: 'Pumps & Nozzles', icon: Gauge, count: pumps.length },
     { id: 'staff', label: 'Staff / Operators', icon: Users, count: operators.length },
-    { id: 'expenses', label: 'Expense Heads', icon: Tag, count: expenseTypes.length },
+    { id: 'expenses', label: 'Expense Titles', icon: Tag, count: expenseTypes.length },
     { id: 'customers', label: 'Credit Customers', icon: Truck, count: customers.length },
   ];
 
@@ -1218,7 +1218,7 @@ export const MastersScreen: React.FC = () => {
                   style={styles.textInput}
                   value={opName}
                   onChangeText={setOpName}
-                  placeholder="e.g. Ramesh Kumar"
+                  placeholder="name"
                 />
               </View>
 
@@ -1227,9 +1227,10 @@ export const MastersScreen: React.FC = () => {
                 <TextInput
                   style={styles.textInput}
                   value={opPhone}
-                  onChangeText={setOpPhone}
-                  placeholder="+91 98421 00000"
+                  onChangeText={(text) => setOpPhone(text.replace(/[^0-9]/g, ''))}
+                  placeholder="enter 10-digit number "
                   keyboardType="phone-pad"
+                  maxLength={10}
                 />
               </View>
             </View>
@@ -1339,9 +1340,10 @@ export const MastersScreen: React.FC = () => {
                     <TextInput
                       style={styles.textInput}
                       value={custPhone}
-                      onChangeText={setCustPhone}
-                      placeholder="+91 98421 00000"
+                      onChangeText={(text) => setCustPhone(text.replace(/[^0-9]/g, ''))}
+                      placeholder="phone number"
                       keyboardType="phone-pad"
+                      maxLength={10}
                     />
                   </View>
                   <View style={[styles.formGroup, { flex: 1 }]}>
@@ -1350,7 +1352,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.textInput}
                       value={custLimit}
                       onChangeText={setCustLimit}
-                      placeholder="500000"
+                      placeholder="e.g ₹500000"
                       keyboardType="numeric"
                     />
                   </View>
@@ -1362,12 +1364,12 @@ export const MastersScreen: React.FC = () => {
                     style={styles.textInput}
                     value={custVehicles}
                     onChangeText={setCustVehicles}
-                    placeholder="KA-01-AB-1234, KA-01-CD-5678"
+                    placeholder=" e.g TN 49 AB 1234, TN 49 C 5678"
                   />
                 </View>
 
                 <View style={styles.formGroup}>
-                  <DropdownPicker
+                  <DropdownPicker 
                     label="Account Status"
                     placeholder="Select Status..."
                     options={customerStatusOptions.length > 0 ? customerStatusOptions : [
