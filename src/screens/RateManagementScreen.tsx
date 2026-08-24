@@ -352,7 +352,7 @@ export const RateManagementScreen: React.FC = () => {
       {/* ── Screen Header ─────────────────────────────────────────────────── */}
       <View style={styles.headerContainer}>
         <View style={styles.titleArea}>
-          <Text style={styles.screenTitle}>Daily Fuel Rates & Pricing Broadcast</Text>
+          <Text style={styles.screenTitle}>Daily Fuel Rates & Pricing Updates</Text>
            
         </View>
 
