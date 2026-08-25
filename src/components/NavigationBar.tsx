@@ -15,6 +15,7 @@ import {
   Zap,
   Building2,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors } from '../theme/colors';
@@ -62,7 +63,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onSelectScreen,
   isSidebar = false,
 }) => {
-  const { role, activeShift } = useBunk();
+  const { role, activeShift, logout } = useBunk();
   const [searchQuery, setSearchQuery] = useState('');
 
   const allowedItems = NAV_ITEMS.filter((item) => item.roles.includes(role)).filter((item) =>
@@ -86,9 +87,9 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           </View>
         </View>
 
-        <View style={styles.sidebarHeader}>
+        {/* <View style={styles.sidebarHeader}>
           <Text style={styles.sidebarSectionTitle}>MAIN MENU</Text>
-        </View>
+        </View> */}
 
         <ScrollView style={styles.sidebarScroll} showsVerticalScrollIndicator={false}>
           {allowedItems.map((item) => {
@@ -112,27 +113,16 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           })}
         </ScrollView>
 
-        {/* Sidebar Footer Status Card */}
+        {/* Sidebar Footer Log Out */}
         <View style={styles.sidebarFooter}>
-          <View style={styles.statusCard}>
-            <View style={styles.statusCardTop}>
-              <Zap size={14} color="#FFDE00" />
-              <Text style={styles.statusCardTitle}>FuelPulse Pro</Text>
-            </View>
-            <Text style={styles.statusCardSub}>BP Ky Petrol Station</Text>
-            <View style={styles.progressBarBg}>
-              <View style={styles.progressBarFill} />
-            </View>
-          </View>
-
-          <View style={styles.stationBadgeFooter}>
-            <View style={styles.stationAvatar}>
-              <Building2 size={13} color="#007DC6" />
-            </View>
-            <Text style={styles.stationFooterText} numberOfLines={1}>
-              KY Petrol Bunk
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={logout}
+            activeOpacity={0.7}
+          >
+            <LogOut size={20} color="#EF4444" />
+            <Text style={styles.logoutText}>Log Out</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -254,62 +244,22 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F5F9',
     gap: 8,
   },
-  statusCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 10,
-    padding: 10,
-  },
-  statusCardTop: {
+  logoutButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusCardTitle: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusCardSub: {
-    color: '#94A3B8',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  progressBarBg: {
-    height: 4,
-    backgroundColor: '#334155',
-    borderRadius: 2,
-    marginTop: 6,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '85%',
-    height: '100%',
-    backgroundColor: '#007DC6',
-  },
-  stationBadgeFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  stationAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
-  stationFooterText: {
-    color: '#1E293B',
-    fontSize: 11,
-    fontWeight: '600',
-    flex: 1,
+  logoutText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
   },
   bottomNavContainer: {
     backgroundColor: '#FFFFFF',
@@ -361,4 +311,4 @@ const styles = StyleSheet.create({
     color: '#007DC6',
     fontWeight: '700',
   },
-});
+});

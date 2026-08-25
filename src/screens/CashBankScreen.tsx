@@ -64,9 +64,9 @@ export const CashBankScreen: React.FC = () => {
   // Denomination State
   const [denoms, setDenoms] = useState<CashDenomination>({
     note2000: 0,
-    note500: 300,
-    note200: 100,
-    note100: 100,
+    note500: 0,
+    note200: 0,
+    note100: 0,
     note50: 0,
     note20: 0,
     note10: 0,
@@ -74,13 +74,13 @@ export const CashBankScreen: React.FC = () => {
   });
 
   const totalDenominationAmount =
-    (denoms.note2000 || 0) * 2000 +
-    (denoms.note500 || 0) * 500 +
-    (denoms.note200 || 0) * 200 +
-    (denoms.note100 || 0) * 100 +
-    (denoms.note50 || 0) * 50 +
-    (denoms.note20 || 0) * 20 +
-    (denoms.note10 || 0) * 10 +
+    (denoms.note2000 || 0) * 0 +
+    (denoms.note500 || 0) * 0 +
+    (denoms.note200 || 0) * 0 +
+    (denoms.note100 || 0) * 0 +
+    (denoms.note50 || 0) * 0 +
+    (denoms.note20 || 0) * 0 +
+    (denoms.note10 || 0) * 0 +
     (denoms.coins || 0);
 
   // Filter shifts, credit payments, expenses, deposits based on date filter
@@ -234,7 +234,7 @@ export const CashBankScreen: React.FC = () => {
       items: [
         { name: '(+) Shift Cash Collections', amount: totalShiftCash },
         { name: '(+) Credit Customer Cash Inflow', amount: totalCreditCashRecovered },
-        { name: '(-) Petty Cash Expenses Deducted', amount: -totalExpenses },
+        { name: '(-) Pump Station Cash Expenses Deducted', amount: -totalExpenses },
         { name: '(-) Total Deposited in Bank Accounts', amount: -totalDeposited },
         { name: '=== EXPECTED SAFE CASH ===', amount: expectedCashInHand },
         { name: '(*) Total UPI / QR Collections', amount: totalUpiCollected },
@@ -257,10 +257,6 @@ export const CashBankScreen: React.FC = () => {
         <View style={{ flex: 1, minWidth: 260 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.screenTitle}>Cash & Digital Settlements</Text>
-            <View style={styles.vaultPill}>
-              <ShieldCheck size={13} color={colors.success} />
-              <Text style={styles.vaultPillText}>Safe Vault Active</Text>
-            </View>
           </View>
            
         </View>
@@ -313,9 +309,6 @@ export const CashBankScreen: React.FC = () => {
           <Text style={[styles.matrixValue, { color: colors.cashGreen }]}>
             {formatCurrency(expectedCashInHand)}
           </Text>
-          <Text style={styles.matrixSub}>
-            Shift Cash ({formatCurrency(totalShiftCash)}) + Recoveries ({formatCurrency(totalCreditCashRecovered)}) - Drops & Exp
-          </Text>
         </View>
 
         {/* Digital Online Collections (UPI + POS + Fleet) */}
@@ -327,9 +320,6 @@ export const CashBankScreen: React.FC = () => {
           <Text style={[styles.matrixValue, { color: colors.upiPurple }]}>
             {formatCurrency(totalDigitalOnline)}
           </Text>
-          <Text style={styles.matrixSub}>
-            UPI: {formatCurrency(totalUpiCollected)} • POS: {formatCurrency(totalCardCollected)} • Fleet: {formatCurrency(totalFleetCardCollected)}
-          </Text>
         </View>
 
         {/* Total Bank Deposits */}
@@ -339,7 +329,6 @@ export const CashBankScreen: React.FC = () => {
             <Building size={18} color={colors.primary} />
           </View>
           <Text style={styles.matrixValue}>{formatCurrency(totalDeposited)}</Text>
-          <Text style={styles.matrixSub}>{filteredDeposits.length} Bank Settlement Slips Recorded</Text>
         </View>
 
         {/* Denomination Counter Tally & Discrepancy */}
@@ -367,7 +356,6 @@ export const CashBankScreen: React.FC = () => {
               </View>
             )}
           </View>
-          <Text style={styles.matrixSub}>Counted tally from denomination register</Text>
         </View>
       </View>
 
@@ -459,7 +447,7 @@ export const CashBankScreen: React.FC = () => {
         <View style={styles.waterfallHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <FileText size={18} color={colors.primary} />
-            <Text style={styles.waterfallTitle}>Physical Safe Cash Reconciliation Flow</Text>
+            <Text style={styles.waterfallTitle}>Cash Balance Verification</Text>
           </View>
           <Text style={styles.waterfallMeta}>{dateFilter === 'TODAY' ? "Today's Ledger" : 'Aggregated View'}</Text>
         </View>
@@ -498,7 +486,7 @@ export const CashBankScreen: React.FC = () => {
             <View style={styles.waterfallLabelRow}>
               <View style={[styles.stepDot, { backgroundColor: colors.danger }]} />
               <View>
-                <Text style={styles.waterfallRowTitle}>(-) Petty Cash Expenses Paid</Text>
+                <Text style={styles.waterfallRowTitle}>(-)Cash Expenses Paid</Text>
                 <Text style={styles.waterfallRowSub}>Daily operating expenses paid from drawer cash</Text>
               </View>
             </View>
@@ -539,7 +527,7 @@ export const CashBankScreen: React.FC = () => {
         <View style={styles.denomHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Calculator size={18} color={colors.primary} />
-            <Text style={styles.denomTitle}>Real-time Cash Denomination Calculator & Tally</Text>
+            <Text style={styles.denomTitle}>Cash Denomination & Counting Verification</Text>
           </View>
 
           <View style={styles.denomActionsRow}>

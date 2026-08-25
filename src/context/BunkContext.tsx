@@ -522,7 +522,7 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
   const [apiConnected, setApiConnected] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const [bunkProfile, setBunkProfile] = useState<BunkProfile | null>({
@@ -1097,8 +1097,31 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         })),
       };
       await apiFetch(`/api/pumps/${pump.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    } catch (e) {}
-    setPumps((prev) => prev.map((p) => (p.id === pump.id ? pump : p)));
+      
+      const existingPump = pumps.find(p => p.id === pump.id);
+      const existingNozzles = existingPump ? existingPump.nozzles : [];
+      
+      for (const n of (pump.nozzles || [])) {
+        const isNew = !existingNozzles.some(en => en.id === n.id);
+        const nozPayload = { pump_id: pump.id, nozzle_no: n.nozzleNo, product_id: n.productId, current_meter_reading: n.currentMeterReading };
+        if (isNew) {
+          await apiFetch(`/api/pumps/${pump.id}/nozzles`, { method: 'POST', body: JSON.stringify(nozPayload) });
+        } else {
+          await apiFetch(`/api/pumps/nozzles/${n.id}`, { method: 'PUT', body: JSON.stringify(nozPayload) });
+        }
+      }
+      
+      const keepIds = pump.nozzles.map(n => n.id);
+      for (const old of existingNozzles) {
+        if (!keepIds.includes(old.id)) {
+          await apiFetch(`/api/pumps/nozzles/${old.id}`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
+      
+      await syncWithBackend();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const deletePump = async (id: string) => {
@@ -1353,23 +1376,9 @@ const deleteShift = async (shiftId: string) => {
     const closed = await apiFetch(`/api/shifts/${shiftId}/close`, { method: 'POST', body: JSON.stringify(payload) });
     const mapped = mapShift(closed);
     setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapped : s)));
-
-    // Refresh pump nozzle meter readings & daily nozzle meters
-    try {
-      const updatedPumps = await apiFetch('/api/pumps');
-      const prodMap = new Map(products.map((p) => [p.id, p]));
-      const enrichedPumps = (updatedPumps as any[]).map((pump: any) => ({
-        ...pump,
-        nozzles: (pump.nozzles ?? []).map((noz: any) => {
-          const prod = prodMap.get(noz.product_id) as any;
-          return { ...noz, product_name: prod?.name ?? '', fuel_code: prod?.code ?? noz.product_id, color: prod?.color ?? '#94A3B8' };
-        }),
-      }));
-      setPumps(enrichedPumps.map(mapPump));
-
-      const dnm = await apiFetch('/api/nozzle-meters');
-      setDailyNozzleMeters((dnm as any[]).map(mapDailyNozzleMeter));
-    } catch {}
+    
+    // Refresh all state (pump meters, cash ledger, etc.) after closing shift
+    await syncWithBackend();
     return mapped;
   };
 

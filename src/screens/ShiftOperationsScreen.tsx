@@ -464,14 +464,8 @@ export const ShiftOperationsScreen: React.FC = () => {
       <View style={styles.headerRow}>
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.screenTitle}>Shift Operations & Nozzle Reconciliation</Text>
-            <View style={styles.statusBadgeLive}>
-              <Text style={styles.statusBadgeLiveText}>Live Dispatch</Text>
-            </View>
+            <Text style={styles.screenTitle}>Shift Operations & Nozzle Meter Readings</Text>
           </View>
-          <Text style={styles.screenSub}>
-            Individual shift sessions, nozzle meter totalizers, and payment settlement per pump island
-          </Text>
         </View>
 
         <View style={styles.headerButtons}>
@@ -946,7 +940,7 @@ export const ShiftOperationsScreen: React.FC = () => {
             <View style={styles.sectionTitleHeader}>
               <View style={styles.titleIconRow}>
                 <Fuel size={18} color="#16A34A" />
-                <Text style={styles.sectionTitle}>2. Payment Collections & Mode Split</Text>
+                <Text style={styles.sectionTitle}>2. Payment Collections</Text>
               </View>
             </View>
 
@@ -1039,7 +1033,7 @@ export const ShiftOperationsScreen: React.FC = () => {
 
           {/* ── Section 3: Reconciliation Summary Box ──────────────────────── */}
           <View style={styles.settlementBox}>
-            <Text style={styles.settlementTitle}>SHIFT RECONCILIATION SUMMARY</Text>
+            <Text style={styles.settlementTitle}>SHIFT SUMMARY</Text>
 
             <View style={styles.settlementRows}>
               <View style={styles.settleRow}>

@@ -123,7 +123,7 @@ export const Header: React.FC = () => {
   };
 
   const usernameDisplay = currentUser?.username || (role === 'Owner' ? 'Admin' : 'Operator');
-  const roleLabel = role === 'Owner' ? 'Owner/ Admin' : 'Manager';
+  const roleLabel = role === 'Owner' ? 'Owner/ Manager' : 'Manager';
   const initial = (usernameDisplay.charAt(0) || 'U').toUpperCase();
 
   return (
@@ -140,13 +140,23 @@ export const Header: React.FC = () => {
           </View>
           <View>
             <View style={styles.titleRow}>
-              <Text style={styles.stationName}>FuelPulse</Text>
-              <View style={styles.versionBadge}>
-                <Text style={styles.versionText}>BP PRO</Text>
-              </View>
+              <Text style={styles.stationName}>PETROL BUNK</Text>
             </View>
-            <Text style={styles.stationSub}>IOC/BP-49821</Text>
           </View>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
+            <View style={styles.bpBadgeTicker}>
+              <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
+            </View>
+            {products.slice(0, 4).map((prod) => (
+              <View key={prod.id} style={styles.ratePill}>
+                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
+                <Text style={styles.rateProdName}>{prod.code}:</Text>
+                <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+              </View>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Right Section: Role switcher & Profile Box */}
@@ -190,7 +200,7 @@ export const Header: React.FC = () => {
                   </View>
                 </View>
 
-                <View style={styles.popoverDivider} />
+              
 
 {/* Role Switch Section */}
 <Text style={styles.popoverSectionLabel}>Switch Role</Text>
@@ -261,18 +271,7 @@ export const Header: React.FC = () => {
       {/* Ticker & Shift Banner */}
       <View style={styles.tickerRow}>
         {/* Active Rates Ticker with BP styling */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
-          <View style={styles.bpBadgeTicker}>
-            <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
-          </View>
-          {products.slice(0, 4).map((prod) => (
-            <View key={prod.id} style={styles.ratePill}>
-              <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
-              <Text style={styles.rateProdName}>{prod.code}:</Text>
-              <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
-            </View>
-          ))}
-        </ScrollView>
+     
 
         {/* Shift Badge */}
          

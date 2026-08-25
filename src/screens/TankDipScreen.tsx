@@ -278,11 +278,7 @@ export const TankDipScreen: React.FC = () => {
       <View style={styles.topBar}>
         <View style={{ flex: 1, minWidth: 260 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.screenTitle}>Daily Nozzle Totalizers & Meters</Text>
-            <View style={styles.liveTag}>
-              <Activity size={12} color={colors.success} />
-              <Text style={styles.liveTagText}>Live Totalizers</Text>
-            </View>
+            <Text style={styles.screenTitle}>Daily Nozzle Meter Readings</Text>
           </View>
            
         </View>
@@ -325,7 +321,6 @@ export const TankDipScreen: React.FC = () => {
             <Droplets size={16} color={colors.primary} />
           </View>
           <Text style={styles.kpiValue}>{formatLitres(stationTotalLitres)}</Text>
-          <Text style={styles.kpiSub}>Across all {totalNozzlesCount} active pump nozzles</Text>
         </View>
 
         {/* Card 2: Total Gross Fuel Revenue */}
@@ -335,7 +330,6 @@ export const TankDipScreen: React.FC = () => {
             <DollarSign size={16} color={colors.cashGreen} />
           </View>
           <Text style={[styles.kpiValue, { color: colors.cashGreen }]}>{formatCurrency(stationTotalAmount)}</Text>
-          <Text style={styles.kpiSub}>Calculated at nozzle selling rates</Text>
         </View>
 
         {/* Card 3: Quality Testing Litres */}
@@ -345,17 +339,15 @@ export const TankDipScreen: React.FC = () => {
             <Fuel size={16} color={colors.warning} />
           </View>
           <Text style={[styles.kpiValue, { color: colors.warning }]}>{formatLitres(stationTotalTesting)}</Text>
-          <Text style={styles.kpiSub}>Sample measures returned to tank</Text>
         </View>
 
         {/* Card 4: Active Dispenser Islands */}
         <View style={[styles.kpiCard, { borderLeftColor: colors.upiPurple }]}>
           <View style={styles.kpiCardTop}>
-            <Text style={styles.kpiLabel}>DISPENSER ISLANDS</Text>
+            <Text style={styles.kpiLabel}>PUMP STATION</Text>
             <Gauge size={16} color={colors.upiPurple} />
           </View>
-          <Text style={[styles.kpiValue, { color: colors.upiPurple }]}>{pumps.length} Islands</Text>
-          <Text style={styles.kpiSub}>{totalNozzlesCount} electronic totalizer meters</Text>
+          <Text style={[styles.kpiValue, { color: colors.upiPurple }]}>{pumps.length} Pump Station</Text>
         </View>
       </View>
 
@@ -401,13 +393,13 @@ export const TankDipScreen: React.FC = () => {
       <View style={styles.filterBar}>
         {/* Pump Filter Pills */}
         <View style={styles.filterPillsGroup}>
-          <Text style={styles.filterLabel}>PUMP ISLAND:</Text>
+          <Text style={styles.filterLabel}>PUMP STATION:</Text>
           <TouchableOpacity
             style={[styles.filterPill, selectedPumpFilter === 'ALL' && styles.filterPillActive]}
             onPress={() => setSelectedPumpFilter('ALL')}
           >
             <Text style={[styles.filterPillText, selectedPumpFilter === 'ALL' && styles.filterPillTextActive]}>
-              All Islands ({pumps.length})
+              All Pump Stations ({pumps.length})
             </Text>
           </TouchableOpacity>
 
@@ -427,7 +419,8 @@ export const TankDipScreen: React.FC = () => {
         {/* Product Filter Pills */}
         <View style={styles.filterPillsGroup}>
           <Text style={styles.filterLabel}>FUEL:</Text>
-          {['ALL', 'MS', 'HSD'].map((f) => (
+          {/* {['ALL', 'MS', 'HSD'].map((f) => ( */}
+          {['ALL'].map((f) => (
             <TouchableOpacity
               key={f}
               style={[styles.filterPill, selectedProductFilter === f && styles.filterPillActive]}
@@ -458,7 +451,7 @@ export const TankDipScreen: React.FC = () => {
                   </View>
                   <View>
                     <Text style={styles.pumpCardTitle}>Pump #{pump.pumpNo} — {pump.name}</Text>
-                    <Text style={styles.pumpCardSub}>{pump.nozzles.length} Electronic Nozzle Totalizer(s)</Text>
+                    <Text style={styles.pumpCardSub}>{pump.nozzles.length} Electronic Nozzle</Text>
                   </View>
                 </View>
 
@@ -578,7 +571,7 @@ export const TankDipScreen: React.FC = () => {
               {/* Pump Island Subtotal Footer */}
               <View style={styles.pumpTotalFooter}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.pumpTotalLabel}>PUMP #{pump.pumpNo} ISLAND TOTAL:</Text>
+                  <Text style={styles.pumpTotalLabel}>PUMP #{pump.pumpNo} PUMP STATION TOTAL:</Text>
                   {pumpTotalTest > 0 && (
                     <Text style={styles.pumpTotalTestText}>(Testing: {formatLitres(pumpTotalTest)})</Text>
                   )}
