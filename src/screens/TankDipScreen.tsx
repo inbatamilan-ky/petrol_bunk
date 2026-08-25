@@ -455,8 +455,8 @@ export const TankDipScreen: React.FC = () => {
                   </View>
                 </View>
 
-                <View style={styles.activeTag}>
-                  <Text style={styles.activeTagText}>{pump.status}</Text>
+                <View style={[styles.activeTag, pump.status === 'INACTIVE' && { backgroundColor: '#FEE2E2' }, pump.status === 'MAINTENANCE' && { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={[styles.activeTagText, pump.status === 'INACTIVE' && { color: '#DC2626' }, pump.status === 'MAINTENANCE' && { color: '#D97706' }]}>{pump.status}</Text>
                 </View>
               </View>
 
@@ -481,12 +481,14 @@ export const TankDipScreen: React.FC = () => {
                   const sold = Math.max(0, endNum - startNum - testNum);
                   const gross = sold * rate;
 
+                  const isNozInactive = pump.status === 'INACTIVE' || pump.status === 'MAINTENANCE' || p?.active === false;
+
                   pumpTotalLitres += sold;
                   pumpTotalAmount += gross;
                   pumpTotalTest += testNum;
 
                   return (
-                    <View key={noz.id} style={styles.nozzleTableRow}>
+                    <View key={noz.id} style={[styles.nozzleTableRow, isNozInactive && { opacity: 0.7, backgroundColor: '#FEF2F2' }]}>
                       {/* Nozzle Badge & Fuel Tag */}
                       <View style={{ width: 140 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -497,6 +499,11 @@ export const TankDipScreen: React.FC = () => {
                               {noz.fuelCode}
                             </Text>
                           </View>
+                          {isNozInactive && (
+                            <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ fontSize: 8, fontWeight: '800', color: '#DC2626' }}>INACTIVE</Text>
+                            </View>
+                          )}
                         </View>
                         <Text style={styles.nozzleProdSub} numberOfLines={1}>
                           {noz.productName} • ₹{rate.toFixed(2)}/L
@@ -506,8 +513,9 @@ export const TankDipScreen: React.FC = () => {
                       {/* Starting Morning Value Input */}
                       <View style={{ flex: 1.2, minWidth: 120 }}>
                         <TextInput
-                          style={styles.meterInput}
+                          style={[styles.meterInput, isNozInactive && { backgroundColor: '#F1F5F9', color: '#94A3B8', borderColor: '#E2E8F0' }]}
                           value={vals.startingMeter}
+                          editable={!isNozInactive}
                           onChangeText={(v) => updateNozzleReading(noz.id, 'startingMeter', v, vals)}
                           keyboardType="numeric"
                           placeholder="0.00"
@@ -517,8 +525,13 @@ export const TankDipScreen: React.FC = () => {
                       {/* Ending Closing Value Input */}
                       <View style={{ flex: 1.2, minWidth: 120 }}>
                         <TextInput
-                          style={[styles.meterInput, { borderColor: colors.primary, borderWidth: 1.5 }]}
+                          style={[
+                            styles.meterInput,
+                            { borderColor: isNozInactive ? '#E2E8F0' : colors.primary, borderWidth: 1.5 },
+                            isNozInactive && { backgroundColor: '#F1F5F9', color: '#94A3B8' },
+                          ]}
                           value={vals.endingMeter}
+                          editable={!isNozInactive}
                           onChangeText={(v) => updateNozzleReading(noz.id, 'endingMeter', v, vals)}
                           keyboardType="numeric"
                           placeholder="0.00"
@@ -528,8 +541,13 @@ export const TankDipScreen: React.FC = () => {
                       {/* Quality Testing Litres */}
                       <View style={{ width: 90 }}>
                         <TextInput
-                          style={[styles.meterInput, { textAlign: 'center' }]}
+                          style={[
+                            styles.meterInput,
+                            { textAlign: 'center' },
+                            isNozInactive && { backgroundColor: '#F1F5F9', color: '#94A3B8', borderColor: '#E2E8F0' },
+                          ]}
                           value={vals.testingLitres}
+                          editable={!isNozInactive}
                           onChangeText={(v) => updateNozzleReading(noz.id, 'testingLitres', v, vals)}
                           keyboardType="numeric"
                           placeholder="0"

@@ -3,16 +3,110 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // FastAPI backend
 const BASE_URL = 'http://localhost:8000';
 
+export const SESSION_MAX_AGE_MS = 50 * 60 * 1000; // 50 minutes session timeout
+
+export function getSyncAuthSession(): { user: any; token: string; remainingMs: number } | null {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const token = window.localStorage.getItem('access_token');
+      const userJson = window.localStorage.getItem('auth_user');
+      const loginTimeStr = window.localStorage.getItem('session_login_time');
+
+      if (!token || !userJson || !loginTimeStr) return null;
+
+      const loginTime = parseInt(loginTimeStr, 10);
+      const now = Date.now();
+      const elapsed = now - loginTime;
+
+      if (isNaN(loginTime) || elapsed > SESSION_MAX_AGE_MS) {
+        window.localStorage.removeItem('access_token');
+        window.localStorage.removeItem('auth_user');
+        window.localStorage.removeItem('session_login_time');
+        return null;
+      }
+
+      return {
+        token,
+        user: JSON.parse(userJson),
+        remainingMs: Math.max(0, SESSION_MAX_AGE_MS - elapsed),
+      };
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function getToken(): Promise<string | null> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const t = window.localStorage.getItem('access_token');
+    if (t) return t;
+  }
   return await AsyncStorage.getItem('access_token');
 }
 
 export async function setToken(token: string): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('access_token', token);
+  }
   await AsyncStorage.setItem('access_token', token);
 }
 
 export async function clearToken(): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.removeItem('access_token');
+      window.localStorage.removeItem('auth_user');
+      window.localStorage.removeItem('session_login_time');
+    } catch {}
+  }
   await AsyncStorage.removeItem('access_token');
+  await AsyncStorage.removeItem('auth_user');
+  await AsyncStorage.removeItem('session_login_time');
+}
+
+export async function saveAuthSession(user: any, token: string): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem('access_token', token);
+      window.localStorage.setItem('auth_user', JSON.stringify(user));
+      window.localStorage.setItem('session_login_time', String(Date.now()));
+    } catch {}
+  }
+  await AsyncStorage.setItem('access_token', token);
+  await AsyncStorage.setItem('auth_user', JSON.stringify(user));
+  await AsyncStorage.setItem('session_login_time', String(Date.now()));
+}
+
+export async function getAuthSession(): Promise<{ user: any; token: string; remainingMs: number } | null> {
+  const syncSess = getSyncAuthSession();
+  if (syncSess) return syncSess;
+
+  const token = await AsyncStorage.getItem('access_token');
+  const userJson = await AsyncStorage.getItem('auth_user');
+  const loginTimeStr = await AsyncStorage.getItem('session_login_time');
+
+  if (!token || !userJson || !loginTimeStr) return null;
+
+  const loginTime = parseInt(loginTimeStr, 10);
+  const now = Date.now();
+  const elapsed = now - loginTime;
+
+  if (isNaN(loginTime) || elapsed > SESSION_MAX_AGE_MS) {
+    // Session has expired after 50 minutes
+    await clearToken();
+    return null;
+  }
+
+  try {
+    return {
+      token,
+      user: JSON.parse(userJson),
+      remainingMs: Math.max(0, SESSION_MAX_AGE_MS - elapsed),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function apiFetch(

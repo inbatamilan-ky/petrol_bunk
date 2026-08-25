@@ -29,11 +29,14 @@ import {
   ShieldAlert,
   Droplets,
   DollarSign,
+  Calendar,
+  Clock,
+  User,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
 import { colors } from '../theme/colors';
-import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
+import { formatCurrency, formatLitres, formatDate, formatDateTime, getTodayDateString } from '../utils/formatters';
 import { Shift, ShiftType, MeterReadingEntry, PaymentCollectionBreakdown } from '../types';
 import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { DatePickerInput } from '../components/DatePickerInput';
@@ -311,13 +314,27 @@ export const ShiftOperationsScreen: React.FC = () => {
       return;
     }
 
+    const pumpObj = pumps.find((p) => p.id === pumpIdToUse);
+    if (pumpObj && (pumpObj.status === 'INACTIVE' || pumpObj.status === 'MAINTENANCE')) {
+      alert(`Cannot open shift: Pump #${pumpObj.pumpNo} (${pumpObj.name}) is currently marked ${pumpObj.status} in Station Masters.\n\nYou cannot open a shift or record sales on a deactivated dispenser. Please activate it in Masters first.`);
+      return;
+    }
+
+    const opObj = operators.find((o) => o.id === operatorIdToUse);
+    if (opObj && !opObj.active) {
+      alert(`Cannot open shift: Operator "${opObj.name}" is currently marked INACTIVE in Station Masters.\n\nPlease activate the staff member in Masters or choose an active operator.`);
+      return;
+    }
+
     try {
+      const targetDate = shiftDate || getTodayDateString();
       const newShift = await openNewShift({
         pumpId: pumpIdToUse,
         operatorId: operatorIdToUse,
         shiftType: selectedShiftType || 'Morning',
-        shiftDate: shiftDate || getTodayDateString(),
+        shiftDate: targetDate,
       });
+      setSelectedShiftDate(targetDate);
       setSelectedPumpTab(pumpIdToUse);
       setCurrentShift(newShift);
       setShowOpenModal(false);
@@ -507,6 +524,8 @@ export const ShiftOperationsScreen: React.FC = () => {
           {pumps.map((pump) => {
             const pumpShiftCount = shifts.filter((s) => s.pumpId === pump.id).length;
             const hasActiveShift = shifts.some((s) => s.pumpId === pump.id && s.status === 'IN_PROGRESS');
+            const isInactive = pump.status === 'INACTIVE';
+            const isMaintenance = pump.status === 'MAINTENANCE';
 
             return (
               <TouchableOpacity
@@ -515,6 +534,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                   styles.pumpTabPill,
                   selectedPumpTab === pump.id && styles.pumpTabPillActive,
                   hasActiveShift && styles.pumpTabHasActive,
+                  isInactive && styles.pumpTabInactive,
                 ]}
                 onPress={() => setSelectedPumpTab(pump.id)}
                 activeOpacity={0.7}
@@ -529,6 +549,16 @@ export const ShiftOperationsScreen: React.FC = () => {
                   >
                     Pump #{pump.pumpNo} ({pump.name}) • {pumpShiftCount}
                   </Text>
+                  {isInactive && (
+                    <View style={styles.tabInactiveBadge}>
+                      <Text style={styles.tabInactiveBadgeText}>INACTIVE</Text>
+                    </View>
+                  )}
+                  {isMaintenance && (
+                    <View style={styles.tabMaintBadge}>
+                      <Text style={styles.tabMaintBadgeText}>MAINT</Text>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -634,9 +664,40 @@ export const ShiftOperationsScreen: React.FC = () => {
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.metaSub}>
-                  Pump #{currentShift.pumpNo} Dispenser • Operator: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{currentShift.operatorName}</Text> • Date: {formatDate(currentShift.shiftDate)} ({currentShift.shiftType} Shift)
-                </Text>
+
+                {/* Prominent Shift Summary Chips */}
+                <View style={styles.shiftHighlightsRow}>
+                  <View style={styles.shiftHighlightPill}>
+                    <Calendar size={13} color="#007DC6" />
+                    <Text style={styles.shiftHighlightPillBold}>Date: {formatDate(currentShift.shiftDate)}</Text>
+                  </View>
+
+                  <View style={styles.shiftHighlightPill}>
+                    <Clock size={13} color="#D97706" />
+                    <Text style={styles.shiftHighlightPillText}>
+                      {currentShift.openedAt ? `Opened: ${formatDateTime(currentShift.openedAt)}` : `${currentShift.shiftType} Shift`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.shiftHighlightPill}>
+                    <Gauge size={13} color="#475569" />
+                    <Text style={styles.shiftHighlightPillText}>
+                      Pump #{currentShift.pumpNo} ({pumps.find((p) => p.id === currentShift.pumpId)?.name || 'Island'})
+                    </Text>
+                    {pumps.find((p) => p.id === currentShift.pumpId)?.status === 'INACTIVE' && (
+                      <View style={styles.microInactiveBadge}>
+                        <Text style={styles.microInactiveBadgeText}>INACTIVE PUMP</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.shiftHighlightPill}>
+                    <User size={13} color="#16A34A" />
+                    <Text style={styles.shiftHighlightPillText}>
+                      Operator: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{currentShift.operatorName}</Text>
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               <View style={styles.metaActions}>
@@ -681,9 +742,6 @@ export const ShiftOperationsScreen: React.FC = () => {
                 )}
               </View>
             </View>
-
-            {/* Interconnection Info Ribbon */}
-            
           </View>
 
           {/* ── Section 1: Nozzle Meter Readings Matrix ────────────────────── */}
@@ -734,8 +792,12 @@ export const ShiftOperationsScreen: React.FC = () => {
                 }
 
                 return readingsToDisplay.map((reading) => {
-                  const prod = products.find((p) => p.name === reading.productName || p.code === reading.fuelCode);
+                  const prod = products.find((p) => p.id === reading.nozzleId || p.name === reading.productName || p.code === reading.fuelCode);
                   const prodColor = prod?.color || '#007DC6';
+                  const isProdInactive = prod?.active === false;
+                  const isPumpInactive = shiftPump?.status === 'INACTIVE' || shiftPump?.status === 'MAINTENANCE';
+                  const isNozzleDisabled = isClosed || isProdInactive || isPumpInactive;
+
                   const sold = reading.litresSold || 0;
                   const amount = reading.grossAmount || 0;
 
@@ -746,7 +808,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                   };
 
                   return (
-                    <View key={reading.nozzleId} style={[styles.readingCard, { borderLeftColor: prodColor, borderLeftWidth: 4 }]}>
+                    <View key={reading.nozzleId} style={[styles.readingCard, { borderLeftColor: prodColor, borderLeftWidth: 4 }, (isProdInactive || isPumpInactive) && { opacity: 0.85, backgroundColor: '#FEF2F2' }]}>
                       {/* Header */}
                       <View style={styles.readingCardHeader}>
                         <View style={styles.readingTitleLeft}>
@@ -754,6 +816,16 @@ export const ShiftOperationsScreen: React.FC = () => {
                           <Text style={styles.readingProductName}>
                             Nozzle #{reading.nozzleNo} — {reading.productName} ({reading.fuelCode})
                           </Text>
+                          {isProdInactive && (
+                            <View style={styles.microInactiveBadge}>
+                              <Text style={styles.microInactiveBadgeText}>INACTIVE PRODUCT</Text>
+                            </View>
+                          )}
+                          {isPumpInactive && (
+                            <View style={styles.microInactiveBadge}>
+                              <Text style={styles.microInactiveBadgeText}>INACTIVE PUMP</Text>
+                            </View>
+                          )}
                         </View>
                         <View style={[styles.rateBadge, { borderColor: prodColor + '40' }]}>
                           <Text style={[styles.rateBadgeText, { color: '#0F172A' }]}>
@@ -761,6 +833,18 @@ export const ShiftOperationsScreen: React.FC = () => {
                           </Text>
                         </View>
                       </View>
+
+                      {/* Locked Inactive Notice */}
+                      {(isProdInactive || isPumpInactive) && (
+                        <View style={styles.lockedNozzleBar}>
+                          <AlertCircle size={12} color="#DC2626" />
+                          <Text style={styles.lockedNozzleBarText}>
+                            {isProdInactive
+                              ? `Product "${reading.productName}" is DEACTIVATED in Masters. Meter entry is disabled.`
+                              : `Pump #${currentShift.pumpNo} is ${shiftPump?.status} in Masters. Meter entry is disabled.`}
+                          </Text>
+                        </View>
+                      )}
 
                       {/* Inputs Row */}
                       <View style={styles.inputsGrid}>
@@ -770,7 +854,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                           <TextInput
                             style={[styles.inputField, styles.disabledInput]}
                             value={currentBuffer.opening}
-                            editable={!isClosed && role === 'Owner'}
+                            editable={!isNozzleDisabled && role === 'Owner'}
                             onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'opening', val)}
                             keyboardType="numeric"
                           />
@@ -780,10 +864,10 @@ export const ShiftOperationsScreen: React.FC = () => {
                         {/* Closing Reading */}
                         <View style={[styles.inputCol, { flex: 1.2 }]}>
                           <View style={styles.inputLabelRow}>
-                            <Text style={[styles.inputLabel, { color: '#007DC6', fontWeight: '700' }]}>
-                              Closing Meter (L) *
+                            <Text style={[styles.inputLabel, { color: isNozzleDisabled ? '#64748B' : '#007DC6', fontWeight: '700' }]}>
+                              Closing Meter (L) {isNozzleDisabled ? '(Locked)' : '*'}
                             </Text>
-                            {!isClosed && (
+                            {!isNozzleDisabled && (
                               <TouchableOpacity
                                 style={styles.simTriggerBtn}
                                 onPress={() => setSimNozzleId(reading.nozzleId)}
@@ -797,26 +881,31 @@ export const ShiftOperationsScreen: React.FC = () => {
                           <TextInput
                             style={[
                               styles.inputField,
-                              !isClosed && styles.activeInput,
-                              { borderColor: !isClosed ? '#007DC6' : '#CBD5E1' },
+                              isNozzleDisabled ? styles.disabledInput : styles.activeInput,
+                              { borderColor: !isNozzleDisabled ? '#007DC6' : '#CBD5E1' },
                             ]}
                             value={currentBuffer.closing}
-                            editable={!isClosed}
+                            editable={!isNozzleDisabled}
                             onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'closing', val)}
-                            placeholder="Enter closing meter"
+                            placeholder={isNozzleDisabled ? 'Locked (Inactive)' : 'Enter closing meter'}
                             placeholderTextColor={colors.textMuted}
                             keyboardType="numeric"
                           />
-                          <Text style={styles.inputSubHint}>Physical dispenser reading</Text>
+                          <Text style={styles.inputSubHint}>
+                            {isNozzleDisabled ? 'Deactivated in Masters' : 'Physical dispenser reading'}
+                          </Text>
                         </View>
 
                         {/* Testing / Calibration */}
                         <View style={[styles.inputCol, { maxWidth: 110 }]}>
                           <Text style={styles.inputLabel}>Testing (L)</Text>
                           <TextInput
-                            style={[styles.inputField, !isClosed && styles.activeInput]}
+                            style={[
+                              styles.inputField,
+                              isNozzleDisabled ? styles.disabledInput : styles.activeInput,
+                            ]}
                             value={currentBuffer.testing}
-                            editable={!isClosed}
+                            editable={!isNozzleDisabled}
                             onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'testing', val)}
                             keyboardType="numeric"
                           />
@@ -2031,5 +2120,91 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  // ── Highlights Banner & Inactive Badges ──
+  shiftHighlightsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  shiftHighlightPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  shiftHighlightPillBold: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  shiftHighlightPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  microInactiveBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  microInactiveBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  tabInactiveBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  tabInactiveBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  tabMaintBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  tabMaintBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  pumpTabInactive: {
+    opacity: 0.75,
+    borderColor: '#FCA5A5',
+  },
+  lockedNozzleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  lockedNozzleBarText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+    flex: 1,
   },
 });

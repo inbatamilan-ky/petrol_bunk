@@ -161,6 +161,16 @@ React.useEffect(() => {
 
     if (!cust || litresNum <= 0 || totalAmount <= 0) return;
 
+    if (cust.status === 'INACTIVE' || cust.status === 'BLOCKED') {
+      alert(`Cannot issue credit bill: Customer "${cust.name}" is marked ${cust.status} in Masters.\n\nPlease activate the customer account in Masters before issuing credit.`);
+      return;
+    }
+
+    if (prod && prod.active === false) {
+      alert(`Cannot issue credit bill: Product "${prod.name}" is DEACTIVATED in Masters.\n\nPlease activate the product in Masters before recording transactions.`);
+      return;
+    }
+
     const newSale = await addCreditSale({
       customerId: cust.id,
       customerName: cust.name,

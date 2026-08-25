@@ -73,6 +73,7 @@ class ProductBase(BaseModel):
     current_rate: float
     density_min: Optional[float] = None
     density_max: Optional[float] = None
+    active: bool = True
 
 
 class ProductCreate(ProductBase):
@@ -88,6 +89,7 @@ class ProductUpdate(BaseModel):
     current_rate: Optional[float] = None
     density_min: Optional[float] = None
     density_max: Optional[float] = None
+    active: Optional[bool] = None
 
 
 class ProductOut(ProductBase):
@@ -284,6 +286,7 @@ class CustomerOut(CustomerBase):
 class ExpenseTypeBase(BaseModel):
     name: str
     category: str
+    active: bool = True
 
 
 class ExpenseTypeCreate(ExpenseTypeBase):
@@ -293,6 +296,7 @@ class ExpenseTypeCreate(ExpenseTypeBase):
 class ExpenseTypeUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
+    active: Optional[bool] = None
 
 
 class ExpenseTypeOut(ExpenseTypeBase):

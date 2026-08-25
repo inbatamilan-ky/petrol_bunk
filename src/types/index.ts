@@ -326,7 +326,7 @@ export interface CashSafeLedger {
   notes?: string;
 }
 
-export type RateChangeSource = 'MANUAL_ENTRY' | 'SMS_AUTO' | 'SMS_MANUAL_APPLY' | 'BATCH_IMPORT';
+export type RateChangeSource = 'MANUAL_ENTRY' | 'MANUAL_UPLOAD' | 'SMS_AUTO' | 'SMS_MANUAL_APPLY' | 'BATCH_IMPORT';
 
 export interface FuelRateHistory {
   id: string;

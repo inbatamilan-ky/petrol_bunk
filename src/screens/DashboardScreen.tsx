@@ -156,10 +156,34 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <View style={styles.pumpsGrid}>
           {pumps.map((pump) => {
             const shiftForPump = shifts.find((s) => s.pumpId === pump.id && s.status === 'IN_PROGRESS');
+            const isInactive = pump.status === 'INACTIVE';
+            const isMaintenance = pump.status === 'MAINTENANCE';
+
             return (
-              <View key={pump.id} style={styles.pumpCard}>
+              <View key={pump.id} style={[styles.pumpCard, isInactive && { opacity: 0.8, borderColor: '#FCA5A5' }]}>
                 <View style={styles.pumpCardHeader}>
-                  <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
+                  <View>
+                    <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
+                    <Text style={{ fontSize: 10, color: colors.textMuted }}>{pump.name}</Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 4,
+                      backgroundColor: isInactive ? '#FEE2E2' : isMaintenance ? '#FEF3C7' : '#DEF7EC',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        fontWeight: '800',
+                        color: isInactive ? '#DC2626' : isMaintenance ? '#D97706' : '#03543F',
+                      }}
+                    >
+                      {pump.status}
+                    </Text>
+                  </View>
                 </View>
 
                 {shiftForPump && (

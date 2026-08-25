@@ -53,6 +53,11 @@ export const ExpensesScreen: React.FC = () => {
     const amountNum = parseFloat(amount) || 0;
     if (!typeName || amountNum <= 0) return;
 
+    if (typeObj && typeObj.active === false) {
+      alert(`Cannot record expense: Expense Head "${typeObj.name}" is DEACTIVATED in Station Masters.\n\nPlease activate this expense head in Masters before adding expense entries.`);
+      return;
+    }
+
     const cleanPaidTo = paidTo.startsWith('__other__:') ? paidTo.replace('__other__:', '') : paidTo;
     const cleanPaidBy = paidBy.startsWith('__other__:') ? paidBy.replace('__other__:', '') : paidBy;
 

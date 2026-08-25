@@ -19,36 +19,36 @@ import { colors } from './theme/colors';
 const SIDEBAR_BREAKPOINT = 900;
 
 const MainAppContent: React.FC = () => {
-  const { isLoggedIn, login, loading, currentUser } = useBunk();
+  const { isLoggedIn, login, isAuthChecking } = useBunk();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
   const [width, setWidth] = useState(Dimensions.get('window').width);
 
-useEffect(() => {
-  const subscription = Dimensions.addEventListener('change', ({ window }) => {
-    setWidth(window.width);
-  });
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setWidth(window.width);
+    });
 
-  return () => subscription?.remove();
-}, []);
+    return () => subscription?.remove();
+  }, []);
 
   const isDesktop = width >= SIDEBAR_BREAKPOINT;
 
-  // ── Auth gate: show login if not authenticated ───────────────────────────
-  if (!isLoggedIn && !loading) {
+  // ── Initial session check (show clean splash while verifying session) ────
+  if (isAuthChecking) {
     return (
-      <SafeAreaView style={styles.appRoot}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-        <LoginScreen onLoginSuccess={login} />
+      <SafeAreaView style={[styles.appRoot, styles.centered]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Restoring session…</Text>
       </SafeAreaView>
     );
   }
 
-  // ── Initial loading spinner (auto-login in progress) ─────────────────────
-  if (!isLoggedIn && loading) {
+  // ── Auth gate: show login only if confirmed not authenticated ───────────
+  if (!isLoggedIn) {
     return (
-      <SafeAreaView style={[styles.appRoot, styles.centered]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Connecting…</Text>
+      <SafeAreaView style={styles.appRoot}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <LoginScreen onLoginSuccess={login} />
       </SafeAreaView>
     );
   }
