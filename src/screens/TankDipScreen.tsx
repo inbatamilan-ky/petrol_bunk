@@ -21,8 +21,8 @@ import {
   Activity,
   CheckCircle2,
   Filter,
-  DollarSign,
   Zap,
+  IndianRupee,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
@@ -296,7 +296,7 @@ export const TankDipScreen: React.FC = () => {
           >
             <CheckCircle2 size={15} color={savedSuccess ? colors.success : '#000'} />
             <Text style={[styles.actionPillText, { color: savedSuccess ? colors.success : '#000', fontWeight: '800' }]}>
-              {isSaving ? 'Saving to DB...' : savedSuccess ? 'Saved to Database!' : 'Save Readings to DB'}
+              {isSaving ? 'Saving...' : savedSuccess ? 'Saved..!' : 'Save Readings'}
             </Text>
           </TouchableOpacity>
 
@@ -327,7 +327,7 @@ export const TankDipScreen: React.FC = () => {
         <View style={[styles.kpiCard, { borderLeftColor: colors.cashGreen }]}>
           <View style={styles.kpiCardTop}>
             <Text style={styles.kpiLabel}>TOTAL GROSS FUEL TURNOVER</Text>
-            <DollarSign size={16} color={colors.cashGreen} />
+            <IndianRupee size={16} color={colors.cashGreen} />
           </View>
           <Text style={[styles.kpiValue, { color: colors.cashGreen }]}>{formatCurrency(stationTotalAmount)}</Text>
         </View>

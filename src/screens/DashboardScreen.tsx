@@ -1,26 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import {
+  Banknote,
+  ChevronRight,
+  CreditCard,
   Fuel,
   IndianRupee,
-  CreditCard,
-  Banknote,
-  Droplets,
-  AlertTriangle,
-  ArrowUpRight,
-  PlusCircle,
-  TrendingUp,
-  Activity,
-  Layers,
-  ChevronRight,
-  Printer,
+  Printer
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MetricCard } from '../components/MetricCard';
-import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
-import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatLitres, formatMeter, formatDate } from '../utils/formatters';
 import { ScreenId } from '../components/NavigationBar';
+import { ThermalReceiptData, ThermalReceiptModal } from '../components/ThermalReceiptModal';
+import { useBunk } from '../context/BunkContext';
+import { colors, typography } from '../theme/colors';
+import { formatCurrency, formatDate, formatLitres, formatMeter } from '../utils/formatters';
 
 interface DashboardScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -83,7 +76,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </View>
 
         <View style={styles.actionPills}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.actionPill, { backgroundColor: colors.primary }]}
             onPress={() => onNavigate('shifts')}
             activeOpacity={0.8}
@@ -91,7 +84,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <Text style={styles.actionPillText}>
               {activeShift ? 'Manage Active Shift' : 'Open New Shift'}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity
             style={[styles.actionPill, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}

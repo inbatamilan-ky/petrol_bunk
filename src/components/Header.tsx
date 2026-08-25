@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
   TouchableWithoutFeedback,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Fuel,
@@ -35,6 +36,8 @@ import { changePassword as apiChangePassword } from '../api/auth';
 
 export const Header: React.FC = () => {
   const { role, setRole, products, activeShift, logout, currentUser, syncWithBackend } = useBunk();
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
   // Profile dropdown state
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -144,20 +147,22 @@ export const Header: React.FC = () => {
             </View>
           </View>
         </View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
-            <View style={styles.bpBadgeTicker}>
-              <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
-            </View>
-            {products.slice(0, 4).map((prod) => (
-              <View key={prod.id} style={styles.ratePill}>
-                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
-                <Text style={styles.rateProdName}>{prod.code}:</Text>
-                <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+        {!isMobile && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
+              <View style={styles.bpBadgeTicker}>
+                <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
               </View>
-            ))}
-          </ScrollView>
-        </View>
+              {products.slice(0, 4).map((prod) => (
+                <View key={prod.id} style={styles.ratePill}>
+                  <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
+                  <Text style={styles.rateProdName}>{prod.code}:</Text>
+                  <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Right Section: Role switcher & Profile Box */}
         <View style={styles.rightSection}>
@@ -267,6 +272,23 @@ export const Header: React.FC = () => {
           </View>
         </View>
       </View>
+
+      {isMobile && (
+        <View style={{ marginTop: 12, alignItems: 'flex-start', justifyContent: 'center', width: '100%' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratesContainer}>
+            <View style={styles.bpBadgeTicker}>
+              <Text style={styles.bpBadgeTickerText}>TODAY'S RATES</Text>
+            </View>
+            {products.slice(0, 4).map((prod) => (
+              <View key={prod.id} style={styles.ratePill}>
+                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
+                <Text style={styles.rateProdName}>{prod.code}:</Text>
+                <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Ticker & Shift Banner */}
       <View style={styles.tickerRow}>

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import Svg, {
   Path,
@@ -337,6 +338,8 @@ const GenericLineGraph: React.FC<GenericLineGraphProps> = ({
 
 export const ReportsScreen: React.FC = () => {
   const { shifts, customers, expenses, products, creditTransactions, creditPayments } = useBunk();
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
   const [activeReport, setActiveReport] = useState<ReportCategory>('bi_analytics');
   const [searchQuery, setSearchQuery] = useState('');
@@ -589,7 +592,7 @@ export const ReportsScreen: React.FC = () => {
     ];
 
     return (
-      <View style={styles.subSidebar}>
+      <View style={[styles.subSidebar, isMobile && { width: '100%', maxHeight: 200, borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }]}>
         <ScrollView showsVerticalScrollIndicator={false}>
           {reportGroups.map((grp) => (
             <View key={grp.title} style={styles.groupContainer}>
@@ -1211,7 +1214,7 @@ export const ReportsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isMobile && { flexDirection: 'column' }]}>
       {renderSubSidebar()}
       <View style={styles.contentArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

@@ -417,7 +417,6 @@ export const RateManagementScreen: React.FC = () => {
       <View style={styles.headerContainer}>
         <View style={styles.titleArea}>
           <Text style={styles.screenTitle}>Daily Fuel Rates Management</Text>
-          <Text style={styles.screenSubtitle}>Manual rate upload, daily price entry, and comprehensive audit history</Text>
         </View>
 
         {/* Quick Action Ribbon */}
@@ -433,7 +432,7 @@ export const RateManagementScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {isOwnerOrManager && (
+          {/* {isOwnerOrManager && (
             <TouchableOpacity
               style={styles.uploadCsvHeaderBtn}
               onPress={() => handleOpenRateModal('CSV_UPLOAD')}
@@ -442,7 +441,7 @@ export const RateManagementScreen: React.FC = () => {
               <UploadCloud size={15} color={colors.textPrimary} />
               <Text style={styles.uploadCsvHeaderBtnText}>Upload Rates (CSV)</Text>
             </TouchableOpacity>
-          )}
+          )} */}
 
           <TouchableOpacity
             style={styles.downloadTemplateBtn}

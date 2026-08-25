@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Edit2,
   Trash2,
+  MoreVertical,
   Search,
   Sliders,
   AlertTriangle,
@@ -64,6 +65,7 @@ export const MastersScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabId>('products');
   const [searchQuery, setSearchQuery] = useState('');
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   // ─── Delete Confirmation Modal State ───────────────────────────────────────
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -574,7 +576,7 @@ export const MastersScreen: React.FC = () => {
 
                     {/* Right Price & Actions */}
                     <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: openActionMenuId === prod.id ? 999 : 1, position: 'relative' }}>
                         <View style={[styles.statusPill, { backgroundColor: isActive ? colors.success + '20' : colors.inactiveBg, borderWidth: 1, borderColor: isActive ? colors.success + '40' : colors.inactiveBorder }]}>
                           <Text style={[styles.statusPillText, { color: isActive ? colors.success : colors.inactiveText }]}>
                             {isActive ? 'Active' : 'Inactive'}
@@ -582,33 +584,31 @@ export const MastersScreen: React.FC = () => {
                         </View>
 
                         <TouchableOpacity
-                          style={[styles.statusToggleBtn, { backgroundColor: isActive ? '#EF444415' : '#10B98115' }]}
-                          onPress={() => toggleProductActive(prod)}
-                          activeOpacity={0.7}
+                          style={styles.moreActionBtn}
+                          onPress={() => setOpenActionMenuId(openActionMenuId === prod.id ? null : prod.id)}
                         >
-                          <Power size={11} color={isActive ? colors.danger : colors.success} />
-                          <Text style={[styles.statusToggleText, { color: isActive ? colors.danger : colors.success }]}>
-                            {isActive ? 'Deactivate' : 'Activate'}
-                          </Text>
+                          <MoreVertical size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
 
-                        {/* Edit Button */}
-                        <TouchableOpacity style={styles.editActionBtn} onPress={() => openEditProduct(prod)}>
-                          <Edit2 size={12} color={colors.primary} />
-                          <Text style={styles.editActionBtnText}>Edit</Text>
-                        </TouchableOpacity>
-
-                        {/* Delete Button */}
-                        <TouchableOpacity
-                          style={styles.deleteActionBtn}
-                          onPress={() =>
-                            promptDelete('Delete Product', `Are you sure you want to delete ${prod.name} (${prod.code})?`, () =>
-                              deleteProduct(prod.id)
-                            )
-                          }
-                        >
-                          <Trash2 size={12} color={colors.danger} />
-                        </TouchableOpacity>
+                        {openActionMenuId === prod.id && (
+                          <View style={styles.actionDropdown}>
+                            <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); toggleProductActive(prod); }}>
+                              <Power size={14} color={isActive ? colors.danger : colors.success} />
+                              <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>{isActive ? 'Deactivate' : 'Activate'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); openEditProduct(prod); }}>
+                              <Edit2 size={14} color={colors.primary} />
+                              <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Edit Product</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.actionDropdownItem} onPress={() => {
+                              setOpenActionMenuId(null);
+                              promptDelete('Delete Product', `Are you sure you want to delete ${prod.name} (${prod.code})?`, () => deleteProduct(prod.id));
+                            }}>
+                              <Trash2 size={14} color={colors.danger} />
+                              <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '500' }}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
 
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
@@ -678,33 +678,37 @@ export const MastersScreen: React.FC = () => {
                       </View>
                     </View>
 
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: openActionMenuId === pump.id ? 999 : 1, position: 'relative' }}>
                       <View style={[styles.statusPill, { backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '40' }]}>
                         <Text style={[styles.statusPillText, { color: statusColor }]}>{pump.status}</Text>
                       </View>
 
-                      <TouchableOpacity style={styles.statusToggleBtn} onPress={() => cyclePumpStatus(pump)} activeOpacity={0.7}>
-                        <RefreshCw size={11} color={colors.accent} />
-                        <Text style={[styles.statusToggleText, { color: colors.accent }]}>Cycle</Text>
-                      </TouchableOpacity>
-
-                      {/* Edit Pump Button */}
-                      <TouchableOpacity style={styles.editActionBtn} onPress={() => openEditPump(pump)}>
-                        <Edit2 size={12} color={colors.primary} />
-                        <Text style={styles.editActionBtnText}>Edit</Text>
-                      </TouchableOpacity>
-
-                      {/* Delete Pump Button */}
                       <TouchableOpacity
-                        style={styles.deleteActionBtn}
-                        onPress={() =>
-                          promptDelete('Delete Pump', `Are you sure you want to delete ${pump.name}?`, () =>
-                            deletePump(pump.id)
-                          )
-                        }
+                        style={styles.moreActionBtn}
+                        onPress={() => setOpenActionMenuId(openActionMenuId === pump.id ? null : pump.id)}
                       >
-                        <Trash2 size={12} color={colors.danger} />
+                        <MoreVertical size={16} color={colors.textSecondary} />
                       </TouchableOpacity>
+
+                      {openActionMenuId === pump.id && (
+                        <View style={styles.actionDropdown}>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); cyclePumpStatus(pump); }}>
+                            <RefreshCw size={14} color={colors.accent} />
+                            <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Change Status</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); openEditPump(pump); }}>
+                            <Edit2 size={14} color={colors.primary} />
+                            <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Edit Pump</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => {
+                            setOpenActionMenuId(null);
+                            promptDelete('Delete Pump', `Are you sure you want to delete ${pump.name}?`, () => deletePump(pump.id));
+                          }}>
+                            <Trash2 size={14} color={colors.danger} />
+                            <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '500' }}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -741,7 +745,7 @@ export const MastersScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ minWidth: '100%' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ minWidth: '100%' }} style={{ overflow: 'visible' as any }}>
             <View style={{ width: '100%', minWidth: 600 }}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.colHead, { flex: 2, minWidth: 160 }]}>NAME</Text>
@@ -765,29 +769,33 @@ export const MastersScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={{ width: 140, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                  <View style={{ width: 140, flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: openActionMenuId === op.id ? 999 : 1 }}>
                     <TouchableOpacity
-                      style={[styles.statusToggleBtn, { backgroundColor: op.active ? '#EF444415' : '#10B98115' }]}
-                      onPress={() => toggleOperatorActive(op)}
+                      style={styles.moreActionBtn}
+                      onPress={() => setOpenActionMenuId(openActionMenuId === op.id ? null : op.id)}
                     >
-                      <Power size={11} color={op.active ? colors.danger : colors.success} />
+                      <MoreVertical size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.editActionBtn} onPress={() => openEditOperator(op)}>
-                      <Edit2 size={12} color={colors.primary} />
-                      <Text style={styles.editActionBtnText}>Edit</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.deleteActionBtn}
-                      onPress={() =>
-                        promptDelete('Delete Operator', `Are you sure you want to delete ${op.name}?`, () =>
-                          deleteOperator(op.id)
-                        )
-                      }
-                    >
-                      <Trash2 size={12} color={colors.danger} />
-                    </TouchableOpacity>
+                    {openActionMenuId === op.id && (
+                      <View style={styles.actionDropdown}>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); toggleOperatorActive(op); }}>
+                          <Power size={14} color={op.active ? colors.danger : colors.success} />
+                          <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>{op.active ? 'Deactivate' : 'Activate'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); openEditOperator(op); }}>
+                          <Edit2 size={14} color={colors.primary} />
+                          <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Edit Profile</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => {
+                          setOpenActionMenuId(null);
+                          promptDelete('Delete Operator', `Are you sure you want to delete ${op.name}?`, () => deleteOperator(op.id));
+                        }}>
+                          <Trash2 size={14} color={colors.danger} />
+                          <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '500' }}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
               ))}
@@ -828,25 +836,33 @@ export const MastersScreen: React.FC = () => {
                   </View>
 
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <TouchableOpacity onPress={() => toggleExpenseTypeActive(et)} style={{ padding: 4 }}>
-                        <Power size={11} color={isActive ? colors.danger : colors.success} />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity style={styles.editActionMiniBtn} onPress={() => openEditExpenseType(et)}>
-                        <Edit2 size={11} color={colors.primary} />
-                      </TouchableOpacity>
-
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, zIndex: openActionMenuId === et.id ? 999 : 1, position: 'relative' }}>
                       <TouchableOpacity
-                        style={styles.deleteActionMiniBtn}
-                        onPress={() =>
-                          promptDelete('Delete Expense Head', `Are you sure you want to delete ${et.name}?`, () =>
-                            deleteExpenseType(et.id)
-                          )
-                        }
+                        style={[styles.moreActionBtn, { padding: 4 }]}
+                        onPress={() => setOpenActionMenuId(openActionMenuId === et.id ? null : et.id)}
                       >
-                        <Trash2 size={11} color={colors.danger} />
+                        <MoreVertical size={14} color={colors.textSecondary} />
                       </TouchableOpacity>
+
+                      {openActionMenuId === et.id && (
+                        <View style={styles.actionDropdown}>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); toggleExpenseTypeActive(et); }}>
+                            <Power size={14} color={isActive ? colors.danger : colors.success} />
+                            <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>{isActive ? 'Deactivate' : 'Activate'}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); openEditExpenseType(et); }}>
+                            <Edit2 size={14} color={colors.primary} />
+                            <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Edit Head</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.actionDropdownItem} onPress={() => {
+                            setOpenActionMenuId(null);
+                            promptDelete('Delete Expense Head', `Are you sure you want to delete ${et.name}?`, () => deleteExpenseType(et.id));
+                          }}>
+                            <Trash2 size={14} color={colors.danger} />
+                            <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '500' }}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
 
                     <View style={[styles.statusPill, { paddingHorizontal: 6, paddingVertical: 1, backgroundColor: isActive ? colors.success + '20' : colors.inactiveBg }]}>
@@ -876,7 +892,7 @@ export const MastersScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ minWidth: '100%' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ minWidth: '100%' }} style={{ overflow: 'visible' as any }}>
             <View style={{ width: '100%', minWidth: 780 }}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.colHead, { width: 70 }]}>CODE</Text>
@@ -947,26 +963,33 @@ export const MastersScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={{ width: 140, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
-                    <TouchableOpacity style={styles.statusToggleBtn} onPress={() => cycleCustomerStatus(c)}>
-                      <RefreshCw size={11} color={colors.accent} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.editActionBtn} onPress={() => openEditCustomer(c)}>
-                      <Edit2 size={12} color={colors.primary} />
-                      <Text style={styles.editActionBtnText}>Edit</Text>
-                    </TouchableOpacity>
-
+                  <View style={{ width: 140, flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: openActionMenuId === c.id ? 999 : 1 }}>
                     <TouchableOpacity
-                      style={styles.deleteActionBtn}
-                      onPress={() =>
-                        promptDelete('Delete Customer', `Are you sure you want to delete ${c.name} (${c.code})?`, () =>
-                          deleteCustomer(c.id)
-                        )
-                      }
+                      style={styles.moreActionBtn}
+                      onPress={() => setOpenActionMenuId(openActionMenuId === c.id ? null : c.id)}
                     >
-                      <Trash2 size={12} color={colors.danger} />
+                      <MoreVertical size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
+
+                    {openActionMenuId === c.id && (
+                      <View style={styles.actionDropdown}>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); cycleCustomerStatus(c); }}>
+                          <RefreshCw size={14} color={colors.accent} />
+                          <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Change Status</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => { setOpenActionMenuId(null); openEditCustomer(c); }}>
+                          <Edit2 size={14} color={colors.primary} />
+                          <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>Edit Customer</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionDropdownItem} onPress={() => {
+                          setOpenActionMenuId(null);
+                          promptDelete('Delete Customer', `Are you sure you want to delete ${c.name} (${c.code})?`, () => deleteCustomer(c.id));
+                        }}>
+                          <Trash2 size={14} color={colors.danger} />
+                          <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '500' }}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
               ))}
@@ -1639,6 +1662,36 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  moreActionBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  actionDropdown: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+    minWidth: 120,
+    zIndex: 999,
+  },
+  actionDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
   },
   editActionMiniBtn: {
     backgroundColor: colors.primary + '15',
