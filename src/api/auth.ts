@@ -1,4 +1,4 @@
-import { apiFetch, setToken, clearToken } from './client';
+import { apiFetch, setToken, clearToken, saveAuthSession } from './client';
 
 export interface AuthUser {
   id: number;
@@ -54,7 +54,7 @@ export async function login(
 
   const data = await res.json();
 
-  await setToken(data.access_token);
+  await saveAuthSession(data.user, data.access_token);
 
   return data.user as AuthUser;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,111 +8,80 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  Alert,
+  Platform,
 } from 'react-native';
 import {
   TrendingUp,
   TrendingDown,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
-  RefreshCw,
   Copy,
   Check,
-  Smartphone,
-  Clock,
-  ArrowRight,
-  ShieldCheck,
-  Layers,
-  Info,
-  ChevronDown,
-  ChevronUp,
-  Building2,
-  Settings,
   CalendarCheck,
   FileText,
   History,
   Download,
   Search,
+  UploadCloud,
+  FileSpreadsheet,
+  Edit3,
+  Layers,
+  Lock,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatDateTime, formatDate, getTodayDateString } from '../utils/formatters';
-import { fetchDailyOmcRates, CITY_BASE_RATES, OmcRateFeed } from '../utils/omcRateFetcher';
-import { FuelRateHistory, BunkProfile } from '../types';
+import { FuelRateHistory, RateChangeSource } from '../types';
 import { DatePickerInput } from '../components/DatePickerInput';
+
+interface CsvParsedRow {
+  productCode: string;
+  productName: string;
+  productId: string | null;
+  newRate: number;
+  currentRate: number;
+  isValid: boolean;
+  error?: string;
+}
 
 export const RateManagementScreen: React.FC = () => {
   const {
-    bunkProfile,
-    updateBunkProfile,
-    triggerDailyCronSync,
     products,
-    updateFuelRate,
     updateBatchFuelRates,
     fuelRateHistory,
     role,
   } = useBunk();
 
   const isOwnerOrManager = role === 'Owner' || role === 'Manager';
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Manual Single Product Edit State
+  // Manual Single Product Inline Edit State
   const [editingProdId, setEditingProdId] = useState<string | null>(null);
   const [newRateInput, setNewRateInput] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Auto-Fetch Modal State
-  const [showAutoFetchModal, setShowAutoFetchModal] = useState<boolean>(false);
-  const [fetchingRates, setFetchingRates] = useState<boolean>(false);
-  const [selectedCity, setSelectedCity] = useState<string>('Chennai (Tamil Nadu)');
-  const [selectedOmc, setSelectedOmc] = useState<'BPCL'>('BPCL');
-  const [fetchedFeed, setFetchedFeed] = useState<OmcRateFeed | null>(null);
-  const [selectedFeedProducts, setSelectedFeedProducts] = useState<Record<string, boolean>>({});
+  // ── Rate Entry & Upload Modal State ────────────────────────────────────────
+  const [showRateModal, setShowRateModal] = useState<boolean>(false);
+  const [modalTab, setModalTab] = useState<'MANUAL' | 'CSV_UPLOAD'>('MANUAL');
 
-  // Bunk OMC Profile Modal State
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
-  const [profileForm, setProfileForm] = useState<{
-    bunkName: string;
-    omcBrand: 'BPCL';
-    dealerCode: string;
-    state: string;
-    city: string;
-    registeredPhone: string;
-    autoFetchEnabled: boolean;
-    autoApplyEnabled: boolean;
-  }>({
-    bunkName: bunkProfile?.bunkName || 'BPCL Chennai Auto Fuel',
-    omcBrand: 'BPCL',
-    dealerCode: bunkProfile?.dealerCode || '184920',
-    state: 'Tamil Nadu',
-    city: 'Chennai (Tamil Nadu)',
-    registeredPhone: bunkProfile?.registeredPhone || '+919876543210',
-    autoFetchEnabled: bunkProfile?.autoFetchEnabled !== false,
-    autoApplyEnabled: bunkProfile?.autoApplyEnabled !== false,
-  });
-
-  const [triggeringCron, setTriggeringCron] = useState<boolean>(false);
-
-  // Inbound SMS Log Filter State
-  const [showWebhookInfo, setShowWebhookInfo] = useState<boolean>(false);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  const [logFilter, setLogFilter] = useState<'ALL' | 'APPLIED' | 'PENDING'>('ALL');
-
-  // ── Daily Rate Registration Form State ─────────────────────────────────────
-  const [showRateEntryModal, setShowRateEntryModal] = useState<boolean>(false);
+  // Manual Form State
   const [rateEntryForm, setRateEntryForm] = useState<Record<string, string>>({});
   const [rateEntryDate, setRateEntryDate] = useState<string>(getTodayDateString());
-  const [rateEntryBy, setRateEntryBy] = useState<string>('Manager');
+  const [rateEntryBy, setRateEntryBy] = useState<string>(role || 'Manager');
   const [rateEntryRemarks, setRateEntryRemarks] = useState<string>('');
-  const [rateEntrySource, setRateEntrySource] = useState<'MANUAL_ENTRY' | 'SMS_MANUAL_APPLY'>('MANUAL_ENTRY');
   const [isSavingRates, setIsSavingRates] = useState<boolean>(false);
+
+  // CSV Upload State
+  const [csvRawText, setCsvRawText] = useState<string>('');
+  const [parsedCsvRows, setParsedCsvRows] = useState<CsvParsedRow[]>([]);
+  const [csvParseError, setCsvParseError] = useState<string | null>(null);
 
   // ── Rate Revision History State & Filters ─────────────────────────────────
   const [historyProductFilter, setHistoryProductFilter] = useState<string>('ALL');
   const [historySourceFilter, setHistorySourceFilter] = useState<string>('ALL');
   const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
 
-  // Trigger temporary success notification
+  // Temporary success notification
   const triggerSuccess = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => {
@@ -123,8 +92,7 @@ export const RateManagementScreen: React.FC = () => {
   // ── Input Sanitization & Field-Level Paste Helper ────────────────────────
   const sanitizeRateInput = (text: string): string => {
     if (!text) return '';
-    // Strip extraneous currency symbols, extract decimal number e.g. "Rs. 100.75/L" -> "100.75"
-    const match = text.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+    const match = text.match(/([0-9]+(?:.[0-9]{1,2})?)/);
     return match ? match[1] : text.replace(/[^0-9.]/g, '');
   };
 
@@ -142,26 +110,29 @@ export const RateManagementScreen: React.FC = () => {
         }
       }
     } catch {
-      // If browser clipboard permission fails, user can use regular OS long-press paste
+      // Fallback
     }
   };
 
-  // ── Daily Rate Registration Handlers ────────────────────────────────────────
-  const handleOpenRateEntry = () => {
-    // Pre-fill form with current rates for every product
+  // ── Open Rate Modal ────────────────────────────────────────────────────────
+  const handleOpenRateModal = (tab: 'MANUAL' | 'CSV_UPLOAD' = 'MANUAL') => {
+    setModalTab(tab);
     const pre: Record<string, string> = {};
     products.forEach((p) => {
       pre[p.id] = String(p.currentRate);
     });
     setRateEntryForm(pre);
     setRateEntryDate(getTodayDateString());
-    setRateEntryBy('Manager');
+    setRateEntryBy(role || 'Manager');
     setRateEntryRemarks('');
-    setRateEntrySource('MANUAL_ENTRY');
-    setShowRateEntryModal(true);
+    setCsvRawText('');
+    setParsedCsvRows([]);
+    setCsvParseError(null);
+    setShowRateModal(true);
   };
 
-  const handleSaveRateEntry = async () => {
+  // ── Save Manual Form Rates ────────────────────────────────────────────────
+  const handleSaveManualRates = async () => {
     setIsSavingRates(true);
     try {
       const updates = products
@@ -173,27 +144,175 @@ export const RateManagementScreen: React.FC = () => {
 
       if (updates.length === 0) return;
 
-      // Pass changed_by, remarks, change_source to batch-rates endpoint
       await updateBatchFuelRates(updates, {
-        changed_by: rateEntryBy,
-        remarks: rateEntryRemarks || `Daily rate registration for ${rateEntryDate}`,
-        change_source: rateEntrySource,
+        changed_by: rateEntryBy || 'Manager',
+        remarks: rateEntryRemarks || `Manual rate entry for ${rateEntryDate}`,
+        change_source: 'MANUAL_ENTRY',
       });
 
-      setShowRateEntryModal(false);
-      triggerSuccess(`Daily rates registered for ${rateEntryDate} by ${rateEntryBy}. Saved to fuel_rate_history audit log!`);
+      setShowRateModal(false);
+      triggerSuccess(`Daily fuel rates registered for ${rateEntryDate} by ${rateEntryBy}. Logged to audit trail!`);
     } finally {
       setIsSavingRates(false);
     }
   };
 
-  const isProfileComplete = Boolean(
-    bunkProfile?.dealerCode &&
-    bunkProfile?.omcBrand &&
-    bunkProfile?.dealerCode.trim().length > 2
-  );
+  // ── CSV Parsing Logic ──────────────────────────────────────────────────────
+  const parseCsvContent = (content: string) => {
+    setCsvParseError(null);
+    if (!content.trim()) {
+      setParsedCsvRows([]);
+      return;
+    }
 
-  // ── Manual Rate Save ───────────────────────────────────────────────────────
+    const lines = content
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) {
+      setParsedCsvRows([]);
+      return;
+    }
+
+    const results: CsvParsedRow[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (
+        i === 0 &&
+        (line.toLowerCase().includes('product') ||
+          line.toLowerCase().includes('code') ||
+          line.toLowerCase().includes('rate'))
+      ) {
+        continue;
+      }
+
+      const parts = line.split(/[,\t;]+/).map((s) => s.trim().replace(/^["']|["']$/g, ''));
+      if (parts.length < 2) {
+        continue;
+      }
+
+      const codeOrName = parts[0].toUpperCase();
+      const rawRate = parts[parts.length - 1];
+      const parsedRate = parseFloat(sanitizeRateInput(rawRate));
+
+      const matched = products.find(
+        (p) =>
+          p.code.toUpperCase() === codeOrName ||
+          p.name.toUpperCase() === codeOrName ||
+          p.name.toUpperCase().includes(codeOrName) ||
+          codeOrName.includes(p.code.toUpperCase())
+      );
+
+      if (matched) {
+        if (!isNaN(parsedRate) && parsedRate > 0) {
+          results.push({
+            productCode: matched.code,
+            productName: matched.name,
+            productId: matched.id,
+            newRate: parsedRate,
+            currentRate: matched.currentRate,
+            isValid: true,
+          });
+        } else {
+          results.push({
+            productCode: matched.code,
+            productName: matched.name,
+            productId: matched.id,
+            newRate: 0,
+            currentRate: matched.currentRate,
+            isValid: false,
+            error: 'Invalid rate value',
+          });
+        }
+      } else {
+        results.push({
+          productCode: parts[0],
+          productName: parts[0],
+          productId: null,
+          newRate: !isNaN(parsedRate) ? parsedRate : 0,
+          currentRate: 0,
+          isValid: false,
+          error: 'Unmatched product code',
+        });
+      }
+    }
+
+    if (results.length === 0) {
+      setCsvParseError('No valid product rows could be recognized. Check format: "Code, Rate"');
+    }
+
+    setParsedCsvRows(results);
+  };
+
+  const handleFileUpload = (event: any) => {
+    try {
+      const file = event.target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (text) {
+          setCsvRawText(text);
+          parseCsvContent(text);
+          triggerSuccess(`Loaded ${file.name}`);
+        }
+      };
+      reader.readAsText(file);
+    } catch {
+      setCsvParseError('Failed to read uploaded file.');
+    }
+  };
+
+  const handleApplyCsvUpload = async () => {
+    const validRows = parsedCsvRows.filter((r) => r.isValid && r.productId && r.newRate > 0);
+    if (validRows.length === 0) {
+      setCsvParseError('No valid product rate rows to apply.');
+      return;
+    }
+
+    setIsSavingRates(true);
+    try {
+      const updates = validRows.map((r) => ({
+        productId: r.productId!,
+        newRate: r.newRate,
+      }));
+
+      await updateBatchFuelRates(updates, {
+        changed_by: rateEntryBy || 'Manager',
+        remarks: rateEntryRemarks || `Manual CSV rate upload for ${rateEntryDate}`,
+        change_source: 'MANUAL_UPLOAD' as RateChangeSource,
+      });
+
+      setShowRateModal(false);
+      triggerSuccess(`Successfully uploaded and applied ${updates.length} fuel rates via CSV for ${rateEntryDate}!`);
+    } finally {
+      setIsSavingRates(false);
+    }
+  };
+
+  // ── Download Sample CSV Template ──────────────────────────────────────────
+  const downloadCsvTemplate = () => {
+    const headers = ['Product Code', 'Product Name', 'New Rate (INR)', 'Unit'];
+    const rows = products.map((p) => [p.code, `"${p.name}"`, p.currentRate, p.unit].join(','));
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Fuel_Rates_Template_${getTodayDateString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      triggerSuccess('Downloaded Fuel Rates CSV Template!');
+    }
+  };
+
+  // ── Single Product Manual Rate Save ───────────────────────────────────────
   const handleStartEdit = (prodId: string, currentRate: number) => {
     setEditingProdId(prodId);
     setNewRateInput(String(currentRate));
@@ -204,89 +323,12 @@ export const RateManagementScreen: React.FC = () => {
     if (rateNum > 0) {
       const targetProd = products.find((p) => p.id === prodId);
       await updateBatchFuelRates([{ productId: prodId, newRate: rateNum }], {
-        changed_by: 'Manager (Manual Override)',
-        remarks: `Single product rate override for ${targetProd?.name || 'Fuel'}`,
+        changed_by: `${role || 'Manager'} (Manual Override)`,
+        remarks: `Manual single product rate override for ${targetProd?.name || 'Fuel'}`,
         change_source: 'MANUAL_ENTRY',
       });
       setEditingProdId(null);
-      triggerSuccess('Fuel rate updated, logged to history and broadcasted!');
-    }
-  };
-
-  // ── Profile Save Handler ───────────────────────────────────────────────────
-  const handleSaveProfile = async () => {
-    await updateBunkProfile(profileForm);
-    setSelectedOmc('BPCL');
-    setSelectedCity(profileForm.city);
-    setShowProfileModal(false);
-    triggerSuccess(`Bunk OMC Profile saved (BPCL - RO: ${profileForm.dealerCode}). Automated 06:00 AM Cron active!`);
-  };
-
-  // ── Trigger 06:00 AM Cron Test ─────────────────────────────────────────────
-  const handleTriggerCronNow = async () => {
-    setTriggeringCron(true);
-    try {
-      const res = await triggerDailyCronSync();
-      triggerSuccess(res?.message || "06:00 AM Python Cron executed! Today's rates synced & applied.");
-    } catch {
-      triggerSuccess("06:00 AM Cron triggered.");
-    } finally {
-      setTriggeringCron(false);
-    }
-  };
-
-  // ── Auto-Fetch Flow ────────────────────────────────────────────────────────
-  const handleOpenAutoFetch = async () => {
-    setShowAutoFetchModal(true);
-    await handleQueryLiveFeed(selectedCity, selectedOmc);
-  };
-
-  const handleQueryLiveFeed = async (
-    city: string = 'Chennai (Tamil Nadu)',
-    omc: 'BPCL' = 'BPCL'
-  ) => {
-    setFetchingRates(true);
-    try {
-      const feed = await fetchDailyOmcRates(city, omc);
-      setFetchedFeed(feed);
-      const initialSel: Record<string, boolean> = {};
-      feed.rates.forEach((r) => {
-        initialSel[r.code] = true;
-      });
-      setSelectedFeedProducts(initialSel);
-    } catch {
-      // Fallback
-    } finally {
-      setFetchingRates(false);
-    }
-  };
-
-  const handleApplyFetchedRates = async () => {
-    if (!fetchedFeed) return;
-    const updates: { productId: string; newRate: number }[] = [];
-
-    fetchedFeed.rates.forEach((feedItem) => {
-      if (!selectedFeedProducts[feedItem.code]) return;
-      const matched = products.find(
-        (p) =>
-          p.code.toUpperCase() === feedItem.code.toUpperCase() ||
-          p.name.toUpperCase().includes(feedItem.code.toUpperCase()) ||
-          (feedItem.code === 'SPEED' && (p.code === 'MS2' || p.code === 'SPEED' || p.name.toUpperCase().includes('POWER') || p.name.toUpperCase().includes('SPEED'))) ||
-          (feedItem.code === 'MS' && (p.code === 'MS' || p.code === 'PETROL') && !p.code.includes('2') && !p.name.toUpperCase().includes('POWER'))
-      );
-      if (matched) {
-        updates.push({ productId: matched.id, newRate: feedItem.rate });
-      }
-    });
-
-    if (updates.length > 0) {
-      await updateBatchFuelRates(updates, {
-        changed_by: 'BPCL 06:00 AM Auto-Fetch',
-        remarks: `Live feed sync from ${fetchedFeed.source}`,
-        change_source: 'BATCH_IMPORT',
-      });
-      setShowAutoFetchModal(false);
-      triggerSuccess(`Successfully applied ${updates.length} fuel rates from BPCL daily feed!`);
+      triggerSuccess(`Fuel rate for ${targetProd?.name || 'product'} updated and logged!`);
     }
   };
 
@@ -316,7 +358,18 @@ export const RateManagementScreen: React.FC = () => {
   // ── Export History to CSV / Excel ──────────────────────────────────────────
   const exportHistoryCsv = () => {
     if (filteredHistory.length === 0) return;
-    const headers = ['Effective Date', 'Product Code', 'Product Name', 'Old Rate (INR)', 'New Rate (INR)', 'Diff (INR)', 'Source', 'Changed By', 'Remarks', 'Recorded At'];
+    const headers = [
+      'Effective Date',
+      'Product Code',
+      'Product Name',
+      'Old Rate (INR)',
+      'New Rate (INR)',
+      'Diff (INR)',
+      'Source',
+      'Changed By',
+      'Remarks',
+      'Recorded At',
+    ];
     const rows = filteredHistory.map((h) => {
       const diff = Math.round((h.newRate - h.oldRate) * 100) / 100;
       return [
@@ -333,13 +386,13 @@ export const RateManagementScreen: React.FC = () => {
       ].join(',');
     });
     const csvContent = [headers.join(','), ...rows].join('\n');
-    
+
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `BPCL_Chennai_Rate_History_${getTodayDateString()}.csv`);
+      link.setAttribute('download', `Fuel_Rate_History_${getTodayDateString()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -349,20 +402,30 @@ export const RateManagementScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      {/* Hidden file input for web */}
+      {Platform.OS === 'web' && (
+        <input
+          type="file"
+          ref={fileInputRef as any}
+          style={{ display: 'none' }}
+          accept=".csv,.txt,.tsv"
+          onChange={handleFileUpload}
+        />
+      )}
+
       {/* ── Screen Header ─────────────────────────────────────────────────── */}
       <View style={styles.headerContainer}>
         <View style={styles.titleArea}>
-          <Text style={styles.screenTitle}>Daily Fuel Rates & Pricing Broadcast</Text>
-           
+          <Text style={styles.screenTitle}>Daily Fuel Rates Management</Text>
+          <Text style={styles.screenSubtitle}>Manual rate upload, daily price entry, and comprehensive audit history</Text>
         </View>
 
         {/* Quick Action Ribbon */}
         <View style={styles.headerActionsRow}>
-          {/* PRIMARY: Register Daily Rates */}
           {isOwnerOrManager && (
             <TouchableOpacity
               style={styles.registerRatesBtn}
-              onPress={handleOpenRateEntry}
+              onPress={() => handleOpenRateModal('MANUAL')}
               activeOpacity={0.8}
             >
               <CalendarCheck size={15} color="#000" />
@@ -372,98 +435,27 @@ export const RateManagementScreen: React.FC = () => {
 
           {isOwnerOrManager && (
             <TouchableOpacity
-              style={styles.profileBtn}
-              onPress={() => {
-                setProfileForm({
-                  bunkName: bunkProfile?.bunkName || 'BPCL Chennai Auto Fuel',
-                  omcBrand: 'BPCL',
-                  dealerCode: bunkProfile?.dealerCode || '184920',
-                  state: 'Tamil Nadu',
-                  city: 'Chennai (Tamil Nadu)',
-                  registeredPhone: bunkProfile?.registeredPhone || '+919876543210',
-                  autoFetchEnabled: bunkProfile?.autoFetchEnabled !== false,
-                  autoApplyEnabled: bunkProfile?.autoApplyEnabled !== false,
-                });
-                setShowProfileModal(true);
-              }}
+              style={styles.uploadCsvHeaderBtn}
+              onPress={() => handleOpenRateModal('CSV_UPLOAD')}
               activeOpacity={0.8}
             >
-              <Settings size={15} color={colors.textPrimary} />
-              <Text style={styles.profileBtnText}>OMC Profile Settings</Text>
+              <UploadCloud size={15} color={colors.textPrimary} />
+              <Text style={styles.uploadCsvHeaderBtnText}>Upload Rates (CSV)</Text>
             </TouchableOpacity>
           )}
 
-          {isOwnerOrManager && (
-            <TouchableOpacity
-              style={styles.autoFetchBtn}
-              onPress={handleOpenAutoFetch}
-              activeOpacity={0.8}
-            >
-              <Sparkles size={16} color="#000" />
-              <Text style={styles.autoFetchBtnText}>Auto-Fetch Today's Rates</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.downloadTemplateBtn}
+            onPress={downloadCsvTemplate}
+            activeOpacity={0.8}
+          >
+            <Download size={14} color={colors.textSecondary} />
+            <Text style={styles.downloadTemplateBtnText}>CSV Template</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Bunk / Manager OMC Profile Status Banner ────────────────────────── */}
-      {isProfileComplete ? (
-        <View style={styles.registeredProfileBanner}>
-          <View style={styles.profileBannerLeft}>
-            <View style={styles.omcBrandBadge}>
-              <Text style={styles.omcBrandBadgeText}>{bunkProfile?.omcBrand}</Text>
-            </View>
-            <View>
-              <Text style={styles.profileBunkName}>{bunkProfile?.bunkName}</Text>
-              <Text style={styles.profileDealerDetails}>
-                RO / Dealer Code: <Text style={{ fontWeight: '800', color: '#000' }}>{bunkProfile?.dealerCode}</Text> • {bunkProfile?.city}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.profileBannerRight}>
-            <View style={styles.cronStatusBadge}>
-              <Clock size={12} color={colors.success} />
-              <Text style={styles.cronStatusText}>Daily 06:00 AM Cron Active</Text>
-            </View>
-
-            {isOwnerOrManager && (
-              <TouchableOpacity
-                style={styles.triggerCronBtn}
-                onPress={handleTriggerCronNow}
-                disabled={triggeringCron}
-              >
-                {triggeringCron ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <RefreshCw size={12} color="#000" />
-                    <Text style={styles.triggerCronBtnText}>Trigger 06:00 AM Cron (Test)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.unregisteredProfileBanner}>
-          <AlertCircle size={20} color="#D97706" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.unregisteredTitle}>OMC Dealer Profile Incomplete</Text>
-            <Text style={styles.unregisteredBody}>
-              Register your Dealer RO Code and OMC Brand to enable automated 06:00 AM Python Cron syncing, or paste your morning rate SMS in the Quick Import box below.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.registerNowBtn}
-            onPress={() => setShowProfileModal(true)}
-          >
-            <Text style={styles.registerNowBtnText}>Register Now</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Success Banner */}
+      {/* Success Notification Banner */}
       {successMsg && (
         <View style={styles.successBanner}>
           <CheckCircle2 size={18} color={colors.success} />
@@ -473,21 +465,47 @@ export const RateManagementScreen: React.FC = () => {
 
       {/* ── Active Product Rates Grid ────────────────────────────────────── */}
       <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>ACTIVE RETAIL SELLING PRICES (RSP)</Text>
-        <Text style={styles.sectionMeta}>{products.length} Products Configured</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={styles.sectionTitle}>ACTIVE RETAIL SELLING PRICES (RSP)</Text>
+          <View style={styles.badgeCount}>
+            <Text style={styles.badgeCountText}>{products.length} Products</Text>
+          </View>
+        </View>
+        <Text style={styles.sectionMeta}>Live pump rates currently active on nozzles</Text>
       </View>
 
       <View style={styles.cardsGrid}>
         {products.map((prod) => {
           const isEditing = editingProdId === prod.id;
+          const isActive = prod.active !== false;
 
           return (
-            <View key={prod.id} style={[styles.rateCard, { borderTopColor: prod.color }]}>
+            <View key={prod.id} style={[styles.rateCard, { borderTopColor: prod.color }, !isActive && { opacity: 0.75, borderColor: '#FCA5A5' }]}>
               <View style={styles.cardTop}>
                 <View style={styles.prodInfo}>
                   <View style={[styles.colorDot, { backgroundColor: prod.color }]} />
                   <View>
-                    <Text style={styles.prodName}>{prod.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.prodName}>{prod.name}</Text>
+                      <View
+                        style={{
+                          paddingHorizontal: 6,
+                          paddingVertical: 1,
+                          borderRadius: 4,
+                          backgroundColor: isActive ? '#DEF7EC' : '#FEE2E2',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            fontWeight: '800',
+                            color: isActive ? '#03543F' : '#DC2626',
+                          }}
+                        >
+                          {isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </Text>
+                      </View>
+                    </View>
                     <Text style={styles.prodCode}>
                       {prod.code} • {prod.unit}
                     </Text>
@@ -547,14 +565,21 @@ export const RateManagementScreen: React.FC = () => {
 
               {/* Bottom Edit Trigger */}
               {!isEditing && isOwnerOrManager && (
-                <TouchableOpacity
-                  style={styles.editTriggerBtn}
-                  onPress={() => handleStartEdit(prod.id, prod.currentRate)}
-                  activeOpacity={0.7}
-                >
-                  <TrendingUp size={14} color={colors.accent} />
-                  <Text style={styles.editTriggerText}>Manual Override</Text>
-                </TouchableOpacity>
+                isActive ? (
+                  <TouchableOpacity
+                    style={styles.editTriggerBtn}
+                    onPress={() => handleStartEdit(prod.id, prod.currentRate)}
+                    activeOpacity={0.7}
+                  >
+                    <Edit3 size={13} color={colors.textPrimary} />
+                    <Text style={styles.editTriggerText}>Manual Override</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.inactiveLockedRow}>
+                    <Lock size={12} color="#DC2626" />
+                    <Text style={styles.inactiveLockedText}>Deactivated in Masters (Rate edit locked)</Text>
+                  </View>
+                )
               )}
             </View>
           );
@@ -573,7 +598,7 @@ export const RateManagementScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.historySubtitle}>
-              Permanent tamper-proof register of daily rate changes, 06:00 AM Cron syncs & manual adjustments
+              Historical audit register of all manual rate entries, CSV uploads and price overrides
             </Text>
           </View>
 
@@ -636,7 +661,7 @@ export const RateManagementScreen: React.FC = () => {
             <Layers size={28} color={colors.textMuted} />
             <Text style={styles.emptyHistoryTitle}>No Rate Revision History Found</Text>
             <Text style={styles.emptyHistorySub}>
-              Rate revisions will appear here automatically when rates are updated via 06:00 AM Cron, manual override, or daily registration.
+              Rate revisions will appear here automatically when rates are updated via manual registration, CSV upload, or single rate override.
             </Text>
           </View>
         ) : (
@@ -653,7 +678,9 @@ export const RateManagementScreen: React.FC = () => {
 
             {filteredHistory.map((item, idx) => {
               const diff = Math.round((item.newRate - item.oldRate) * 100) / 100;
-              const matchedProd = products.find((p) => p.id === item.productId || p.code.toUpperCase() === item.productCode.toUpperCase());
+              const matchedProd = products.find(
+                (p) => p.id === item.productId || p.code.toUpperCase() === item.productCode.toUpperCase()
+              );
               const prodColor = matchedProd?.color || colors.primary;
 
               return (
@@ -709,10 +736,10 @@ export const RateManagementScreen: React.FC = () => {
                   <View style={{ flex: 1.8 }}>
                     <View style={styles.sourceBadge}>
                       <Text style={styles.sourceBadgeText}>
-                        {item.changeSource === 'SMS_AUTO'
-                          ? '🤖 06 AM Cron'
-                          : item.changeSource === 'SMS_MANUAL_APPLY'
-                          ? '📱 SMS Apply'
+                        {item.changeSource === 'MANUAL_UPLOAD'
+                          ? '📁 CSV Upload'
+                          : item.changeSource === 'MANUAL_ENTRY'
+                          ? '✏️ Manual Entry'
                           : item.changeSource === 'BATCH_IMPORT'
                           ? '⚡ Batch Sync'
                           : '✏️ Manual'}
@@ -734,39 +761,66 @@ export const RateManagementScreen: React.FC = () => {
         )}
       </View>
 
-      {/* ── Statutory & GST Guidelines Card ──────────────────────────────── */}
-       
-
       {/* ══════════════════════════════════════════════════════════════════
-          DAILY RATE REGISTRATION MODAL
+          MANUAL RATE REGISTRATION & CSV UPLOAD MODAL
           ══════════════════════════════════════════════════════════════════ */}
       <Modal
-        visible={showRateEntryModal}
+        visible={showRateModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowRateEntryModal(false)}
+        onRequestClose={() => setShowRateModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
-                  <CalendarCheck size={20} color={colors.primary} />
+                <View style={styles.modalIconBox}>
+                  {modalTab === 'MANUAL' ? (
+                    <CalendarCheck size={20} color={colors.primary} />
+                  ) : (
+                    <UploadCloud size={20} color={colors.primary} />
+                  )}
                 </View>
                 <View>
-                  <Text style={styles.modalTitle}>Daily Rate Registration</Text>
-                  <Text style={styles.modalSubtitle}>Enter today's OMC rates — saved to audit history</Text>
+                  <Text style={styles.modalTitle}>Daily Fuel Rates Registration</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {modalTab === 'MANUAL'
+                      ? "Enter today's manual fuel rates per product"
+                      : 'Upload CSV file or paste formatted rate lines'}
+                  </Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowRateEntryModal(false)}>
+              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowRateModal(false)}>
                 <Text style={styles.closeModalText}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+            {/* Modal Tab Switcher */}
+            <View style={styles.modalTabsRow}>
+              <TouchableOpacity
+                style={[styles.modalTabBtn, modalTab === 'MANUAL' && styles.modalTabBtnActive]}
+                onPress={() => setModalTab('MANUAL')}
+              >
+                <Edit3 size={14} color={modalTab === 'MANUAL' ? '#000' : colors.textSecondary} />
+                <Text style={[styles.modalTabBtnText, modalTab === 'MANUAL' && styles.modalTabBtnTextActive]}>
+                  Manual Form Entry
+                </Text>
+              </TouchableOpacity>
 
-              {/* Date & Who */}
+              <TouchableOpacity
+                style={[styles.modalTabBtn, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnActive]}
+                onPress={() => setModalTab('CSV_UPLOAD')}
+              >
+                <FileSpreadsheet size={14} color={modalTab === 'CSV_UPLOAD' ? '#000' : colors.textSecondary} />
+                <Text style={[styles.modalTabBtnText, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnTextActive]}>
+                  CSV / File Upload
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+              {/* Date & Who Common Controls */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1 }}>
                   <DatePickerInput
@@ -787,388 +841,295 @@ export const RateManagementScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Source Type Toggle */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>CHANGE SOURCE</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {(['MANUAL_ENTRY', 'SMS_MANUAL_APPLY'] as const).map((src) => (
-                    <TouchableOpacity
-                      key={src}
-                      style={[
-                        styles.sourceTypeBtn,
-                        rateEntrySource === src && styles.sourceTypeBtnActive,
-                      ]}
-                      onPress={() => setRateEntrySource(src)}
-                    >
-                      <Text style={[
-                        styles.sourceTypeBtnText,
-                        rateEntrySource === src && { color: '#000', fontWeight: '700' },
-                      ]}>
-                        {src === 'MANUAL_ENTRY' ? '✏️ Manual Entry' : '📱 SMS (Manual Apply)'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              {/* ── TAB 1: MANUAL FORM ENTRY ─────────────────────────────────── */}
+              {modalTab === 'MANUAL' && (
+                <>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>FUEL RATES — RETAIL SELLING PRICE (₹/L)</Text>
+                    <View style={{ gap: 10, marginTop: 4 }}>
+                      {products.map((prod) => {
+                        const isProdActive = prod.active !== false;
+                        const currentVal = rateEntryForm[prod.id] ?? String(prod.currentRate);
+                        const parsedNew = parseFloat(currentVal);
+                        const diff = parsedNew > 0 ? Math.round((parsedNew - prod.currentRate) * 100) / 100 : 0;
 
-              {/* Rate Entry Grid — one row per product */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>FUEL RATES — RETAIL SELLING PRICE (₹/L)</Text>
-                <View style={{ gap: 10, marginTop: 4 }}>
-                  {products.map((prod) => {
-                    const currentVal = rateEntryForm[prod.id] ?? String(prod.currentRate);
-                    const parsedNew = parseFloat(currentVal);
-                    const diff = parsedNew > 0 ? Math.round((parsedNew - prod.currentRate) * 100) / 100 : 0;
-                    return (
-                      <View key={prod.id} style={styles.rateEntryRow}>
-                        <View style={styles.rateEntryProductInfo}>
-                          <View style={[styles.rateEntryDot, { backgroundColor: prod.color }]} />
-                          <View>
-                            <Text style={styles.rateEntryProdName}>{prod.name}</Text>
-                            <Text style={styles.rateEntryProdCode}>{prod.code} · Current: ₹{prod.currentRate}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.rateEntryInputWrap}>
-                          <TouchableOpacity
-                            style={styles.fieldPasteMiniBtn}
-                            onPress={() => handlePasteIntoField((val) => setRateEntryForm((f) => ({ ...f, [prod.id]: val })))}
-                            activeOpacity={0.7}
-                          >
-                            <Copy size={11} color={colors.primary} />
-                            <Text style={styles.fieldPasteMiniText}>Paste</Text>
-                          </TouchableOpacity>
-                          <Text style={styles.rateEntryRs}>₹</Text>
-                          <TextInput
-                            style={styles.rateEntryInput}
-                            value={currentVal}
-                            onChangeText={(v) => setRateEntryForm((f) => ({ ...f, [prod.id]: sanitizeRateInput(v) }))}
-                            keyboardType="numeric"
-                            selectTextOnFocus
-                          />
-                          {diff !== 0 && (
-                            <View style={[
-                              styles.rateEntryDiffBadge,
-                              { backgroundColor: diff > 0 ? '#FEF2F2' : '#F0FDF4' },
-                            ]}>
-                              <Text style={[
-                                styles.rateEntryDiffText,
-                                { color: diff > 0 ? colors.danger : colors.success },
-                              ]}>
-                                {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                              </Text>
+                        return (
+                          <View key={prod.id} style={[styles.rateEntryRow, !isProdActive && { opacity: 0.65, backgroundColor: '#FEF2F2' }]}>
+                            <View style={styles.rateEntryProductInfo}>
+                              <View style={[styles.rateEntryDot, { backgroundColor: prod.color }]} />
+                              <View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <Text style={styles.rateEntryProdName}>{prod.name}</Text>
+                                  {!isProdActive && (
+                                    <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#FCA5A5' }}>
+                                      <Text style={{ fontSize: 8, fontWeight: '800', color: '#DC2626' }}>INACTIVE</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.rateEntryProdCode}>
+                                  {prod.code} · Current: ₹{prod.currentRate}
+                                </Text>
+                              </View>
                             </View>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Remarks */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>REMARKS (OPTIONAL)</Text>
-                <TextInput
-                  style={[styles.formInput, { height: 64, textAlignVertical: 'top' }]}
-                  value={rateEntryRemarks}
-                  onChangeText={setRateEntryRemarks}
-                  placeholder="e.g. BPCL morning revision effective 06:00 AM"
-                  multiline
-                />
-              </View>
-
-              {/* Save Button */}
-              <TouchableOpacity
-                style={[styles.saveRateEntryBtn, isSavingRates && { opacity: 0.6 }]}
-                onPress={handleSaveRateEntry}
-                disabled={isSavingRates}
-                activeOpacity={0.8}
-              >
-                {isSavingRates ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <FileText size={16} color="#000" />
-                    <Text style={styles.saveRateEntryBtnText}>Save & Register Daily Rates</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <Text style={styles.rateEntryFootnote}>
-                ⚡ Rates will be saved to <Text style={{ fontWeight: '700' }}>fuel_rate_history</Text> audit log with old rate, new rate, date, changed by and source. All active nozzles update immediately.
-              </Text>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── OMC Profile Settings Modal ────────────────────────────────────── */}
-      <Modal
-        visible={showProfileModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowProfileModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Building2 size={20} color={colors.primary} />
-                <View>
-                  <Text style={styles.modalTitle}>Bunk OMC & Dealer Profile</Text>
-                  <Text style={styles.modalSubtitle}>Configure RO Dealer Code for 06:00 AM Cron automation</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.closeModalBtn}
-                onPress={() => setShowProfileModal(false)}
-              >
-                <Text style={styles.closeModalText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ gap: 12 }}>
-              {/* Bunk Name */}
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Bunk Legal / Outlet Name</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={profileForm.bunkName}
-                  onChangeText={(val) => setProfileForm({ ...profileForm, bunkName: val })}
-                  placeholder="e.g. Sri Balaji Fuel Station"
-                />
-              </View>
-
-              {/* OMC Brand Selection - Locked to BPCL */}
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>OMC Oil Marketing Company</Text>
-                <View style={[styles.omcFilterPill, styles.omcFilterPillActive, { alignSelf: 'flex-start', paddingHorizontal: 14 }]}>
-                  <Text style={[styles.omcFilterPillText, styles.omcFilterPillTextActive]}>
-                    BPCL — Bharat Petroleum Corporation Ltd.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Dealer Code & Phone */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Dealer / RO Code *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={profileForm.dealerCode}
-                    onChangeText={(val) => setProfileForm({ ...profileForm, dealerCode: val })}
-                    placeholder="e.g. 184920"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Registered Mobile (SMS)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={profileForm.registeredPhone}
-                    onChangeText={(val) => setProfileForm({ ...profileForm, registeredPhone: val })}
-                    placeholder="+919876543210"
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              </View>
-
-              {/* Region / Benchmark City - Locked to Chennai */}
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>State & District Benchmark Location</Text>
-                <View style={[styles.cityPill, styles.cityPillActive, { alignSelf: 'flex-start', paddingHorizontal: 14 }]}>
-                  <Text style={[styles.cityPillText, styles.cityPillTextActive]}>
-                    Chennai District (Tamil Nadu)
-                  </Text>
-                </View>
-              </View>
-
-              {/* Automation Switches */}
-              <View style={styles.profileTogglesBox}>
-                <TouchableOpacity
-                  style={styles.toggleRow}
-                  onPress={() => setProfileForm({ ...profileForm, autoFetchEnabled: !profileForm.autoFetchEnabled })}
-                >
-                  <View style={[styles.checkbox, profileForm.autoFetchEnabled && styles.checkboxChecked]}>
-                    {profileForm.autoFetchEnabled && <Check size={12} color="#000" />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleTitle}>Enable Daily 06:00 AM Python Background Cron</Text>
-                    <Text style={styles.toggleSub}>Server automatically queries BPCL Chennai rates every morning at 06:00 AM IST</Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.toggleRow}
-                  onPress={() => setProfileForm({ ...profileForm, autoApplyEnabled: !profileForm.autoApplyEnabled })}
-                >
-                  <View style={[styles.checkbox, profileForm.autoApplyEnabled && styles.checkboxChecked]}>
-                    {profileForm.autoApplyEnabled && <Check size={12} color="#000" />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleTitle}>Auto-Broadcast to Active Shifts & Nozzles</Text>
-                    <Text style={styles.toggleSub}>Applies new prices automatically without requiring manager intervention</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalBottomActions}>
-              <TouchableOpacity
-                style={styles.cancelModalBtn}
-                onPress={() => setShowProfileModal(false)}
-              >
-                <Text style={styles.cancelModalBtnText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.saveProfileBtn}
-                onPress={handleSaveProfile}
-              >
-                <Check size={16} color="#000" />
-                <Text style={styles.saveProfileBtnText}>Save & Activate Profile</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Auto-Fetch Today's Rates Modal ───────────────────────────────── */}
-      <Modal
-        visible={showAutoFetchModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAutoFetchModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Sparkles size={20} color={colors.primary} />
-                <View>
-                  <Text style={styles.modalTitle}>Auto-Fetch Today's Rates</Text>
-                  <Text style={styles.modalSubtitle}>Query BPCL Chennai market pricing feed & 1-tap broadcast</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.closeModalBtn}
-                onPress={() => setShowAutoFetchModal(false)}
-              >
-                <Text style={styles.closeModalText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Locked BPCL Chennai Badge */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surfaceCard, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}>
-              <View style={[styles.omcBrandBadge, { backgroundColor: '#FFD700' }]}>
-                <Text style={[styles.omcBrandBadgeText, { color: '#000' }]}>BPCL</Text>
-              </View>
-              <View>
-                <Text style={{ color: '#000', fontSize: 13, fontWeight: '800' }}>Bharat Petroleum Corporation Ltd.</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 11 }}>Location: Chennai District (Tamil Nadu) • RO: {bunkProfile?.dealerCode || '184920'}</Text>
-              </View>
-            </View>
-
-
-            {/* Feed Rates Comparison Table */}
-            {fetchingRates ? (
-              <View style={styles.loadingFeedBox}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingFeedText}>Fetching today's RSP feed for {selectedOmc} ({selectedCity})...</Text>
-              </View>
-            ) : fetchedFeed ? (
-              <View style={styles.feedResultsArea}>
-                <View style={styles.feedMetaInfo}>
-                  <Text style={styles.feedSourceText}>Source: {fetchedFeed.source}</Text>
-                  <Text style={styles.feedEffectiveText}>Effective: {fetchedFeed.effectiveTime} • {fetchedFeed.date}</Text>
-                </View>
-
-                <View style={styles.feedTable}>
-                  <View style={styles.feedTableHeader}>
-                    <Text style={[styles.feedTh, { flex: 2.2 }]}>Product</Text>
-                    <Text style={[styles.feedTh, { flex: 1.3, textAlign: 'right' }]}>Current</Text>
-                    <Text style={[styles.feedTh, { flex: 1.3, textAlign: 'right' }]}>Today's RSP</Text>
-                    <Text style={[styles.feedTh, { flex: 1.2, textAlign: 'right' }]}>Diff</Text>
+                            {isProdActive ? (
+                              <View style={styles.rateEntryInputWrap}>
+                                <TouchableOpacity
+                                  style={styles.fieldPasteMiniBtn}
+                                  onPress={() =>
+                                    handlePasteIntoField((val) =>
+                                      setRateEntryForm((f) => ({ ...f, [prod.id]: val }))
+                                    )
+                                  }
+                                  activeOpacity={0.7}
+                                >
+                                  <Copy size={11} color={colors.primary} />
+                                  <Text style={styles.fieldPasteMiniText}>Paste</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.rateEntryRs}>₹</Text>
+                                <TextInput
+                                  style={styles.rateEntryInput}
+                                  value={currentVal}
+                                  onChangeText={(v) =>
+                                    setRateEntryForm((f) => ({ ...f, [prod.id]: sanitizeRateInput(v) }))
+                                  }
+                                  keyboardType="numeric"
+                                  selectTextOnFocus
+                                />
+                                {diff !== 0 && (
+                                  <View
+                                    style={[
+                                      styles.rateEntryDiffBadge,
+                                      { backgroundColor: diff > 0 ? '#FEF2F2' : '#F0FDF4' },
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.rateEntryDiffText,
+                                        { color: diff > 0 ? colors.danger : colors.success },
+                                      ]}
+                                    >
+                                      {diff > 0 ? '+' : ''}
+                                      {diff.toFixed(2)}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            ) : (
+                              <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEE2E2', borderRadius: 6, borderWidth: 1, borderColor: '#FCA5A5' }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#DC2626' }}>🔒 Locked (Inactive)</Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
                   </View>
 
-                  {fetchedFeed.rates.map((item) => {
-                    const matched = products.find(
-                      (p) =>
-                        p.code.toUpperCase() === item.code.toUpperCase() ||
-                        p.name.toUpperCase().includes(item.code.toUpperCase()) ||
-                        (item.code === 'SPEED' && (p.code === 'MS2' || p.code === 'SPEED' || p.name.toUpperCase().includes('POWER') || p.name.toUpperCase().includes('SPEED'))) ||
-                        (item.code === 'MS' && (p.code === 'MS' || p.code === 'PETROL') && !p.code.includes('2') && !p.name.toUpperCase().includes('POWER'))
-                    );
-                    const currentRate = matched ? matched.currentRate : 0;
-                    const diff = currentRate > 0 ? Math.round((item.rate - currentRate) * 100) / 100 : 0;
-                    const isChecked = !!selectedFeedProducts[item.code];
+                  {/* Remarks */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>REMARKS (OPTIONAL)</Text>
+                    <TextInput
+                      style={[styles.formInput, { height: 56, textAlignVertical: 'top' }]}
+                      value={rateEntryRemarks}
+                      onChangeText={setRateEntryRemarks}
+                      placeholder="e.g. Morning manual rate revision effective 06:00 AM"
+                      multiline
+                    />
+                  </View>
 
-                    return (
+                  {/* Save Button */}
+                  <TouchableOpacity
+                    style={[styles.saveRateEntryBtn, isSavingRates && { opacity: 0.6 }]}
+                    onPress={handleSaveManualRates}
+                    disabled={isSavingRates}
+                    activeOpacity={0.8}
+                  >
+                    {isSavingRates ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <>
+                        <FileText size={16} color="#000" />
+                        <Text style={styles.saveRateEntryBtnText}>Save & Apply Manual Rates</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* ── TAB 2: CSV / FILE UPLOAD ─────────────────────────────────── */}
+              {modalTab === 'CSV_UPLOAD' && (
+                <>
+                  <View style={styles.uploadOptionsBox}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                      <Text style={styles.formLabel}>UPLOAD CSV / TEXT FILE OR PASTE</Text>
                       <TouchableOpacity
-                        key={item.code}
-                        style={[styles.feedTableRow, isChecked && styles.feedTableRowSelected]}
-                        onPress={() =>
-                          setSelectedFeedProducts((prev) => ({
-                            ...prev,
-                            [item.code]: !prev[item.code],
-                          }))
-                        }
+                        style={styles.miniTemplateBtn}
+                        onPress={downloadCsvTemplate}
+                        activeOpacity={0.7}
                       >
-                        <View style={{ flex: 2.2, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
-                            {isChecked && <Check size={12} color="#000" />}
-                          </View>
-                          <View>
-                            <Text style={styles.feedProdName}>{item.name}</Text>
-                            <Text style={styles.feedProdCode}>{item.code} • / {item.unit}</Text>
-                          </View>
-                        </View>
+                        <Download size={12} color={colors.primary} />
+                        <Text style={styles.miniTemplateBtnText}>Download Template</Text>
+                      </TouchableOpacity>
+                    </View>
 
-                        <Text style={[styles.feedTd, { flex: 1.3, textAlign: 'right', color: colors.textSecondary }]}>
-                          {currentRate > 0 ? formatCurrency(currentRate) : '—'}
-                        </Text>
-
-                        <Text style={[styles.feedTdBold, { flex: 1.3, textAlign: 'right', color: '#000' }]}>
-                          {formatCurrency(item.rate)}
-                        </Text>
-
-                        <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-                          {diff === 0 ? (
-                            <Text style={styles.diffZero}>0.00</Text>
-                          ) : diff > 0 ? (
-                            <Text style={styles.diffPlusText}>+{formatCurrency(diff)}</Text>
-                          ) : (
-                            <Text style={styles.diffMinusText}>{formatCurrency(diff)}</Text>
-                          )}
+                    {/* File Picker Trigger */}
+                    {Platform.OS === 'web' && (
+                      <TouchableOpacity
+                        style={styles.chooseFileBtn}
+                        onPress={() => fileInputRef.current?.click()}
+                        activeOpacity={0.8}
+                      >
+                        <UploadCloud size={20} color={colors.primary} />
+                        <View>
+                          <Text style={styles.chooseFileTitle}>Click to Choose CSV / Excel File</Text>
+                          <Text style={styles.chooseFileSub}>Accepts .csv, .txt files with columns: Product Code, Rate</Text>
                         </View>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
+                    )}
 
-            {/* Modal Bottom Actions */}
-            <View style={styles.modalBottomActions}>
-              <TouchableOpacity
-                style={styles.refreshFeedBtn}
-                onPress={() => handleQueryLiveFeed(selectedCity, selectedOmc)}
-              >
-                <RefreshCw size={14} color={colors.textPrimary} />
-                <Text style={styles.refreshFeedBtnText}>Re-Query</Text>
-              </TouchableOpacity>
+                    {/* Raw Text Paste Input */}
+                    <View style={{ gap: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: '600' }}>
+                          Or paste CSV / text lines below:
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.fieldPasteMiniBtn}
+                          onPress={async () => {
+                            try {
+                              if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+                                const clip = await navigator.clipboard.readText();
+                                if (clip) {
+                                  setCsvRawText(clip);
+                                  parseCsvContent(clip);
+                                  triggerSuccess('Pasted and parsed CSV data');
+                                }
+                              }
+                            } catch {}
+                          }}
+                        >
+                          <Copy size={11} color={colors.primary} />
+                          <Text style={styles.fieldPasteMiniText}>Paste From Clipboard</Text>
+                        </TouchableOpacity>
+                      </View>
 
-              <TouchableOpacity
-                style={styles.applyFeedBtn}
-                onPress={handleApplyFetchedRates}
-                disabled={fetchingRates}
-              >
-                <Check size={16} color="#000" />
-                <Text style={styles.applyFeedBtnText}>1-Tap Sync & Broadcast Selected Rates</Text>
-              </TouchableOpacity>
-            </View>
+                      <TextInput
+                        style={styles.csvTextArea}
+                        placeholder={`Example:\nMS, 102.75\nHSD, 93.40\nSPEED, 108.50`}
+                        placeholderTextColor={colors.textMuted}
+                        value={csvRawText}
+                        onChangeText={(t) => {
+                          setCsvRawText(t);
+                          parseCsvContent(t);
+                        }}
+                        multiline
+                      />
+                    </View>
+                  </View>
+
+                  {/* Parse Error */}
+                  {csvParseError && (
+                    <View style={styles.errorBanner}>
+                      <AlertCircle size={16} color={colors.danger} />
+                      <Text style={styles.errorBannerText}>{csvParseError}</Text>
+                    </View>
+                  )}
+
+                  {/* Parsed Preview Table */}
+                  {parsedCsvRows.length > 0 && (
+                    <View style={styles.parsedPreviewCard}>
+                      <Text style={styles.previewTitle}>Parsed Rate Preview ({parsedCsvRows.length} rows)</Text>
+                      <View style={styles.previewTable}>
+                        <View style={styles.previewTableHeader}>
+                          <Text style={[styles.previewTh, { flex: 2 }]}>Product</Text>
+                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'right' }]}>Current</Text>
+                          <Text style={[styles.previewTh, { flex: 1.4, textAlign: 'right' }]}>New Rate</Text>
+                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'right' }]}>Diff</Text>
+                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'center' }]}>Status</Text>
+                        </View>
+
+                        {parsedCsvRows.map((r, idx) => {
+                          const diff = r.isValid ? Math.round((r.newRate - r.currentRate) * 100) / 100 : 0;
+                          return (
+                            <View key={idx} style={[styles.previewTableRow, !r.isValid && styles.previewRowInvalid]}>
+                              <View style={{ flex: 2 }}>
+                                <Text style={styles.previewProdName}>{r.productName}</Text>
+                                <Text style={styles.previewProdCode}>{r.productCode}</Text>
+                              </View>
+                              <Text style={[styles.previewTd, { flex: 1.2, textAlign: 'right', color: colors.textSecondary }]}>
+                                {r.currentRate > 0 ? formatCurrency(r.currentRate) : '—'}
+                              </Text>
+                              <Text style={[styles.previewTdBold, { flex: 1.4, textAlign: 'right', color: r.isValid ? '#000' : colors.danger }]}>
+                                {r.isValid ? formatCurrency(r.newRate) : 'Invalid'}
+                              </Text>
+                              <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
+                                {diff === 0 ? (
+                                  <Text style={styles.diffZero}>0.00</Text>
+                                ) : (
+                                  <Text style={{ fontSize: 11, fontWeight: '700', color: diff > 0 ? colors.danger : colors.success }}>
+                                    {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={{ flex: 1.2, alignItems: 'center' }}>
+                                {r.isValid ? (
+                                  <View style={styles.validBadge}>
+                                    <Check size={10} color={colors.success} />
+                                    <Text style={styles.validBadgeText}>Valid</Text>
+                                  </View>
+                                ) : (
+                                  <View style={styles.invalidBadge}>
+                                    <Text style={styles.invalidBadgeText}>{r.error || 'Error'}</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Remarks */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>REMARKS (OPTIONAL)</Text>
+                    <TextInput
+                      style={[styles.formInput, { height: 56, textAlignVertical: 'top' }]}
+                      value={rateEntryRemarks}
+                      onChangeText={setRateEntryRemarks}
+                      placeholder="e.g. Daily CSV rate upload"
+                      multiline
+                    />
+                  </View>
+
+                  {/* Apply CSV Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.saveRateEntryBtn,
+                      (isSavingRates || parsedCsvRows.filter((r) => r.isValid).length === 0) && { opacity: 0.6 },
+                    ]}
+                    onPress={handleApplyCsvUpload}
+                    disabled={isSavingRates || parsedCsvRows.filter((r) => r.isValid).length === 0}
+                    activeOpacity={0.8}
+                  >
+                    {isSavingRates ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <>
+                        <UploadCloud size={16} color="#000" />
+                        <Text style={styles.saveRateEntryBtnText}>
+                          Upload & Apply {parsedCsvRows.filter((r) => r.isValid).length} Rates
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <Text style={styles.rateEntryFootnote}>
+                ⚡ All rate changes are permanently recorded in the <Text style={{ fontWeight: '700' }}>fuel_rate_history</Text> audit log and broadcast immediately to active shift operations and nozzles.
+              </Text>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1215,43 +1176,6 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: 'wrap',
   },
-  profileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 9,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  profileBtnText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  autoFetchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 9,
-    gap: 6,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  autoFetchBtnText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  // ── Register Today's Rates primary button ──────────────────────────────────
   registerRatesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1271,329 +1195,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-
-  // ── Clipboard SMS Strip ────────────────────────────────────────────────────
-  clipboardStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primary + '40',
-    padding: 12,
-    gap: 12,
-    marginBottom: 4,
-  },
-  clipboardStripLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  clipboardIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clipboardStripTitle: {
-    color: '#1E40AF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  clipboardStripSub: {
-    color: '#3B82F6',
-    fontSize: 10,
-    lineHeight: 15,
-    marginTop: 2,
-  },
-  clipboardReadBtn: {
+  uploadCsvHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-    flexShrink: 0,
-  },
-  clipboardReadBtnText: {
-    color: '#000',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  // ── Daily Rate Entry Modal Styles ──────────────────────────────────────────
-  sourceTypeBtn: {
-    flex: 1,
+    paddingHorizontal: 13,
     paddingVertical: 9,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceCard,
-    alignItems: 'center',
+    borderRadius: 9,
+    gap: 6,
   },
-  sourceTypeBtnActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '20',
-  },
-  sourceTypeBtnText: {
+  uploadCsvHeaderBtnText: {
+    color: '#000',
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  rateEntryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 10,
-  },
-  rateEntryProductInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  rateEntryDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  rateEntryProdName: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  rateEntryProdCode: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    marginTop: 1,
-  },
-  rateEntryInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  fieldPasteMiniBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: colors.primary + '60',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    gap: 4,
-  },
-  fieldPasteMiniText: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  rateEntryRs: {
-    color: '#000',
-    fontSize: 15,
     fontWeight: '800',
   },
-  rateEntryInput: {
-    backgroundColor: '#FFF',
-    borderWidth: 1.5,
-    borderColor: colors.primary + '60',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#000',
-    width: 90,
-    textAlign: 'right',
-  },
-  rateEntryDiffBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  rateEntryDiffText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  saveRateEntryBtn: {
+  downloadTemplateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-  },
-  saveRateEntryBtnText: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  rateEntryFootnote: {
-    color: colors.textMuted,
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  formLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  autoListenChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingVertical: 9,
+    borderRadius: 9,
     gap: 6,
-  },
-  autoListenChipActive: {
-    backgroundColor: colors.success + '15',
-    borderColor: colors.success,
-  },
-  autoListenChipInactive: {
-    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
     borderColor: colors.border,
   },
-  autoListenChipText: {
-    color: '#000',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textMuted,
-  },
-  pulseDotActive: {
-    backgroundColor: colors.success,
-  },
-
-  // ── Profile Banner Styles ──────────────────────────────────────────────────
-  registeredProfileBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
-    backgroundColor: colors.surface,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.primary + '40',
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
-  },
-  profileBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-    minWidth: 260,
-  },
-  omcBrandBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  omcBrandBadgeText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  profileBunkName: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  profileDealerDetails: {
+  downloadTemplateBtnText: {
     color: colors.textSecondary,
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '700',
   },
-  profileBannerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  cronStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.success + '18',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 6,
-  },
-  cronStatusText: {
-    color: colors.success,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  triggerCronBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 7,
-    gap: 6,
-  },
-  triggerCronBtnText: {
-    color: '#000',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  unregisteredProfileBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FEF3C7',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  unregisteredTitle: {
-    color: '#92400E',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  unregisteredBody: {
-    color: '#B45309',
-    fontSize: 11,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  registerNowBtn: {
-    backgroundColor: '#D97706',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  registerNowBtnText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1614,12 +1245,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   sectionTitle: {
     color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.8,
+  },
+  badgeCount: {
+    backgroundColor: colors.primary + '25',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeCountText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '800',
   },
   sectionMeta: {
     color: colors.textMuted,
@@ -1747,6 +1391,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
   },
+  fieldPasteMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: colors.primary + '60',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  fieldPasteMiniText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   editTriggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1764,7 +1424,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Fuel Rate Revision History & Audit Table Styles ────────────────────────
+  // ── History & Audit Table ──────────────────────────────────────────────────
   historySectionCard: {
     backgroundColor: colors.surface,
     borderRadius: 14,
@@ -1963,12 +1623,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontFamily: typography.monoFont,
   },
-  diffPlusText: {
-    color: colors.danger,
-    fontSize: 11,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-  },
   diffMinusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1979,12 +1633,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   diffMinusBadgeText: {
-    color: colors.success,
-    fontSize: 11,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-  },
-  diffMinusText: {
     color: colors.success,
     fontSize: 11,
     fontWeight: '800',
@@ -2020,101 +1668,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
 
-
-  // ── Guideline Card ─────────────────────────────────────────────────────────
-  guidelineCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 8,
-  },
-  guidelineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  guidelineTitle: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  guidelineBody: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 18,
-  },
-
-  // ── Profile Modal Styles ───────────────────────────────────────────────────
-  formGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  formInput: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  profileTogglesBox: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 12,
-    marginTop: 4,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  toggleTitle: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  toggleSub: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    marginTop: 1,
-  },
-  cancelModalBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  cancelModalBtnText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  saveProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-    gap: 6,
-  },
-  saveProfileBtnText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  // ── Auto-Fetch Modal Styles ────────────────────────────────────────────────
+  // ── Modal Styles ───────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -2124,14 +1678,13 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '100%',
-    maxWidth: 620,
-    maxHeight: '90%',
+    maxWidth: 640,
     backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 20,
-    gap: 16,
+    gap: 14,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2140,6 +1693,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingBottom: 12,
+  },
+  modalIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalTitle: {
     color: '#000',
@@ -2158,204 +1719,321 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  fetchFiltersRow: {
-    gap: 12,
+  modalTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 10,
+    padding: 4,
+    gap: 6,
+  },
+  modalTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  modalTabBtnActive: {
+    backgroundColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  modalTabBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  modalTabBtnTextActive: {
+    color: '#000',
+    fontWeight: '800',
+  },
+  formGroup: {
+    gap: 6,
+  },
+  formLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  formInput: {
     backgroundColor: colors.surfaceCard,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  rateEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceCard,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: 12,
+    gap: 10,
+  },
+  rateEntryProductInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rateEntryDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  rateEntryProdName: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  rateEntryProdCode: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    marginTop: 1,
+  },
+  rateEntryInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rateEntryRs: {
+    color: '#000',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  rateEntryInput: {
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: colors.primary + '60',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#000',
+    width: 90,
+    textAlign: 'right',
+  },
+  rateEntryDiffBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  rateEntryDiffText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  saveRateEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 6,
+  },
+  saveRateEntryBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  rateEntryFootnote: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  // ── CSV Upload Specific Styles ─────────────────────────────────────────────
+  uploadOptionsBox: {
+    gap: 10,
+    backgroundColor: colors.surfaceCard,
+    padding: 14,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  omcFilterContainer: {
-    gap: 6,
-  },
-  filterLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  omcPillsRow: {
+  miniTemplateBtn: {
     flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  omcFilterPill: {
+    alignItems: 'center',
     backgroundColor: colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 4,
   },
-  omcFilterPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  omcFilterPillText: {
-    color: colors.textPrimary,
-    fontSize: 11,
+  miniTemplateBtnText: {
+    color: colors.primary,
+    fontSize: 10,
     fontWeight: '700',
   },
-  omcFilterPillTextActive: {
-    color: '#000',
-  },
-  cityFilterContainer: {
-    gap: 6,
-  },
-  cityPill: {
+  chooseFileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '80',
+    borderRadius: 10,
+    padding: 14,
   },
-  cityPillActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  cityPillText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  cityPillTextActive: {
+  chooseFileTitle: {
     color: '#000',
+    fontSize: 13,
     fontWeight: '800',
   },
-  loadingFeedBox: {
-    padding: 30,
-    alignItems: 'center',
-    gap: 10,
-  },
-  loadingFeedText: {
+  chooseFileSub: {
     color: colors.textSecondary,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  csvTextArea: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    color: '#000',
     fontSize: 12,
+    fontFamily: typography.monoFont,
+    height: 80,
+    textAlignVertical: 'top',
   },
-  feedResultsArea: {
-    gap: 10,
-  },
-  feedMetaInfo: {
+  errorBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
+    backgroundColor: colors.danger + '15',
+    borderWidth: 1,
+    borderColor: colors.danger + '50',
+    borderRadius: 8,
+    padding: 10,
+    gap: 8,
   },
-  feedSourceText: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  feedEffectiveText: {
-    color: '#007DC6',
-    fontSize: 10,
+  errorBannerText: {
+    color: colors.danger,
+    fontSize: 11,
     fontWeight: '700',
+    flex: 1,
   },
-  feedTable: {
+  parsedPreviewCard: {
+    backgroundColor: colors.surfaceCard,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    gap: 8,
+  },
+  previewTitle: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  previewTable: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    backgroundColor: colors.surface,
   },
-  feedTableHeader: {
+  previewTableHeader: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  feedTh: {
+  previewTh: {
     color: colors.textMuted,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  feedTableRow: {
+  previewTableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border + '60',
-    backgroundColor: colors.surface,
+    borderBottomColor: colors.border + '50',
   },
-  feedTableRowSelected: {
-    backgroundColor: colors.primary + '10',
+  previewRowInvalid: {
+    backgroundColor: '#FEF2F2',
   },
-  checkbox: {
-    width: 18,
-    height: 18,
+  previewProdName: {
+    color: '#000',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  previewProdCode: {
+    color: colors.textSecondary,
+    fontSize: 9,
+  },
+  previewTd: {
+    fontSize: 11,
+    fontFamily: typography.monoFont,
+  },
+  previewTdBold: {
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: typography.monoFont,
+  },
+  validBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.success + '20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  },
+  validBadgeText: {
+    color: colors.success,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  invalidBadge: {
+    backgroundColor: colors.danger + '20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  invalidBadgeText: {
+    color: colors.danger,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  inactiveLockedRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  feedProdName: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  feedProdCode: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  feedTd: {
-    fontSize: 12,
-    fontFamily: typography.monoFont,
-  },
-  feedTdBold: {
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-  },
-  modalBottomActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-  },
-  refreshFeedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    gap: 6,
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
-  },
-  refreshFeedBtnText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  applyFeedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 7,
     borderRadius: 8,
-    gap: 6,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+    marginTop: 4,
   },
-  applyFeedBtnText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '800',
+  inactiveLockedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 });

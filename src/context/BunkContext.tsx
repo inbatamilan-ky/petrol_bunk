@@ -25,23 +25,89 @@ import {
 } from '../types';
 
 
-import { apiFetch } from '../api/client';
+import { apiFetch, getAuthSession, getSyncAuthSession, clearToken } from '../api/client';
 import { AuthUser, getMe, logout as apiLogout } from '../api/auth';
 import { getToken } from '../api/client';
-import {
-  INITIAL_PRODUCTS,
-  INITIAL_PUMPS,
-  INITIAL_OPERATORS,
-  INITIAL_CUSTOMERS,
-  INITIAL_EXPENSE_TYPES,
-  INITIAL_SHIFTS,
-  INITIAL_CREDIT_TRANSACTIONS,
-  INITIAL_CREDIT_PAYMENTS,
-  INITIAL_EXPENSES,
-  INITIAL_BANK_DEPOSITS,
-  INITIAL_TANKS,
-  INITIAL_DIPS,
-} from '../data/initialSeedData';
+
+export const DEFAULT_PRODUCTS: Product[] = [
+  {
+    id: 'prod-001',
+    code: 'HSD',
+    name: 'HSD (Diesel)',
+    category: 'FUEL',
+    unit: 'Litre',
+    color: '#F59E0B',
+    currentRate: 92.34,
+    standardDensityRange: { min: 820.0, max: 845.0 },
+    active: true,
+  },
+  {
+    id: 'prod-002',
+    code: 'MS',
+    name: 'MS (Petrol)',
+    category: 'FUEL',
+    unit: 'Litre',
+    color: '#10B981',
+    currentRate: 100.75,
+    standardDensityRange: { min: 720.0, max: 775.0 },
+    active: true,
+  },
+  {
+    id: 'prod-003',
+    code: 'MS2',
+    name: 'Speed (Petrol Type 2)',
+    category: 'FUEL',
+    unit: 'Litre',
+    color: '#8B5CF6',
+    currentRate: 104.90,
+    standardDensityRange: { min: 720.0, max: 775.0 },
+    active: true,
+  },
+  {
+    id: 'prod-004',
+    code: 'LUB',
+    name: 'Lubricants',
+    category: 'LUBRICANT',
+    unit: 'Can',
+    color: '#6B7280',
+    currentRate: 450.00,
+    standardDensityRange: { min: 850.0, max: 900.0 },
+    active: true,
+  },
+];
+
+export const DEFAULT_PUMPS: Pump[] = [
+  {
+    id: 'pump-1',
+    pumpNo: 1,
+    name: 'Main Island Dispenser',
+    status: 'ACTIVE',
+    nozzles: [
+      { id: 'noz-1', pumpId: 'pump-1', nozzleNo: 1, productId: 'prod-001', productName: 'HSD (Diesel)', fuelCode: 'HSD', color: '#F59E0B', currentMeterReading: 12450.5 },
+      { id: 'noz-2', pumpId: 'pump-1', nozzleNo: 2, productId: 'prod-002', productName: 'MS (Petrol)', fuelCode: 'MS', color: '#10B981', currentMeterReading: 48920.0 },
+    ],
+  },
+  {
+    id: 'pump-2',
+    pumpNo: 2,
+    name: 'Side Island Dispenser',
+    status: 'ACTIVE',
+    nozzles: [
+      { id: 'noz-3', pumpId: 'pump-2', nozzleNo: 1, productId: 'prod-001', productName: 'HSD (Diesel)', fuelCode: 'HSD', color: '#F59E0B', currentMeterReading: 8930.2 },
+      { id: 'noz-4', pumpId: 'pump-2', nozzleNo: 2, productId: 'prod-002', productName: 'MS (Petrol)', fuelCode: 'MS', color: '#10B981', currentMeterReading: 32150.8 },
+    ],
+  },
+  {
+    id: 'pump-3',
+    pumpNo: 3,
+    name: 'Rear Commercial Island',
+    status: 'ACTIVE',
+    nozzles: [
+      { id: 'noz-5', pumpId: 'pump-3', nozzleNo: 1, productId: 'prod-001', productName: 'HSD (Diesel)', fuelCode: 'HSD', color: '#F59E0B', currentMeterReading: 78910.4 },
+      { id: 'noz-6', pumpId: 'pump-3', nozzleNo: 2, productId: 'prod-003', productName: 'Speed (Petrol Type 2)', fuelCode: 'MS2', color: '#8B5CF6', currentMeterReading: 4120.0 },
+    ],
+  },
+];
 
 // ─── Field mappers: API (snake_case) ↔ Frontend (camelCase) ─────────────────
 
@@ -53,10 +119,10 @@ function mapProduct(a: any): Product {
     category: a.category,
     unit: a.unit,
     color: a.color,
-    currentRate: Number(a.current_rate),
+    currentRate: Number(a.current_rate ?? a.currentRate ?? 0),
     standardDensityRange: {
-      min: Number(a.density_min ?? 0),
-      max: Number(a.density_max ?? 0),
+      min: Number(a.density_min ?? a.standardDensityRange?.min ?? 0),
+      max: Number(a.density_max ?? a.standardDensityRange?.max ?? 0),
     },
     active: a.active !== false,
   };
@@ -356,6 +422,7 @@ interface BunkContextType {
   // Auth
   currentUser: AuthUser | null;
   isLoggedIn: boolean;
+  isAuthChecking: boolean;
   login: (user: AuthUser) => void;
   logout: () => void;
 
@@ -441,9 +508,18 @@ const BunkContext = createContext<BunkContextType | undefined>(undefined);
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [role, setRole] = useState<UserRole>('Owner');
+  const initialSession = getSyncAuthSession();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialSession?.user || null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!initialSession);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(!initialSession);
+  const [role, setRole] = useState<UserRole>(
+    initialSession?.user?.role === 1 ||
+    (initialSession?.user?.role as any) === '1' ||
+    (initialSession?.user?.role as any) === 'ADMIN' ||
+    (initialSession?.user?.role as any) === 'OWNER'
+      ? 'Owner'
+      : 'Manager'
+  );
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
   const [apiConnected, setApiConnected] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -462,8 +538,8 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastSyncAt: new Date().toISOString(),
   });
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pumps, setPumps] = useState<Pump[]>([]);
+  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+  const [pumps, setPumps] = useState<Pump[]>(DEFAULT_PUMPS);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [customers, setCustomers] = useState<CreditCustomer[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
@@ -581,8 +657,8 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { ...t, product_name: prod?.name ?? '' };
       });
 
-      if (Array.isArray(prodData)) setProducts(prodData.map(mapProduct));
-      if (Array.isArray(pumpData)) setPumps(enrichedPumps.map(mapPump));
+      if (Array.isArray(prodData) && prodData.length > 0) setProducts(prodData.map(mapProduct));
+      if (Array.isArray(pumpData) && pumpData.length > 0) setPumps(enrichedPumps.map(mapPump));
       if (Array.isArray(opData)) setOperators(opData.map(mapOperator));
       if (Array.isArray(custData)) setCustomers(custData.map(mapCustomer));
       if (Array.isArray(etData)) setExpenseTypes(etData.map(mapExpenseType));
@@ -608,21 +684,40 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // ── On mount: restore session if token exists ────────────────────────────
+  // ── On mount: restore session with 50-minute timeout ────────────────────
   useEffect(() => {
+    let logoutTimer: any = null;
+
     (async () => {
       try {
-        const token = await getToken();
-        if (token) {
-          const user = await getMe();
-          login(user);
+        const session = await getAuthSession();
+        if (session) {
+          login(session.user);
+          // Set automatic logout timer for remaining time of the 50-minute session
+          logoutTimer = setTimeout(() => {
+            logout();
+          }, session.remainingMs);
+
+          // Background sync user profile if backend is reachable
+          getMe()
+            .then((freshUser) => {
+              if (freshUser) login(freshUser);
+            })
+            .catch(() => {
+              // Keep active local session on network offline/hiccup
+            });
         }
       } catch {
-        // Token expired or invalid — stay logged out
-        apiLogout();
+        // Stay logged out if error
+      } finally {
+        setIsAuthChecking(false);
       }
     })();
-  }, [login]);
+
+    return () => {
+      if (logoutTimer) clearTimeout(logoutTimer);
+    };
+  }, [login, logout]);
 
   // Load data when logged in
   useEffect(() => {
@@ -895,18 +990,28 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const addProduct = async (prodData: Omit<Product, 'id'>) => {
-    const payload = {
-      code: prodData.code,
-      name: prodData.name,
-      category: prodData.category,
-      unit: prodData.unit,
-      color: prodData.color,
-      current_rate: prodData.currentRate,
-      density_min: prodData.standardDensityRange?.min ?? null,
-      density_max: prodData.standardDensityRange?.max ?? null,
+    const newProd: Product = {
+      ...prodData,
+      id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      active: prodData.active !== false,
     };
-    const created = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) });
-    setProducts((prev) => [...prev, mapProduct(created)]);
+    try {
+      const payload = {
+        code: prodData.code,
+        name: prodData.name,
+        category: prodData.category,
+        unit: prodData.unit,
+        color: prodData.color,
+        current_rate: prodData.currentRate,
+        density_min: prodData.standardDensityRange?.min ?? null,
+        density_max: prodData.standardDensityRange?.max ?? null,
+        active: prodData.active !== false,
+      };
+      const created = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) });
+      setProducts((prev) => [...prev, mapProduct(created)]);
+    } catch {
+      setProducts((prev) => [...prev, newProd]);
+    }
   };
 
   const updateProduct = async (prod: Product) => {
@@ -920,12 +1025,30 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         current_rate: prod.currentRate,
         density_min: prod.standardDensityRange?.min ?? null,
         density_max: prod.standardDensityRange?.max ?? null,
+        active: prod.active !== false,
       };
       await apiFetch(`/api/products/${prod.id}`, { method: 'PUT', body: JSON.stringify(payload) });
     } catch (e) {
       // Keep local state in sync
     }
+    // 1. Update product in products state
     setProducts((prev) => prev.map((p) => (p.id === prod.id ? prod : p)));
+    // 2. Cascade changes to all pump nozzles referencing this product
+    setPumps((prevPumps) =>
+      prevPumps.map((pump) => ({
+        ...pump,
+        nozzles: pump.nozzles.map((noz) =>
+          noz.productId === prod.id
+            ? {
+                ...noz,
+                productName: prod.name,
+                fuelCode: prod.code,
+                color: prod.color,
+              }
+            : noz
+        ),
+      }))
+    );
   };
 
   const deleteProduct = async (id: string) => {
@@ -936,9 +1059,28 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addPump = async (pumpData: Omit<Pump, 'id'>) => {
-    const payload = { pump_no: pumpData.pumpNo, name: pumpData.name, status: pumpData.status };
-    const created = await apiFetch('/api/pumps', { method: 'POST', body: JSON.stringify(payload) });
-    setPumps((prev) => [...prev, mapPump({ ...created, nozzles: [] })]);
+    const newId = `pump-${Date.now()}`;
+    const newPump: Pump = {
+      ...pumpData,
+      id: newId,
+      nozzles: pumpData.nozzles || [],
+    };
+    try {
+      const payload = {
+        pump_no: pumpData.pumpNo,
+        name: pumpData.name,
+        status: pumpData.status,
+        nozzles: (pumpData.nozzles || []).map((n) => ({
+          nozzle_no: n.nozzleNo,
+          product_id: n.productId,
+          current_meter_reading: n.currentMeterReading,
+        })),
+      };
+      const created = await apiFetch('/api/pumps', { method: 'POST', body: JSON.stringify(payload) });
+      setPumps((prev) => [...prev, mapPump({ ...created, nozzles: pumpData.nozzles || [] })]);
+    } catch {
+      setPumps((prev) => [...prev, newPump]);
+    }
   };
 
   const updatePump = async (pump: Pump) => {
@@ -947,6 +1089,12 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pump_no: pump.pumpNo,
         name: pump.name,
         status: pump.status,
+        nozzles: (pump.nozzles || []).map((n) => ({
+          id: n.id,
+          nozzle_no: n.nozzleNo,
+          product_id: n.productId,
+          current_meter_reading: n.currentMeterReading,
+        })),
       };
       await apiFetch(`/api/pumps/${pump.id}`, { method: 'PUT', body: JSON.stringify(payload) });
     } catch (e) {}
@@ -1031,7 +1179,7 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addExpenseType = async (et: Omit<ExpenseType, 'id'>) => {
     const created = await apiFetch('/api/expense-types', {
       method: 'POST',
-      body: JSON.stringify({ name: et.name, category: et.category }),
+      body: JSON.stringify({ name: et.name, category: et.category, active: et.active !== false }),
     });
     setExpenseTypes((prev) => [...prev, mapExpenseType(created)]);
   };
@@ -1040,7 +1188,7 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await apiFetch(`/api/expense-types/${et.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ name: et.name, category: et.category }),
+        body: JSON.stringify({ name: et.name, category: et.category, active: et.active !== false }),
       });
     } catch (e) {}
     setExpenseTypes((prev) => prev.map((item) => (item.id === et.id ? et : item)));
@@ -1064,18 +1212,50 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
     shiftType: Shift['shiftType'];
     shiftDate: string;
   }): Promise<Shift> => {
-    const payload = {
-      shift_date: shiftDate,
-      shift_type: shiftType,
-      pump_id: pumpId,
-      operator_id: operatorId,
-    };
-    const created = await apiFetch('/api/shifts', { method: 'POST', body: JSON.stringify(payload) });
-    const newShift = mapShift(created);
-    
-    // If backend didn't populate meterReadings, populate from pump nozzles
+    const pump = pumps.find((p) => p.id === pumpId);
+    const operator = operators.find((o) => o.id === operatorId);
+    const nowIso = new Date().toISOString();
+
+    let newShift: Shift;
+    try {
+      const payload = {
+        shift_date: shiftDate,
+        shift_type: shiftType,
+        pump_id: pumpId,
+        operator_id: operatorId,
+      };
+      const created = await apiFetch('/api/shifts', { method: 'POST', body: JSON.stringify(payload) });
+      newShift = mapShift(created);
+    } catch {
+      // Fallback local shift creation
+      newShift = {
+        id: `shift-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        shiftNo: `SH-${shiftDate.replace(/-/g, '')}-P${pump?.pumpNo || 1}-${shiftType.toUpperCase()}`,
+        shiftDate,
+        shiftType,
+        pumpId,
+        pumpNo: pump?.pumpNo || 1,
+        operatorId,
+        operatorName: operator?.name || 'Operator',
+        openedAt: nowIso,
+        status: 'IN_PROGRESS',
+        meterReadings: [],
+        totalLitresSold: 0,
+        totalSalesAmount: 0,
+        expensesDeducted: 0,
+        collections: { cash: 0, upiGpay: 0, card: 0, fleetCard: 0, creditSales: 0, cheque: 0 },
+        totalCollected: 0,
+        shortageOrExcess: 0,
+        notes: '',
+      };
+    }
+
+    if (!newShift.openedAt) {
+      newShift.openedAt = nowIso;
+    }
+
+    // If meterReadings is empty, populate from pump nozzles
     if (newShift.meterReadings.length === 0) {
-      const pump = pumps.find((p) => p.id === pumpId);
       if (pump && pump.nozzles.length > 0) {
         newShift.meterReadings = pump.nozzles.map((noz) => {
           const prod = products.find((p) => p.id === noz.productId);
@@ -1327,7 +1507,7 @@ const deleteShift = async (shiftId: string) => {
   return (
     <BunkContext.Provider
       value={{
-        currentUser, isLoggedIn, login, logout,
+        currentUser, isLoggedIn, isAuthChecking, login, logout,
         role, setRole,
         isMobileView, setIsMobileView, toggleMobileView,
         bunkProfile, updateBunkProfile, triggerDailyCronSync,
