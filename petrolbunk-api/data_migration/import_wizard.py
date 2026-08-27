@@ -4,7 +4,7 @@ import os
 
 def main():
     print("=========================================")
-    print("   FuelPulse Excel Import Wizard")
+    print("   petrol bunk Excel Import Wizard")
     print("=========================================\n")
     
     excel_path = input("Enter the path to your Excel file: ").strip()

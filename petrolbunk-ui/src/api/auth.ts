@@ -20,7 +20,8 @@ export function getInitials(user: AuthUser | null): string {
   const l = user.last_name?.trim();
   if (f && l) return `${f[0]}${l[0]}`.toUpperCase();
   if (f)      return f[0].toUpperCase();
-  return user.username[0].toUpperCase();
+  if (l)      return l[0].toUpperCase();
+  return user.username?.[0]?.toUpperCase() || '?';
 }
 
 export async function login(

@@ -86,14 +86,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </Text>
           </TouchableOpacity> */}
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.actionPill, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}
             onPress={() => onNavigate('credit')}
             activeOpacity={0.8}
           >
             <CreditCard size={14} color={colors.accent} />
             <Text style={styles.actionPillText}>New Credit Bill</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 

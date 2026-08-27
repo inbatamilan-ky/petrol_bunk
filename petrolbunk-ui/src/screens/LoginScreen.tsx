@@ -144,7 +144,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <View style={styles.titleRow}>
               <Text style={styles.title}>PETROL BUNK</Text>
             </View>
-            <Text style={styles.subtitle}>Petrol Bunk Management System</Text>
+            <Text style={styles.subtitle}>Petrol Bunk accounts Management System</Text>
           </View>
 
           {/* Form Fields */}

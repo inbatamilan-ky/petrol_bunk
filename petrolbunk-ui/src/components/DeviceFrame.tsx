@@ -17,7 +17,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({ children }) => {
       <View style={styles.controlBar}>
         <View style={styles.brandBadge}>
           <View style={[styles.pulseDot, { backgroundColor: apiConnected ? colors.success : colors.warning }]} />
-          <Text style={styles.brandTitle}>FuelPulse Pro</Text>
+          <Text style={styles.brandTitle}>petrol bunk</Text>
           <Text style={styles.brandSubtitle}>React Native Web • PostgreSQL 17</Text>
           <View style={[styles.apiBadge, { backgroundColor: apiConnected ? '#DCFCE7' : '#FEF3C7' }]}>
             <Text style={[styles.apiBadgeText, { color: apiConnected ? '#166534' : '#92400E' }]}>

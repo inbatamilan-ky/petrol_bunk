@@ -1,27 +1,23 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import {
-  LayoutDashboard,
-  Fuel,
-  Database,
-  Gauge,
-  CreditCard,
-  IndianRupee,
-  TrendingUp,
   Banknote,
-  FileText,
-  Settings,
-  Search,
-  Zap,
   Building2,
-  ChevronRight,
-  LogOut,
-  ChevronDown,
   Check,
-  X,
+  ChevronDown,
+  ChevronRight,
+  CreditCard,
+  FileText,
+  Fuel,
+  Gauge,
+  IndianRupee,
+  LayoutDashboard,
+  Search,
+  Settings,
+  TrendingUp,
+  X
 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useBunk } from '../context/BunkContext';
-import { colors } from '../theme/colors';
 import { UserRole } from '../types';
 
 export type ScreenId =
@@ -57,7 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'expenses',  label: 'Expenses',      icon: IndianRupee,     roles: ['Owner', 'Manager'] },
   { id: 'rates',     label: 'Daily Rates',   icon: TrendingUp,      roles: ['Owner', 'Manager'] },
   { id: 'cashbank',  label: 'Cash & Bank',   icon: Banknote,        roles: ['Owner', 'Manager'] },
-  { id: 'reports',   label: 'Reports',       icon: FileText,        roles: ['Owner', 'Manager'] },
+  { id: 'reports',   label: 'Reports',       icon: FileText,        roles: ['Owner'] },
   { id: 'masters',   label: 'Masters',       icon: Settings,        roles: ['Owner'] },
 ];
 
@@ -119,20 +115,22 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
         
         {/* Sidebar Footer Branch Selector */}
-        <View style={styles.sidebarFooter}>
-          <Text style={styles.sidebarSectionTitle}>ACTIVE BRANCH</Text>
-          <TouchableOpacity
-            style={styles.branchButton}
-            onPress={() => setShowBranchModal(true)}
-            activeOpacity={0.7}
-          >
-            <Building2 size={16} color="#475569" />
-            <Text style={styles.branchButtonText} numberOfLines={1}>
-              {branches?.find((b: any) => b.id === activeBranchId)?.name || 'Select Branch'}
-            </Text>
-            <ChevronDown size={16} color="#64748B" style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-        </View>
+        {role === 'Owner' && (
+          <View style={styles.sidebarFooter}>
+            <Text style={styles.sidebarSectionTitle}>ACTIVE BRANCH</Text>
+            <TouchableOpacity
+              style={styles.branchButton}
+              onPress={() => setShowBranchModal(true)}
+              activeOpacity={0.7}
+            >
+              <Building2 size={16} color="#475569" />
+              <Text style={styles.branchButtonText} numberOfLines={1}>
+                {branches?.find((b: any) => b.id === activeBranchId)?.name || 'Select Branch'}
+              </Text>
+              <ChevronDown size={16} color="#64748B" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Branch Selection Modal */}
         <Modal visible={showBranchModal} transparent animationType="fade" onRequestClose={() => setShowBranchModal(false)}>
