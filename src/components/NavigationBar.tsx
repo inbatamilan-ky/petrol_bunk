@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import {
   LayoutDashboard,
   Fuel,
@@ -16,6 +16,9 @@ import {
   Building2,
   ChevronRight,
   LogOut,
+  ChevronDown,
+  Check,
+  X,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors } from '../theme/colors';
@@ -63,7 +66,8 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onSelectScreen,
   isSidebar = false,
 }) => {
-  const { role, activeShift, logout } = useBunk();
+  const { role, activeShift, logout, branches, activeBranchId, switchBranch } = useBunk();
+  const [showBranchModal, setShowBranchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const allowedItems = NAV_ITEMS.filter((item) => item.roles.includes(role)).filter((item) =>
@@ -113,17 +117,55 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           })}
         </ScrollView>
 
-        {/* Sidebar Footer Log Out */}
+        
+        {/* Sidebar Footer Branch Selector */}
         <View style={styles.sidebarFooter}>
+          <Text style={styles.sidebarSectionTitle}>ACTIVE BRANCH</Text>
           <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={logout}
+            style={styles.branchButton}
+            onPress={() => setShowBranchModal(true)}
             activeOpacity={0.7}
           >
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Log Out</Text>
+            <Building2 size={16} color="#475569" />
+            <Text style={styles.branchButtonText} numberOfLines={1}>
+              {branches?.find((b: any) => b.id === activeBranchId)?.name || 'Select Branch'}
+            </Text>
+            <ChevronDown size={16} color="#64748B" style={{ marginLeft: 'auto' }} />
           </TouchableOpacity>
         </View>
+
+        {/* Branch Selection Modal */}
+        <Modal visible={showBranchModal} transparent animationType="fade" onRequestClose={() => setShowBranchModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Branch</Text>
+                <TouchableOpacity onPress={() => setShowBranchModal(false)}>
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.branchList}>
+                {branches?.map((b: any) => (
+                  <TouchableOpacity
+                    key={b.id}
+                    style={[styles.branchItem, activeBranchId === b.id && styles.branchItemActive]}
+                    onPress={() => {
+                      switchBranch(b.id);
+                      setShowBranchModal(false);
+                    }}
+                  >
+                    <View>
+                      <Text style={[styles.branchItemName, activeBranchId === b.id && styles.branchItemNameActive]}>{b.name}</Text>
+                      <Text style={styles.branchItemCode}>{b.dealer_code} - {b.omc_brand}</Text>
+                    </View>
+                    {activeBranchId === b.id && <Check size={18} color="#007DC6" />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
       </View>
     );
   }
@@ -256,7 +298,81 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FECACA',
   },
-  logoutText: {
+  
+  branchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  branchButtonText: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  branchList: {
+    maxHeight: 400,
+  },
+  branchItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  branchItemActive: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  branchItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  branchItemNameActive: {
+    color: '#007DC6',
+  },
+  branchItemCode: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+logoutText: {
     color: '#DC2626',
     fontSize: 14,
     fontWeight: '700',

@@ -31,6 +31,7 @@ import {
   Car,
   DollarSign,
   ShieldAlert,
+  Building,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
@@ -44,11 +45,11 @@ import {
   useCustomerStatuses,
 } from '../hooks/useMasters';
 
-type TabId = 'products' | 'pumps' | 'staff' | 'expenses' | 'customers';
+type TabId = 'branches' | 'products' | 'pumps' | 'staff' | 'expenses' | 'customers';
 
 export const MastersScreen: React.FC = () => {
   const {
-    products, pumps, operators, expenseTypes, customers,
+    branches, addBranch, updateBranch, products, pumps, operators, expenseTypes, customers,
     addOperator, updateOperator, deleteOperator,
     addPump, updatePump, deletePump,
     addProduct, updateProduct, deleteProduct,
@@ -62,6 +63,24 @@ export const MastersScreen: React.FC = () => {
   const { options: expenseCategoryOptions } = useExpenseCategories();
   const { options: pumpStatusOptions } = usePumpStatuses();
   const { options: customerStatusOptions } = useCustomerStatuses();
+
+
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<any>(null);
+  const [branchForm, setBranchForm] = useState({ name: '', location: '', dealer_code: '', omc_brand: 'BPCL' });
+
+  const handleSaveBranch = async () => {
+    try {
+      if (editingBranch) {
+        await updateBranch({ ...editingBranch, ...branchForm });
+      } else {
+        await addBranch(branchForm);
+      }
+      setShowBranchModal(false);
+    } catch {
+      Alert.alert('Error', 'Could not save branch.');
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<TabId>('products');
   const [searchQuery, setSearchQuery] = useState('');
@@ -446,7 +465,7 @@ export const MastersScreen: React.FC = () => {
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.code.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [products, searchQuery]);
+  }, [branches, addBranch, updateBranch, products, searchQuery]);
 
   const filteredPumps = useMemo(() => {
     return pumps.filter(
@@ -482,6 +501,7 @@ export const MastersScreen: React.FC = () => {
   }, [customers, searchQuery]);
 
   const tabs: { id: TabId; label: string; icon: any; count: number }[] = [
+    { id: 'branches', label: 'Branches', icon: Building, count: branches.length },
     { id: 'products', label: 'Products', icon: Fuel, count: products.length },
     { id: 'pumps', label: 'Pumps & Nozzles', icon: Gauge, count: pumps.length },
     { id: 'staff', label: 'Staff / Operators', icon: Users, count: operators.length },
@@ -542,6 +562,48 @@ export const MastersScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       </View>
+
+            {/* ── 0. BRANCHES TAB ──────────────────────────────────────────────── */}
+      {activeTab === 'branches' && (
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View>
+              <Text style={styles.sectionTitle}>All Branches ({branches.length})</Text>
+              <Text style={styles.sectionSub}>Create and manage your petrol bunk branches</Text>
+            </View>
+            <TouchableOpacity style={styles.addBtn} onPress={() => {
+              setEditingBranch(null);
+              setBranchForm({ name: '', location: '', dealer_code: '', omc_brand: 'BPCL' });
+              setShowBranchModal(true);
+            }}>
+              <PlusCircle size={14} color="#FFFFFF" />
+              <Text style={styles.addBtnText}>New Branch</Text>
+            </TouchableOpacity>
+          </View>
+          {branches.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>No branches yet. Create your first branch above.</Text>
+            </View>
+          ) : (
+            branches.map((b: any) => (
+              <View key={b.id} style={styles.itemCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={[styles.dot, { backgroundColor: b.is_active ? '#10B981' : '#94A3B8' }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{b.name}</Text>
+                    <Text style={styles.itemSub}>{b.omc_brand}  ·  {b.dealer_code || '—'}  ·  {b.location || '—'}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: b.is_active ? '#DCFCE7' : '#F1F5F9' }]}>
+                    <Text style={[styles.statusBadgeText, { color: b.is_active ? '#16A34A' : '#64748B' }]}>
+                      {b.is_active ? 'Active' : 'Inactive'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      )}
 
       {/* ── 1. PRODUCTS TAB ───────────────────────────────────────────────── */}
       {activeTab === 'products' && (
@@ -1421,6 +1483,53 @@ export const MastersScreen: React.FC = () => {
         </View>
       </Modal>
 
+      {/* Branch Modal */}
+      <Modal visible={showBranchModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 440 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingBranch ? 'Edit Branch' : 'New Branch'}</Text>
+              <TouchableOpacity onPress={() => setShowBranchModal(false)}>
+                <X size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.fieldLabel}>Branch Name *</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={branchForm.name}
+              onChangeText={t => setBranchForm({ ...branchForm, name: t })}
+              placeholder="e.g. Branch A"
+            />
+            <Text style={styles.fieldLabel}>Location</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={branchForm.location}
+              onChangeText={t => setBranchForm({ ...branchForm, location: t })}
+              placeholder="e.g. North Side"
+            />
+            <Text style={styles.fieldLabel}>Dealer Code</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={branchForm.dealer_code}
+              onChangeText={t => setBranchForm({ ...branchForm, dealer_code: t })}
+              placeholder="e.g. D-12345"
+            />
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowBranchModal(false)}>
+                <Text style={styles.cancelBtnTxt}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addBtn, !branchForm.name && { opacity: 0.4 }]}
+                disabled={!branchForm.name}
+                onPress={handleSaveBranch}
+              >
+                <Text style={styles.addBtnText}>Save Branch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── GLOBAL DELETE CONFIRMATION MODAL ──────────────────────────────── */}
       <Modal visible={deleteConfirm.visible} transparent animationType="fade" onRequestClose={() => setDeleteConfirm((p) => ({ ...p, visible: false }))}>
         <View style={styles.modalOverlay}>
@@ -2002,5 +2111,66 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.textMuted,
     fontSize: 12,
+  },
+
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  itemSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    width: '88%',
+    maxWidth: 440,
+    alignSelf: 'center',
+  },
+  modalFooterRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+    justifyContent: 'flex-end',
+  },
+  cancelBtnTxt: {
+    color: '#64748B',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  saveBtnTxt: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
   },
 });

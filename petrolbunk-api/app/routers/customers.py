@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/customers", tags=["Customers"])
@@ -14,9 +14,10 @@ router = APIRouter(prefix="/api/customers", tags=["Customers"])
 def list_customers(
     search: Optional[str] = Query(default=None, description="Search by name, code, or vehicle no"),
     db: Session = Depends(get_db),
+    branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    query = db.query(models.Customer)
+    query = db.query(models.Customer).filter(models.Customer.branch_id == branch_id)
     if search:
         like = f"%{search}%"
         query = query.filter(
@@ -26,8 +27,8 @@ def list_customers(
 
 
 @router.get("/{customer_id}", response_model=schemas.CustomerOut)
-def get_customer(customer_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    customer = db.query(models.Customer).get(customer_id)
+def get_customer(customer_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id).filter(models.Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     return customer
@@ -35,13 +36,13 @@ def get_customer(customer_id: str, db: Session = Depends(get_db), _=Depends(get_
 
 @router.post("", response_model=schemas.CustomerOut, status_code=status.HTTP_201_CREATED)
 def create_customer(
-    payload: schemas.CustomerCreate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    payload: schemas.CustomerCreate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)
 ):
-    if db.query(models.Customer).filter(models.Customer.code == payload.code).first():
+    if db.query(models.Customer).filter(models.Customer.branch_id == branch_id).filter(models.Customer.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Customer code already exists")
     data = payload.model_dump()
     customer = models.Customer(
-        id=generate_id("cust"), outstanding_balance=data["opening_balance"], **data
+        branch_id=branch_id, id=generate_id("cust"), outstanding_balance=data["opening_balance"], **data
     )
     db.add(customer)
     db.commit()
@@ -54,9 +55,10 @@ def update_customer(
     customer_id: str,
     payload: schemas.CustomerUpdate,
     db: Session = Depends(get_db),
+    branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    customer = db.query(models.Customer).get(customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id).filter(models.Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -67,8 +69,8 @@ def update_customer(
 
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_customer(customer_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    customer = db.query(models.Customer).get(customer_id)
+def delete_customer(customer_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(require_admin)):
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id).filter(models.Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     db.delete(customer)
@@ -77,9 +79,9 @@ def delete_customer(customer_id: str, db: Session = Depends(get_db), _=Depends(r
 
 
 @router.get("/{customer_id}/ledger")
-def customer_ledger(customer_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def customer_ledger(customer_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
     """Combined statement of credit sales (debits) and payments (credits)."""
-    customer = db.query(models.Customer).get(customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id).filter(models.Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 

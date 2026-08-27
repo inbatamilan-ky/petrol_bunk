@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/credit", tags=["Credit Ledger"])
@@ -19,8 +19,9 @@ def list_credit_transactions(
     customer_id: Optional[str] = None,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    query = db.query(models.CreditTransaction)
+    query = db.query(models.CreditTransaction).filter(models.CreditTransaction.branch_id == branch_id)
     if customer_id:
         query = query.filter(models.CreditTransaction.customer_id == customer_id)
     return query.order_by(models.CreditTransaction.date.desc()).all()
@@ -35,11 +36,12 @@ def create_credit_sale(
     payload: schemas.CreditTransactionCreate,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    customer = db.query(models.Customer).get(payload.customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id, models.Customer.id == payload.customer_id).first()
     if not customer:
         raise HTTPException(status_code=400, detail="Invalid customer_id")
-    product = db.query(models.Product).get(payload.product_id)
+    product = db.query(models.Product).filter(models.Product.branch_id == branch_id, models.Product.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=400, detail="Invalid product_id")
 
@@ -47,11 +49,12 @@ def create_credit_sale(
     amount = payload.amount if payload.amount is not None else round(payload.litres * rate, 2)
 
     sale_date = payload.date or date_cls.today()
-    day_count = db.query(models.CreditTransaction).filter(models.CreditTransaction.date == sale_date).count() + 1
+    day_count = db.query(models.CreditTransaction).filter(models.CreditTransaction.branch_id == branch_id).filter(models.CreditTransaction.date == sale_date).count() + 1
     slip_no = f"SLIP-{sale_date.strftime('%Y%m%d')}-{day_count:03d}"
 
     tx = models.CreditTransaction(
         id=generate_id("ctx"),
+        branch_id=branch_id,
         slip_no=slip_no,
         customer_id=payload.customer_id,
         date=sale_date,
@@ -76,11 +79,16 @@ def create_credit_sale(
 
 
 @router.delete("/transactions/{tx_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_credit_sale(tx_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    tx = db.query(models.CreditTransaction).get(tx_id)
+def delete_credit_sale(
+    tx_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+    branch_id: str = Depends(get_current_branch),
+):
+    tx = db.query(models.CreditTransaction).filter(models.CreditTransaction.branch_id == branch_id).filter(models.CreditTransaction.id == tx_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Credit transaction not found")
-    customer = db.query(models.Customer).get(tx.customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id, models.Customer.id == tx.customer_id).first()
     if customer:
         customer.outstanding_balance = max(0.0, float(customer.outstanding_balance) - float(tx.amount))
     db.delete(tx)
@@ -96,8 +104,9 @@ def list_credit_payments(
     customer_id: Optional[str] = None,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    query = db.query(models.CreditPayment)
+    query = db.query(models.CreditPayment).filter(models.CreditPayment.branch_id == branch_id)
     if customer_id:
         query = query.filter(models.CreditPayment.customer_id == customer_id)
     return query.order_by(models.CreditPayment.date.desc()).all()
@@ -110,19 +119,21 @@ def create_credit_payment(
     payload: schemas.CreditPaymentCreate,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    customer = db.query(models.Customer).get(payload.customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id, models.Customer.id == payload.customer_id).first()
     if not customer:
         raise HTTPException(status_code=400, detail="Invalid customer_id")
     if payload.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
     pay_date = payload.date or date_cls.today()
-    day_count = db.query(models.CreditPayment).filter(models.CreditPayment.date == pay_date).count() + 1
+    day_count = db.query(models.CreditPayment).filter(models.CreditPayment.branch_id == branch_id).filter(models.CreditPayment.date == pay_date).count() + 1
     receipt_no = f"RCPT-{pay_date.strftime('%Y%m%d')}-{day_count:03d}"
 
     payment = models.CreditPayment(
         id=generate_id("pay"),
+        branch_id=branch_id,
         receipt_no=receipt_no,
         customer_id=payload.customer_id,
         date=pay_date,
@@ -142,11 +153,16 @@ def create_credit_payment(
 
 
 @router.delete("/payments/{payment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_credit_payment(payment_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    payment = db.query(models.CreditPayment).get(payment_id)
+def delete_credit_payment(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+    branch_id: str = Depends(get_current_branch),
+):
+    payment = db.query(models.CreditPayment).filter(models.CreditPayment.branch_id == branch_id).filter(models.CreditPayment.id == payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
-    customer = db.query(models.Customer).get(payment.customer_id)
+    customer = db.query(models.Customer).filter(models.Customer.branch_id == branch_id, models.Customer.id == payment.customer_id).first()
     if customer:
         customer.outstanding_balance = float(customer.outstanding_balance) + float(payment.amount)
     db.delete(payment)

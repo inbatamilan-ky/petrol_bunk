@@ -256,17 +256,20 @@ export interface SmsLogEntry {
   appliedBy?: string;
 }
 
-export interface BunkProfile {
+export interface Branch {
   id: string;
-  bunkName: string;
-  omcBrand: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE';
-  dealerCode: string;
-  state: string;
-  city: string;
-  registeredPhone?: string;
-  autoFetchEnabled: boolean;
-  autoApplyEnabled: boolean;
-  lastSyncAt?: string;
+  name: string;
+  omc_brand: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE';
+  dealer_code: string;
+  location: string;
+  is_active: boolean;
+  created_at?: string;
+  
+  // Backwards compatibility mappings for UI
+  bunk_name?: string;
+  city?: string;
+  auto_fetch_enabled?: boolean;
+  auto_apply_enabled?: boolean;
 }
 
 export interface DailyNozzleMeter {

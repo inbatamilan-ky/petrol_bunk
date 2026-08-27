@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, get_current_branch
 
 router = APIRouter(prefix="/api/nozzle-meters", tags=["Nozzle Meters"])
 
@@ -13,10 +13,10 @@ router = APIRouter(prefix="/api/nozzle-meters", tags=["Nozzle Meters"])
 def get_daily_nozzle_meters(
     reading_date: Optional[date] = None,
     pump_id: Optional[str] = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch),
     current_user: models.User = Depends(get_current_user),
 ):
-    query = db.query(models.DailyNozzleMeter)
+    query = db.query(models.DailyNozzleMeter).filter(models.DailyNozzleMeter.branch_id == branch_id)
     if reading_date:
         query = query.filter(models.DailyNozzleMeter.reading_date == reading_date)
     if pump_id:
@@ -27,7 +27,7 @@ def get_daily_nozzle_meters(
 @router.post("/batch", response_model=List[schemas.DailyNozzleMeterOut], status_code=status.HTTP_201_CREATED)
 def batch_save_daily_nozzle_meters(
     payload: schemas.BatchDailyNozzleMeterCreate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch),
     current_user: models.User = Depends(get_current_user),
 ):
     saved_records = []
@@ -39,7 +39,7 @@ def batch_save_daily_nozzle_meters(
         record_id = f"dnm-{r_date.strftime('%Y%m%d')}-{item.nozzle_id}"
 
         existing = (
-            db.query(models.DailyNozzleMeter)
+            db.query(models.DailyNozzleMeter).filter(models.DailyNozzleMeter.branch_id == branch_id)
             .filter(
                 models.DailyNozzleMeter.reading_date == r_date,
                 models.DailyNozzleMeter.nozzle_id == item.nozzle_id,
@@ -57,7 +57,7 @@ def batch_save_daily_nozzle_meters(
             existing.recorded_by = item.recorded_by or payload.recorded_by or "Manager"
             saved_records.append(existing)
         else:
-            new_record = models.DailyNozzleMeter(
+            new_record = models.DailyNozzleMeter(branch_id=branch_id, 
                 id=record_id,
                 reading_date=r_date,
                 pump_id=item.pump_id,
@@ -75,7 +75,7 @@ def batch_save_daily_nozzle_meters(
             saved_records.append(new_record)
 
         # Synchronize pump nozzle current meter reading
-        nozzle = db.query(models.Nozzle).get(item.nozzle_id)
+        nozzle = db.query(models.Nozzle).filter(models.Nozzle.branch_id == branch_id, models.Nozzle.id == item.nozzle_id).first()
         if nozzle and item.closing_meter > 0:
             nozzle.current_meter_reading = item.closing_meter
 

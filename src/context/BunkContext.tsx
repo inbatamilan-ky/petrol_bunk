@@ -16,7 +16,7 @@ import {
   TankDip,
   MeterReadingEntry,
   SmsLogEntry,
-  BunkProfile,
+  Branch,
   BankAccount,
   DailyNozzleMeter,
   CashSafeLedger,
@@ -338,7 +338,7 @@ function mapTankDip(a: any): TankDip {
   };
 }
 
-function mapBunkProfile(a: any): BunkProfile {
+function mapBranch(a: any): Branch {
   return {
     id: a?.id ?? 'profile_1',
     bunkName: a?.bunk_name ?? 'KY Petrol Bunk',
@@ -419,6 +419,10 @@ function mapFuelRateHistory(a: any): FuelRateHistory {
 // ─── Context Type ────────────────────────────────────────────────────────────
 
 interface BunkContextType {
+  activeBranchId: string;
+  branches: Branch[];
+  switchBranch: (id: string) => Promise<void>;
+
   // Auth
   currentUser: AuthUser | null;
   isLoggedIn: boolean;
@@ -433,7 +437,7 @@ interface BunkContextType {
   toggleMobileView: () => void;
 
   // Data
-  bunkProfile: BunkProfile | null;
+  bunkProfile: Branch | null;
   products: Product[];
   pumps: Pump[];
   operators: Operator[];
@@ -454,8 +458,8 @@ interface BunkContextType {
   loading: boolean;
   error: string | null;
 
-  // Actions
-  updateBunkProfile: (profile: Partial<BunkProfile>) => Promise<void>;
+  addBranch: (b: Partial<Branch>) => Promise<void>;
+  updateBranch: (profile: Partial<Branch>) => Promise<void>;
   triggerDailyCronSync: () => Promise<any>;
   updateFuelRate: (productId: string, newRate: number) => Promise<void>;
   updateBatchFuelRates: (
@@ -525,18 +529,28 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [bunkProfile, setBunkProfile] = useState<BunkProfile | null>({
+  const [bunkProfile, setBranch] = useState<Branch | null>({
     id: 'profile_1',
-    bunkName: 'BPCL Chennai Auto Fuel',
-    omcBrand: 'BPCL',
-    dealerCode: '184920',
-    state: 'Tamil Nadu',
-    city: 'Chennai (Tamil Nadu)',
-    registeredPhone: '+919876543210',
-    autoFetchEnabled: true,
-    autoApplyEnabled: true,
-    lastSyncAt: new Date().toISOString(),
-  });
+    name: 'BPCL Chennai Auto Fuel',
+    omc_brand: 'BPCL',
+    dealer_code: '184920',
+    location: 'Chennai (Tamil Nadu)',
+    is_active: true,
+  } as unknown as Branch);
+
+  const [activeBranchId, setActiveBranchId] = useState<string>('B-01');
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const { getActiveBranch } = require('../api/client');
+    getActiveBranch().then((b: string | null) => {
+       if (b) setActiveBranchId(b);
+    });
+    apiFetch('/api/branches').then((data: any) => setBranches(data || [])).catch(() => {});
+  }, [isLoggedIn]);
 
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [pumps, setPumps] = useState<Pump[]>(DEFAULT_PUMPS);
@@ -657,8 +671,8 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { ...t, product_name: prod?.name ?? '' };
       });
 
-      if (Array.isArray(prodData) && prodData.length > 0) setProducts(prodData.map(mapProduct));
-      if (Array.isArray(pumpData) && pumpData.length > 0) setPumps(enrichedPumps.map(mapPump));
+      if (Array.isArray(prodData)) setProducts(prodData.map(mapProduct));
+      if (Array.isArray(pumpData)) setPumps(enrichedPumps.map(mapPump));
       if (Array.isArray(opData)) setOperators(opData.map(mapOperator));
       if (Array.isArray(custData)) setCustomers(custData.map(mapCustomer));
       if (Array.isArray(etData)) setExpenseTypes(etData.map(mapExpenseType));
@@ -669,11 +683,11 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (Array.isArray(bdData)) setBankDeposits(bdData.map(mapBankDeposit));
       if (Array.isArray(tankData)) setTanks(enrichedTanks.map(mapTank));
       if (Array.isArray(dipData)) setDips(dipData.map(mapTankDip));
-      if (Array.isArray(baData) && baData.length > 0) setBankAccounts(baData.map(mapBankAccount));
+      if (Array.isArray(baData)) setBankAccounts(baData.map(mapBankAccount));
       if (Array.isArray(dnmData)) setDailyNozzleMeters(dnmData.map(mapDailyNozzleMeter));
       if (Array.isArray(smsData)) setSmsLogs(smsData.map(mapSmsLog));
       if (Array.isArray(rateHistData)) setFuelRateHistory(rateHistData.map(mapFuelRateHistory));
-      if (profData) setBunkProfile(mapBunkProfile(profData));
+      if (profData) setBranch(mapBranch(profData));
 
       setApiConnected(true);
     } catch (e: any) {
@@ -683,6 +697,13 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   }, []);
+
+  const switchBranch = useCallback(async (id: string) => {
+    const { setActiveBranch } = require('../api/client');
+    await setActiveBranch(id);   // write to AsyncStorage FIRST
+    setActiveBranchId(id);
+    await syncWithBackend();     // then reload all branch-scoped data
+  }, [syncWithBackend]);
 
   // ── On mount: restore session with 50-minute timeout ────────────────────
   useEffect(() => {
@@ -947,25 +968,37 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
-  const updateBunkProfile = async (profileUpdates: Partial<BunkProfile>) => {
+  
+  const addBranch = async (branchData: Partial<Branch>) => {
+    const payload = {
+      name: branchData.name,
+      omc_brand: branchData.omc_brand || 'BPCL',
+      dealer_code: branchData.dealer_code || '',
+      location: branchData.location || '',
+      is_active: branchData.is_active !== false,
+    };
+    const created = await apiFetch('/api/branches', { method: 'POST', body: JSON.stringify(payload) });
+    setBranches(prev => [...prev, created]);
+  };
+  const updateBranch = async (profileUpdates: Partial<Branch>) => {
     try {
       const payload: any = {};
-      if (profileUpdates.bunkName !== undefined) payload.bunk_name = profileUpdates.bunkName;
-      if (profileUpdates.omcBrand !== undefined) payload.omc_brand = profileUpdates.omcBrand;
-      if (profileUpdates.dealerCode !== undefined) payload.dealer_code = profileUpdates.dealerCode;
-      if (profileUpdates.state !== undefined) payload.state = profileUpdates.state;
+      if (profileUpdates.name !== undefined) payload.bunk_name = profileUpdates.name;
+      if (profileUpdates.omc_brand !== undefined) payload.omc_brand = profileUpdates.omc_brand;
+      if (profileUpdates.dealer_code !== undefined) payload.dealer_code = profileUpdates.dealer_code;
+      if (profileUpdates.location !== undefined) payload.state = profileUpdates.location;
       if (profileUpdates.city !== undefined) payload.city = profileUpdates.city;
-      if (profileUpdates.registeredPhone !== undefined) payload.registered_phone = profileUpdates.registeredPhone;
-      if (profileUpdates.autoFetchEnabled !== undefined) payload.auto_fetch_enabled = profileUpdates.autoFetchEnabled;
-      if (profileUpdates.autoApplyEnabled !== undefined) payload.auto_apply_enabled = profileUpdates.autoApplyEnabled;
+      if (profileUpdates.location !== undefined) payload.registered_phone = profileUpdates.location;
+      if (profileUpdates.is_active !== undefined) payload.auto_fetch_enabled = profileUpdates.is_active;
+      if (profileUpdates.is_active !== undefined) payload.auto_apply_enabled = profileUpdates.is_active;
 
       const updated = await apiFetch('/api/bunk-profile', {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
-      setBunkProfile(mapBunkProfile(updated));
+      setBranch(mapBranch(updated));
     } catch {
-      setBunkProfile((prev) => (prev ? { ...prev, ...profileUpdates } : (profileUpdates as BunkProfile)));
+      setBranch((prev) => (prev ? { ...prev, ...profileUpdates } : (profileUpdates as Branch)));
     }
   };
 
@@ -979,7 +1012,7 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (Array.isArray(prodData)) {
         setProducts((prodData as any[]).map(mapProduct));
       }
-      setBunkProfile((prev) => (prev ? { ...prev, lastSyncAt: new Date().toISOString() } : null));
+      setBranch((prev) => (prev ? { ...prev, lastSyncAt: new Date().toISOString() } : null));
       return result;
     } catch {
       // Fallback
@@ -1059,27 +1092,23 @@ export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addPump = async (pumpData: Omit<Pump, 'id'>) => {
-    const newId = `pump-${Date.now()}`;
-    const newPump: Pump = {
-      ...pumpData,
-      id: newId,
-      nozzles: pumpData.nozzles || [],
-    };
     try {
       const payload = {
         pump_no: pumpData.pumpNo,
         name: pumpData.name,
         status: pumpData.status,
-        nozzles: (pumpData.nozzles || []).map((n) => ({
-          nozzle_no: n.nozzleNo,
-          product_id: n.productId,
-          current_meter_reading: n.currentMeterReading,
-        })),
       };
       const created = await apiFetch('/api/pumps', { method: 'POST', body: JSON.stringify(payload) });
-      setPumps((prev) => [...prev, mapPump({ ...created, nozzles: pumpData.nozzles || [] })]);
-    } catch {
-      setPumps((prev) => [...prev, newPump]);
+      
+      // Create each nozzle sequentially
+      for (const n of (pumpData.nozzles || [])) {
+        const nozPayload = { pump_id: created.id, nozzle_no: n.nozzleNo, product_id: n.productId, current_meter_reading: n.currentMeterReading };
+        await apiFetch(`/api/pumps/${created.id}/nozzles`, { method: 'POST', body: JSON.stringify(nozPayload) });
+      }
+      
+      await syncWithBackend();
+    } catch (e) {
+      console.error('addPump error:', e);
     }
   };
 
@@ -1519,7 +1548,7 @@ const deleteShift = async (shiftId: string) => {
         currentUser, isLoggedIn, isAuthChecking, login, logout,
         role, setRole,
         isMobileView, setIsMobileView, toggleMobileView,
-        bunkProfile, updateBunkProfile, triggerDailyCronSync,
+        bunkProfile, activeBranchId, branches, switchBranch, addBranch, updateBranch, triggerDailyCronSync,
         products, pumps, operators, customers, expenseTypes,
         shifts, creditTransactions, creditPayments, expenses,
         bankDeposits, bankAccounts, dailyNozzleMeters, fuelRateHistory, tanks, dips,

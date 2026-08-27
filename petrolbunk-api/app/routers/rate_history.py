@@ -1,11 +1,11 @@
-﻿from typing import List, Optional
+from typing import List, Optional
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, get_current_branch
 
 router = APIRouter(prefix="/api/rate-history", tags=["Fuel Rate History"])
 
@@ -18,9 +18,10 @@ def get_rate_history(
     limit: int = Query(200, le=1000),
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     """Return fuel rate change audit trail, newest first."""
-    q = db.query(models.FuelRateHistory)
+    q = db.query(models.FuelRateHistory).filter(models.FuelRateHistory.branch_id == branch_id)
     if product_id:
         q = q.filter(models.FuelRateHistory.product_id == product_id)
     if from_date:

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, get_current_branch
 
 router = APIRouter(prefix="/api/cash-ledger", tags=["Cash Safe Ledger"])
 
@@ -15,8 +15,9 @@ def get_cash_safe_ledgers(
     limit: int = Query(default=30, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    query = db.query(models.CashSafeLedger)
+    query = db.query(models.CashSafeLedger).filter(models.CashSafeLedger.branch_id == branch_id)
     if ledger_date:
         query = query.filter(models.CashSafeLedger.ledger_date == ledger_date)
     return query.order_by(models.CashSafeLedger.ledger_date.desc()).limit(limit).all()
@@ -27,9 +28,10 @@ def save_cash_safe_ledger(
     payload: schemas.CashSafeLedgerCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     ledger_id = f"csl-{payload.ledger_date.strftime('%Y%m%d')}"
-    existing = db.query(models.CashSafeLedger).filter(models.CashSafeLedger.ledger_date == payload.ledger_date).first()
+    existing = db.query(models.CashSafeLedger).filter(models.CashSafeLedger.branch_id == branch_id).filter(models.CashSafeLedger.ledger_date == payload.ledger_date).first()
 
     if existing:
         existing.opening_safe_cash = payload.opening_safe_cash
@@ -49,6 +51,7 @@ def save_cash_safe_ledger(
     else:
         new_entry = models.CashSafeLedger(
             id=ledger_id,
+            branch_id=branch_id,
             ledger_date=payload.ledger_date,
             opening_safe_cash=payload.opening_safe_cash,
             shift_cash_inflow=payload.shift_cash_inflow,

@@ -49,8 +49,10 @@ class User(Base):
 class Product(Base):
     __tablename__ = "products"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    code = Column(String(20), nullable=False, unique=True)
+    code = Column(String(20), nullable=False)
     name = Column(String(100), nullable=False)
     category = Column(String(20), nullable=False)
     unit = Column(String(20), nullable=False)
@@ -58,15 +60,21 @@ class Product(Base):
     current_rate = Column(Numeric(10, 2), nullable=False)
     density_min = Column(Numeric(6, 2))
     density_max = Column(Numeric(6, 2))
+    active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         CheckConstraint("category IN ('FUEL','LUBRICANT')", name="ck_products_category"),
+        UniqueConstraint("branch_id", "code", name="uq_branch_product_code"),
     )
 
 
 class Tank(Base):
     __tablename__ = "tanks"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(20), primary_key=True)
     name = Column(String(100), nullable=False)
@@ -82,8 +90,12 @@ class Tank(Base):
 class Pump(Base):
     __tablename__ = "pumps"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    pump_no = Column(Integer, nullable=False, unique=True)
+    pump_no = Column(Integer, nullable=False)
     name = Column(String(100), nullable=False)
     status = Column(String(20), nullable=False, default="ACTIVE")
 
@@ -92,6 +104,10 @@ class Pump(Base):
 
 class Nozzle(Base):
     __tablename__ = "nozzles"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(20), primary_key=True)
     pump_id = Column(String(20), ForeignKey("pumps.id", ondelete="CASCADE"), nullable=False)
@@ -102,11 +118,15 @@ class Nozzle(Base):
     pump = relationship("Pump", back_populates="nozzles")
     product = relationship("Product")
 
-    __table_args__ = (UniqueConstraint("pump_id", "nozzle_no", name="uq_pump_nozzle"),)
+    __table_args__ = (UniqueConstraint("branch_id", "pump_id", "nozzle_no", name="uq_branch_pump_nozzle"),)
 
 
 class Operator(Base):
     __tablename__ = "operators"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(20), primary_key=True)
     name = Column(String(100), nullable=False)
@@ -118,8 +138,10 @@ class Operator(Base):
 class Customer(Base):
     __tablename__ = "customers"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    code = Column(String(20), nullable=False, unique=True)
+    code = Column(String(20), nullable=False)
     name = Column(String(150), nullable=False)
     contact_person = Column(String(150))
     phone = Column(String(30))
@@ -131,9 +153,15 @@ class Customer(Base):
     address = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("branch_id", "code", name="uq_branch_customer_code"),
+    )
+
 
 class ExpenseType(Base):
     __tablename__ = "expense_types"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(20), primary_key=True)
     name = Column(String(100), nullable=False)
@@ -143,8 +171,12 @@ class ExpenseType(Base):
 class Shift(Base):
     __tablename__ = "shifts"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    shift_no = Column(String(40), nullable=False, unique=True)
+    shift_no = Column(String(40), nullable=False)
     shift_date = Column(Date, nullable=False)
     shift_type = Column(String(30), nullable=False, default="Full Day")
     pump_id = Column(String(20), ForeignKey("pumps.id"), nullable=False)
@@ -179,6 +211,10 @@ class Shift(Base):
 class MeterReading(Base):
     __tablename__ = "meter_readings"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     shift_id = Column(String(20), ForeignKey("shifts.id", ondelete="CASCADE"), nullable=False)
     nozzle_id = Column(String(20), ForeignKey("nozzles.id"), nullable=False)
@@ -198,8 +234,12 @@ class MeterReading(Base):
 class CreditTransaction(Base):
     __tablename__ = "credit_transactions"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    slip_no = Column(String(40), nullable=False, unique=True)
+    slip_no = Column(String(40), nullable=False)
     customer_id = Column(String(20), ForeignKey("customers.id"), nullable=False)
     date = Column(Date, nullable=False)
     time = Column(String(20))
@@ -218,8 +258,12 @@ class CreditTransaction(Base):
 class CreditPayment(Base):
     __tablename__ = "credit_payments"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    receipt_no = Column(String(40), nullable=False, unique=True)
+    receipt_no = Column(String(40), nullable=False)
     customer_id = Column(String(20), ForeignKey("customers.id"), nullable=False)
     date = Column(Date, nullable=False)
     amount = Column(Numeric(14, 2), nullable=False)
@@ -240,8 +284,12 @@ class CreditPayment(Base):
 class Expense(Base):
     __tablename__ = "expenses"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
-    voucher_no = Column(String(40), nullable=False, unique=True)
+    voucher_no = Column(String(40), nullable=False)
     date = Column(Date, nullable=False)
     expense_type_id = Column(String(20), ForeignKey("expense_types.id"), nullable=False)
     expense_type_name = Column(String(100), nullable=False)
@@ -256,6 +304,10 @@ class Expense(Base):
 
 class BankDeposit(Base):
     __tablename__ = "bank_deposits"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(20), primary_key=True)
     deposit_date = Column(Date, nullable=False)
@@ -279,6 +331,10 @@ class BankDeposit(Base):
 class TankDip(Base):
     __tablename__ = "tank_dips"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(20), primary_key=True)
     tank_id = Column(String(20), ForeignKey("tanks.id"), nullable=False)
     tank_name = Column(String(100), nullable=False)
@@ -300,25 +356,33 @@ class TankDip(Base):
     tank = relationship("Tank")
 
 
-class BunkProfile(Base):
-    __tablename__ = "bunk_profile"
+class Branch(Base):
+    __tablename__ = "branches"
 
-    id = Column(String(20), primary_key=True, default="default")
-    bunk_name = Column(String(150), nullable=False, default="KY Petrol Bunk")
-    omc_brand = Column(String(30), nullable=False, default="BPCL")  # locked to BPCL
-    dealer_code = Column(String(50), nullable=False, default="184920")
-    state = Column(String(100), nullable=False, default="Karnataka")
-    city = Column(String(100), nullable=False, default="Bengaluru (Karnataka)")
-    registered_phone = Column(String(20), nullable=True)
-    auto_fetch_enabled = Column(Boolean, nullable=False, default=True)
-    auto_apply_enabled = Column(Boolean, nullable=False, default=True)
-    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+    id = Column(String(20), primary_key=True)
+    name = Column(String(150), nullable=False)
+    location = Column(String(255), nullable=True)
+    dealer_code = Column(String(50), nullable=True)
+    omc_brand = Column(String(30), nullable=False, default="BPCL")
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class UserBranch(Base):
+    __tablename__ = "user_branches"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), primary_key=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class DailyNozzleMeter(Base):
     __tablename__ = "daily_nozzle_meters"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(40), primary_key=True)
     reading_date = Column(Date, nullable=False)
@@ -338,11 +402,15 @@ class DailyNozzleMeter(Base):
     nozzle = relationship("Nozzle")
     product = relationship("Product")
 
-    __table_args__ = (UniqueConstraint("reading_date", "nozzle_id", name="uq_reading_date_nozzle"),)
+    __table_args__ = (UniqueConstraint("branch_id", "reading_date", "nozzle_id", name="uq_branch_reading_nozzle"),)
 
 
 class SmsRateLog(Base):
     __tablename__ = "sms_rate_logs"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(40), primary_key=True)
     sender = Column(String(60), nullable=False)
@@ -360,9 +428,13 @@ class SmsRateLog(Base):
 class BankAccount(Base):
     __tablename__ = "bank_accounts"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(30), primary_key=True)
     bank_name = Column(String(150), nullable=False)
-    account_number = Column(String(60), nullable=False, unique=True)
+    account_number = Column(String(60), nullable=False)
     account_type = Column(String(30), nullable=False, default="Current")  # from master_bank_account_types.code
     branch_name = Column(String(100), nullable=True)
     ifsc_code = Column(String(30), nullable=True)
@@ -375,6 +447,10 @@ class BankAccount(Base):
 
 class PosSettlement(Base):
     __tablename__ = "pos_settlements"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(40), primary_key=True)
     settlement_date = Column(Date, nullable=False)
@@ -394,8 +470,12 @@ class PosSettlement(Base):
 class CashSafeLedger(Base):
     __tablename__ = "cash_safe_ledger"
 
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+
     id = Column(String(40), primary_key=True)
-    ledger_date = Column(Date, nullable=False, unique=True)
+    ledger_date = Column(Date, nullable=False)
     opening_safe_cash = Column(Numeric(14, 2), nullable=False, default=0)
     shift_cash_inflow = Column(Numeric(14, 2), nullable=False, default=0)
     credit_cash_recovered = Column(Numeric(14, 2), nullable=False, default=0)
@@ -416,6 +496,8 @@ class FuelRateHistory(Base):
     Written whenever /api/products/batch-rates is called or an SMS rate is applied.
     """
     __tablename__ = "fuel_rate_history"
+
+    branch_id = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 
     id = Column(String(40), primary_key=True)
     product_id = Column(String(20), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)

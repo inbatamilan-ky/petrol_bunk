@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, get_current_branch
 
 router = APIRouter(prefix="/api/sms-logs", tags=["SMS Rate Logs"])
 
@@ -14,6 +14,7 @@ def list_sms_logs(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     return db.query(models.SmsRateLog).order_by(models.SmsRateLog.received_at.desc()).limit(limit).all()
 
@@ -23,6 +24,7 @@ def create_sms_log(
     payload: schemas.SmsRateLogCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     log_id = f"sms-{int(datetime.now().timestamp()*1000)}"
     log = models.SmsRateLog(
@@ -48,6 +50,7 @@ def update_sms_log_status(
     payload: schemas.SmsRateLogStatusUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     log = db.query(models.SmsRateLog).filter(models.SmsRateLog.id == log_id).first()
     if not log:
@@ -67,6 +70,7 @@ def update_sms_log_status(
 def clear_sms_logs(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
     db.query(models.SmsRateLog).delete()
     db.commit()

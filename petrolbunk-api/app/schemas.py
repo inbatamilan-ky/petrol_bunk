@@ -588,6 +588,31 @@ class ShiftDraft(BaseModel):
 # ---------------------------------------------------------------------
 # BUNK OMC PROFILE
 # ---------------------------------------------------------------------
+
+class BranchBase(BaseModel):
+    name: str
+    location: Optional[str] = None
+    dealer_code: Optional[str] = None
+    omc_brand: str = 'BPCL'
+    is_active: bool = True
+
+class BranchCreate(BranchBase):
+    pass
+
+class BranchUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    dealer_code: Optional[str] = None
+    omc_brand: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class BranchOut(BranchBase):
+    id: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 class BunkProfileBase(BaseModel):
     bunk_name: str = "KY Petrol Bunk"
     omc_brand: str = "IOCL"

@@ -16,7 +16,7 @@ from app.routers import (
     shifts,
     tank_dips,
     tanks,
-    bunk_profile,
+    branches,
     nozzle_meters,
     sms_logs,
     bank_accounts,
@@ -76,7 +76,6 @@ async def startup_event():
 
 app.include_router(auth.router)
 app.include_router(products.router)
-app.include_router(bunk_profile.router)
 app.include_router(tanks.router)
 app.include_router(pumps.router)
 app.include_router(operators.router)
@@ -86,8 +85,10 @@ app.include_router(shifts.router)
 app.include_router(credit.router)
 app.include_router(expenses.router)
 app.include_router(bank_deposits.router)
-app.include_router(tank_dips.router)
+app.include_router(auth.router)
+app.include_router(branches.router)
 app.include_router(dashboard.router)
+app.include_router(tank_dips.router)
 app.include_router(nozzle_meters.router)
 app.include_router(sms_logs.router)
 app.include_router(bank_accounts.router)

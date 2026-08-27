@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
@@ -17,8 +17,9 @@ def list_expenses(
     date_to: Optional[date_cls] = None,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    query = db.query(models.Expense)
+    query = db.query(models.Expense).filter(models.Expense.branch_id == branch_id)
     if date_from:
         query = query.filter(models.Expense.date >= date_from)
     if date_to:
@@ -28,20 +29,24 @@ def list_expenses(
 
 @router.post("", response_model=schemas.ExpenseOut, status_code=status.HTTP_201_CREATED)
 def create_expense(
-    payload: schemas.ExpenseCreate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    payload: schemas.ExpenseCreate,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+    branch_id: str = Depends(get_current_branch),
 ):
-    expense_type = db.query(models.ExpenseType).get(payload.expense_type_id)
+    expense_type = db.query(models.ExpenseType).filter(models.ExpenseType.branch_id == branch_id, models.ExpenseType.id == payload.expense_type_id).first()
     if not expense_type:
         raise HTTPException(status_code=400, detail="Invalid expense_type_id")
     if payload.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
     exp_date = payload.date or date_cls.today()
-    day_count = db.query(models.Expense).filter(models.Expense.date == exp_date).count() + 1
+    day_count = db.query(models.Expense).filter(models.Expense.branch_id == branch_id).filter(models.Expense.date == exp_date).count() + 1
     voucher_no = f"VCH-{exp_date.strftime('%Y%m%d')}-{day_count:03d}"
 
     expense = models.Expense(
         id=generate_id("exp"),
+        branch_id=branch_id,
         voucher_no=voucher_no,
         date=exp_date,
         expense_type_id=payload.expense_type_id,
@@ -60,8 +65,13 @@ def create_expense(
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_expense(expense_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    expense = db.query(models.Expense).get(expense_id)
+def delete_expense(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+    branch_id: str = Depends(get_current_branch),
+):
+    expense = db.query(models.Expense).filter(models.Expense.branch_id == branch_id).filter(models.Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     db.delete(expense)

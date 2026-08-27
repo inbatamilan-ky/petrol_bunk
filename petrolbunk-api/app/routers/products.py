@@ -6,20 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
 
 @router.get("", response_model=List[schemas.ProductOut])
-def list_products(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return db.query(models.Product).order_by(models.Product.name).all()
+def list_products(db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    return db.query(models.Product).filter(models.Product.branch_id == branch_id).order_by(models.Product.name).all()
 
 
 @router.get("/{product_id}", response_model=schemas.ProductOut)
-def get_product(product_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    product = db.query(models.Product).get(product_id)
+def get_product(product_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    product = db.query(models.Product).filter(models.Product.branch_id == branch_id).filter(models.Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
@@ -27,11 +27,11 @@ def get_product(product_id: str, db: Session = Depends(get_db), _=Depends(get_cu
 
 @router.post("", response_model=schemas.ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
-    payload: schemas.ProductCreate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    payload: schemas.ProductCreate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)
 ):
-    if db.query(models.Product).filter(models.Product.code == payload.code).first():
+    if db.query(models.Product).filter(models.Product.branch_id == branch_id).filter(models.Product.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Product code already exists")
-    product = models.Product(id=generate_id("prod"), **payload.model_dump())
+    product = models.Product(branch_id=branch_id, id=generate_id("prod"), **payload.model_dump())
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -43,9 +43,10 @@ def update_product(
     product_id: str,
     payload: schemas.ProductUpdate,
     db: Session = Depends(get_db),
+    branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    product = db.query(models.Product).get(product_id)
+    product = db.query(models.Product).filter(models.Product.branch_id == branch_id).filter(models.Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -59,13 +60,14 @@ def update_product(
 def batch_update_rates(
     payload: schemas.BatchRateUpdate,
     db: Session = Depends(get_db),
+    branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
     updated_products = []
     today = date_type.today()
 
     for item in payload.rates:
-        product = db.query(models.Product).get(item.product_id)
+        product = db.query(models.Product).filter(models.Product.branch_id == branch_id, models.Product.id == item.product_id).first()
         if product:
             old_rate = float(product.current_rate or 0)
             new_rate = float(item.current_rate)
@@ -73,6 +75,7 @@ def batch_update_rates(
             if old_rate != new_rate:
                 # Write audit history record
                 history = models.FuelRateHistory(
+                    branch_id=branch_id,
                     id=f"frh-{product.id}-{int(datetime.now().timestamp()*1000)}",
                     product_id=product.id,
                     product_code=product.code,
@@ -145,6 +148,7 @@ def sms_webhook(
                 if old_rate != new_rate:
                     # Write audit history record
                     history = models.FuelRateHistory(
+                        branch_id=p.branch_id,
                         id=f"frh-{p.id}-sms-{int(datetime.now().timestamp()*1000)}",
                         product_id=p.id,
                         product_code=p.code,
@@ -170,6 +174,7 @@ def sms_webhook(
 
     parsed_rates_list = [{"fuelKey": k, "rate": v} for k, v in parsed_rates.items()]
     sms_log = models.SmsRateLog(
+        branch_id="B-01",
         id=f"sms-{int(datetime.now().timestamp()*1000)}",
         sender=payload.sender or "UNKNOWN",
         raw_text=payload.sms_text or "",
@@ -193,8 +198,8 @@ def sms_webhook(
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_product(product_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    product = db.query(models.Product).get(product_id)
+def delete_product(product_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(require_admin)):
+    product = db.query(models.Product).filter(models.Product.branch_id == branch_id).filter(models.Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     db.delete(product)

@@ -4,30 +4,30 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/tanks", tags=["Tanks"])
 
 
 @router.get("", response_model=List[schemas.TankOut])
-def list_tanks(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return db.query(models.Tank).order_by(models.Tank.name).all()
+def list_tanks(db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    return db.query(models.Tank).filter(models.Tank.branch_id == branch_id).order_by(models.Tank.name).all()
 
 
 @router.get("/{tank_id}", response_model=schemas.TankOut)
-def get_tank(tank_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    tank = db.query(models.Tank).get(tank_id)
+def get_tank(tank_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    tank = db.query(models.Tank).filter(models.Tank.branch_id == branch_id, models.Tank.id == tank_id).first()
     if not tank:
         raise HTTPException(status_code=404, detail="Tank not found")
     return tank
 
 
 @router.post("", response_model=schemas.TankOut, status_code=status.HTTP_201_CREATED)
-def create_tank(payload: schemas.TankCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    if not db.query(models.Product).get(payload.product_id):
+def create_tank(payload: schemas.TankCreate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    if not db.query(models.Product).filter(models.Product.branch_id == branch_id, models.Product.id == payload.product_id).first():
         raise HTTPException(status_code=400, detail="Invalid product_id")
-    tank = models.Tank(id=generate_id("tank"), **payload.model_dump())
+    tank = models.Tank(branch_id=branch_id, id=generate_id("tank"), **payload.model_dump())
     db.add(tank)
     db.commit()
     db.refresh(tank)
@@ -36,9 +36,9 @@ def create_tank(payload: schemas.TankCreate, db: Session = Depends(get_db), _=De
 
 @router.put("/{tank_id}", response_model=schemas.TankOut)
 def update_tank(
-    tank_id: str, payload: schemas.TankUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    tank_id: str, payload: schemas.TankUpdate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)
 ):
-    tank = db.query(models.Tank).get(tank_id)
+    tank = db.query(models.Tank).filter(models.Tank.branch_id == branch_id, models.Tank.id == tank_id).first()
     if not tank:
         raise HTTPException(status_code=404, detail="Tank not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -49,8 +49,8 @@ def update_tank(
 
 
 @router.delete("/{tank_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_tank(tank_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    tank = db.query(models.Tank).get(tank_id)
+def delete_tank(tank_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(require_admin)):
+    tank = db.query(models.Tank).filter(models.Tank.branch_id == branch_id, models.Tank.id == tank_id).first()
     if not tank:
         raise HTTPException(status_code=404, detail="Tank not found")
     db.delete(tank)

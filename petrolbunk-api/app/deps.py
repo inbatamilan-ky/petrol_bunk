@@ -1,6 +1,6 @@
 from typing import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -48,3 +48,41 @@ def require_admin(current_user: models.User = Depends(get_current_user)) -> mode
             detail="Owner privileges required for this action",
         )
     return current_user
+
+
+def get_current_branch(
+    x_branch_id: str = Header(default=None, alias="X-Branch-ID"),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> str:
+    """
+    Reads X-Branch-ID header, validates the user has access to that branch,
+    and returns the branch_id string.
+    Falls back to the user's first assigned branch if no header is sent.
+    Owners can access ALL branches. Managers/Operators only their assigned ones.
+    """
+    # If no branch header, pick the first assigned branch (or default)
+    if not x_branch_id:
+        ub = db.query(models.UserBranch).filter(
+            models.UserBranch.user_id == current_user.id
+        ).first()
+        return ub.branch_id if ub else "B-01"
+
+    # Owners can access any branch
+    if current_user.role == 1:
+        branch = db.query(models.Branch).filter(models.Branch.id == x_branch_id).first()
+        if not branch:
+            raise HTTPException(status_code=404, detail="Branch not found")
+        return x_branch_id
+
+    # Non-owners must be explicitly assigned
+    ub = db.query(models.UserBranch).filter(
+        models.UserBranch.user_id == current_user.id,
+        models.UserBranch.branch_id == x_branch_id,
+    ).first()
+    if not ub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this branch",
+        )
+    return x_branch_id

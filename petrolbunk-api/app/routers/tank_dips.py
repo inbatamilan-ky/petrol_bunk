@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/tank-dips", tags=["Tank Dips"])
@@ -14,10 +14,10 @@ router = APIRouter(prefix="/api/tank-dips", tags=["Tank Dips"])
 @router.get("", response_model=List[schemas.TankDipOut])
 def list_tank_dips(
     tank_id: Optional[str] = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    query = db.query(models.TankDip)
+    query = db.query(models.TankDip).filter(models.TankDip.branch_id == branch_id)
     if tank_id:
         query = query.filter(models.TankDip.tank_id == tank_id)
     return query.order_by(models.TankDip.dip_date.desc(), models.TankDip.created_at.desc()).all()
@@ -26,16 +26,16 @@ def list_tank_dips(
 @router.post("", response_model=schemas.TankDipOut, status_code=status.HTTP_201_CREATED)
 def create_tank_dip(
     payload: schemas.TankDipCreate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    tank = db.query(models.Tank).get(payload.tank_id)
+    tank = db.query(models.Tank).filter(models.Tank.branch_id == branch_id, models.Tank.id == payload.tank_id).first()
     if not tank:
         raise HTTPException(status_code=400, detail="Invalid tank_id")
 
     dip_date = payload.dip_date or date_cls.today()
 
-    dip = models.TankDip(
+    dip = models.TankDip(branch_id=branch_id, 
         id=generate_id("dip"),
         tank_id=payload.tank_id,
         tank_name=payload.tank_name,
@@ -76,16 +76,16 @@ def create_tank_dip(
 
 
 @router.get("/{dip_id}", response_model=schemas.TankDipOut)
-def get_tank_dip(dip_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    dip = db.query(models.TankDip).get(dip_id)
+def get_tank_dip(dip_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    dip = db.query(models.TankDip).filter(models.TankDip.branch_id == branch_id, models.TankDip.id == dip_id).first()
     if not dip:
         raise HTTPException(status_code=404, detail="Tank dip not found")
     return dip
 
 
 @router.delete("/{dip_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_tank_dip(dip_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    dip = db.query(models.TankDip).get(dip_id)
+def delete_tank_dip(dip_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(require_admin)):
+    dip = db.query(models.TankDip).filter(models.TankDip.branch_id == branch_id, models.TankDip.id == dip_id).first()
     if not dip:
         raise HTTPException(status_code=404, detail="Tank dip not found")
     db.delete(dip)

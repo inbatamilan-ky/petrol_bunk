@@ -109,17 +109,49 @@ export async function getAuthSession(): Promise<{ user: any; token: string; rema
   }
 }
 
+export async function getActiveBranch(): Promise<string | null> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const b = window.localStorage.getItem('active_branch_id');
+    if (b) return b;
+  }
+  return await AsyncStorage.getItem('active_branch_id');
+}
+
+export async function setActiveBranch(branchId: string): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('active_branch_id', branchId);
+  }
+  await AsyncStorage.setItem('active_branch_id', branchId);
+}
+
+export async function clearActiveBranch(): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem('active_branch_id');
+  }
+  await AsyncStorage.removeItem('active_branch_id');
+}
+
 export async function apiFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<any> {
   const token = await getToken();
+  let branchId = await getActiveBranch();
+  if (!branchId) {
+    branchId = 'B-01'; // Default fallback until UI is built
+  }
+
+  let originalPath = path;
+  if (path === '/api/bunk-profile') {
+    path = '/api/branches';
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(branchId ? { 'X-Branch-ID': branchId } : {}),
       ...(options.headers || {}),
     },
   });
@@ -133,5 +165,25 @@ export async function apiFetch(
     return null;
   }
 
-  return res.json();
+  const data = await res.json();
+  
+  // Hack to unbreak the UI since BunkProfile expects an object but branches returns array
+  if (originalPath === '/api/bunk-profile' && Array.isArray(data)) {
+    const b = data.find((x: any) => x.id === branchId) || data[0];
+    if (b) {
+      return {
+        id: b.id,
+        bunk_name: b.name,
+        omc_brand: b.omc_brand,
+        dealer_code: b.dealer_code,
+        state: 'Unknown',
+        city: b.location || 'Unknown',
+        auto_fetch_enabled: false,
+        auto_apply_enabled: false
+      };
+    }
+    return null;
+  }
+  
+  return data;
 }

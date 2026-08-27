@@ -54,7 +54,8 @@ export const DropdownPicker: React.FC<DropdownPickerProps> = ({
       if (match) {
         setInputText(match.label);
       } else {
-        const clean = value.startsWith('__other__:') ? value.replace('__other__:', '') : value;
+        const safeValue = typeof value === 'string' ? value : '';
+        const clean = safeValue.startsWith('__other__:') ? safeValue.replace('__other__:', '') : safeValue;
         setInputText(clean);
       }
     }

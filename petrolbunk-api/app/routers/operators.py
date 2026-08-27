@@ -4,20 +4,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin
+from app.deps import get_current_user, get_db, require_admin, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/operators", tags=["Operators"])
 
 
 @router.get("", response_model=List[schemas.OperatorOut])
-def list_operators(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return db.query(models.Operator).order_by(models.Operator.name).all()
+def list_operators(db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    return db.query(models.Operator).filter(models.Operator.branch_id == branch_id).order_by(models.Operator.name).all()
 
 
 @router.get("/{operator_id}", response_model=schemas.OperatorOut)
-def get_operator(operator_id: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    operator = db.query(models.Operator).get(operator_id)
+def get_operator(operator_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
+    operator = db.query(models.Operator).filter(models.Operator.branch_id == branch_id, models.Operator.id == operator_id).first()
     if not operator:
         raise HTTPException(status_code=404, detail="Operator not found")
     return operator
@@ -25,9 +25,9 @@ def get_operator(operator_id: str, db: Session = Depends(get_db), _=Depends(get_
 
 @router.post("", response_model=schemas.OperatorOut, status_code=status.HTTP_201_CREATED)
 def create_operator(
-    payload: schemas.OperatorCreate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    payload: schemas.OperatorCreate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)
 ):
-    operator = models.Operator(id=generate_id("op"), **payload.model_dump())
+    operator = models.Operator(branch_id=branch_id, id=generate_id("op"), **payload.model_dump())
     db.add(operator)
     db.commit()
     db.refresh(operator)
@@ -38,10 +38,10 @@ def create_operator(
 def update_operator(
     operator_id: str,
     payload: schemas.OperatorUpdate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    operator = db.query(models.Operator).get(operator_id)
+    operator = db.query(models.Operator).filter(models.Operator.branch_id == branch_id, models.Operator.id == operator_id).first()
     if not operator:
         raise HTTPException(status_code=404, detail="Operator not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -52,8 +52,8 @@ def update_operator(
 
 
 @router.delete("/{operator_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_operator(operator_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
-    operator = db.query(models.Operator).get(operator_id)
+def delete_operator(operator_id: str, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(require_admin)):
+    operator = db.query(models.Operator).filter(models.Operator.branch_id == branch_id, models.Operator.id == operator_id).first()
     if not operator:
         raise HTTPException(status_code=404, detail="Operator not found")
     db.delete(operator)
