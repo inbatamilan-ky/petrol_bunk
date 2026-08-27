@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   PhoneCall,
   RefreshCw,
+  Building2,
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
@@ -35,12 +36,13 @@ import { UserRole } from '../types';
 import { changePassword as apiChangePassword } from '../api/auth';
 
 export const Header: React.FC = () => {
-  const { role, setRole, products, activeShift, logout, currentUser, syncWithBackend } = useBunk();
+  const { role, setRole, products, activeShift, logout, currentUser, syncWithBackend, branches, activeBranchId, switchBranch } = useBunk();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
   // Profile dropdown state
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
 
   // Logout confirmation modal state
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -125,9 +127,30 @@ export const Header: React.FC = () => {
     }
   };
 
-  const usernameDisplay = currentUser?.username || (role === 'Owner' ? 'Admin' : 'Operator');
+  // User names and initials computation
+  const firstName = currentUser?.first_name?.trim() || '';
+  const lastName = currentUser?.last_name?.trim() || '';
+  const fullName = [firstName, lastName].filter(Boolean).join(' ');
+  const username = currentUser?.username?.trim() || (role === 'Owner' ? 'Admin' : 'Operator');
+
+  // Avatar initials: First letter of first name and last name (e.g. JD); fallback to username initial
+  let avatarInitials = '';
+  if (firstName && lastName) {
+    avatarInitials = `${firstName[0]}${lastName[0]}`.toUpperCase();
+  } else if (firstName) {
+    avatarInitials = firstName[0].toUpperCase();
+  } else if (lastName) {
+    avatarInitials = lastName[0].toUpperCase();
+  } else if (username) {
+    avatarInitials = username.slice(0, 1).toUpperCase();
+  } else {
+    avatarInitials = 'U';
+  }
+
+  // Display: First full name, then username
+  const primaryNameDisplay = fullName || username;
+  const usernameDisplay = username;
   const roleLabel = role === 'Owner' ? 'Owner/ Manager' : 'Manager';
-  const initial = (usernameDisplay.charAt(0) || 'U').toUpperCase();
 
   return (
     <View style={styles.headerContainer}>
@@ -166,7 +189,15 @@ export const Header: React.FC = () => {
 
         {/* Right Section: Role switcher & Profile Box */}
         <View style={styles.rightSection}>
-           
+          {isMobile && role === 'Owner' && (
+            <TouchableOpacity
+              style={{ padding: 8, backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 4 }}
+              onPress={() => setShowBranchModal(true)}
+              activeOpacity={0.7}
+            >
+              <Building2 size={18} color="#475569" />
+            </TouchableOpacity>
+          )}
 
           {/* Profile Box on Right */}
           <View style={styles.profileWrapper}>
@@ -176,11 +207,11 @@ export const Header: React.FC = () => {
               activeOpacity={0.8}
             >
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{initial}</Text>
+                <Text style={styles.avatarText}>{avatarInitials}</Text>
               </View>
               <View style={styles.profileTextBox}>
-                <Text style={styles.profileUsername} numberOfLines={1}>
-                  {usernameDisplay}
+                <Text style={styles.profileFullName} numberOfLines={1}>
+                  {primaryNameDisplay}
                 </Text>
                 <Text style={styles.profileRoleText}>{role}</Text>
               </View>
@@ -196,12 +227,14 @@ export const Header: React.FC = () => {
               <View style={styles.dropdownPopover}>
                 <View style={styles.popoverHeader}>
                   <View style={styles.avatarCircleLarge}>
-                    <Text style={styles.avatarTextLarge}>{initial}</Text>
+                    <Text style={styles.avatarTextLarge}>{avatarInitials}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.popoverName}>{usernameDisplay}</Text>
+                    <Text style={styles.popoverName}>{primaryNameDisplay}</Text>
                     <Text style={styles.popoverRole}>{roleLabel}</Text>
-                     
+                    {currentUser?.email ? (
+                      <Text style={styles.popoverEmail}>{currentUser.email}</Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -459,6 +492,51 @@ export const Header: React.FC = () => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* ─── BRANCH SELECTION MODAL ────────────────────────────────────────── */}
+      <Modal visible={showBranchModal} transparent animationType="fade" onRequestClose={() => setShowBranchModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.passwordModalBox, { padding: 16 }]}>
+            <View style={styles.passwordModalHeader}>
+              <View style={styles.passwordModalTitleRow}>
+                <View style={styles.keyIconWrapper}>
+                  <Building2 size={20} color="#007DC6" />
+                </View>
+                <View>
+                  <Text style={styles.passwordModalTitle}>Select Branch</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setShowBranchModal(false)} style={styles.modalCloseBtn}>
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {branches?.map((b: any) => (
+                <TouchableOpacity
+                  key={b.id}
+                  style={[
+                    styles.popoverItem,
+                    { marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingVertical: 12 },
+                    activeBranchId === b.id && { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }
+                  ]}
+                  onPress={() => {
+                    switchBranch(b.id);
+                    setShowBranchModal(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.popoverItemTitle, activeBranchId === b.id && { color: '#007DC6' }]}>
+                      {b.name}
+                    </Text>
+                    <Text style={styles.popoverItemSub}>{b.dealer_code} - {b.omc_brand}</Text>
+                  </View>
+                  {activeBranchId === b.id && <CheckCircle2 size={18} color="#007DC6" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -652,11 +730,11 @@ const styles = StyleSheet.create({
   profileTextBox: {
     justifyContent: 'center',
   },
-  profileUsername: {
+  profileFullName: {
     color: '#0F172A',
     fontSize: 12,
     fontWeight: '700',
-    maxWidth: 90,
+    maxWidth: 120,
   },
   profileRoleText: {
     color: '#64748B',
@@ -688,9 +766,9 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   avatarCircleLarge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#007DC6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -709,6 +787,7 @@ const styles = StyleSheet.create({
     color: '#007DC6',
     fontSize: 11,
     fontWeight: '600',
+    marginTop: 2,
   },
   popoverEmail: {
     color: '#64748B',
@@ -1074,4 +1153,3 @@ popoverRoleTabTextActive: {
   fontWeight: '700',
 },
 });
-

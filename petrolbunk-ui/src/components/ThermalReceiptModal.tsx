@@ -197,7 +197,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               <Text style={styles.footerThanks}>
                 {data.footerNote || 'THANK YOU FOR FUELLING WITH US! • VISIT AGAIN'}
               </Text>
-              <Text style={styles.footerSoftware}>FuelPulse POS • Software Generated Slip</Text>
+              <Text style={styles.footerSoftware}>POS • Software Generated Slip</Text>
             </View>
           </ScrollView>
 
