@@ -118,6 +118,6 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000',
+    color: '#FFFFFF',
   },
 });

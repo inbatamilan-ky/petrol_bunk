@@ -57,7 +57,7 @@
     {
       "id": "pump-001",
       "pumpNo": 1,
-      "name": "Pump 1 (Main Island)",
+      "name": "Pump 1",
       "status": "ACTIVE",
       "nozzles": [
         {
@@ -85,7 +85,7 @@
     {
       "id": "pump-002",
       "pumpNo": 2,
-      "name": "Pump 2 (Side Island)",
+      "name": "Pump 2",
       "status": "ACTIVE",
       "nozzles": [
         {
@@ -113,7 +113,7 @@
     {
       "id": "pump-003",
       "pumpNo": 3,
-      "name": "Pump 3 (Back Island)",
+      "name": "Pump 3",
       "status": "ACTIVE",
       "nozzles": [
         {

@@ -25,9 +25,13 @@ export interface Product {
   code: string; // "HSD", "MS", "MS2", "LUB"
   name: string; // "HSD (Diesel)", "MS (Petrol)", etc.
   category: 'FUEL' | 'LUBRICANT';
-  unit: 'Litre' | 'Can';
+  unit: 'Litre' | 'Can' | 'Kg' | 'Piece';
   color: string;
   currentRate: number; // ₹ per unit
+  hsnCode?: string; // HSN Code (e.g. 2710)
+  gstRate?: number; // GST % (e.g. 18)
+  tankCapacity?: number; // Total capacity in litres
+  densityStandardAt15C?: number; // Standard density kg/m³
   standardDensityRange: DensityRange;
   active?: boolean;
 }
@@ -41,12 +45,20 @@ export interface Nozzle {
   fuelCode: string;
   color: string;
   currentMeterReading: number;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface Pump {
   id: string;
   pumpNo: number;
   name: string; // e.g. "Pump 1", "Pump 2"
+  model?: string; // e.g. "Midco MPD Duo"
+  serialNumber?: string; // Manufacturer Serial ID
+  makeModel?: string; // e.g. "Midco", "Gilbarco", "Tokheim"
+  pesoSealNo?: string; // W&M Stamping / PESO Seal Number
+  installationDate?: string; // Calibration Date
+  tankId?: string; // Assigned Tank Link
+  side?: string; // Dual Side / Lane 1
   status: 'ACTIVE' | 'IDLE' | 'MAINTENANCE' | 'INACTIVE';
   nozzles: Nozzle[];
 }
@@ -55,7 +67,14 @@ export interface Operator {
   id: string;
   name: string;
   phone: string;
-  dailyBata: number;
+  employeeCode?: string; // EMP-101
+  aadhaarNo?: string; // Aadhaar / Gov ID
+  dailyBata?: number;
+  monthlySalary?: number; // Base monthly compensation
+  joiningDate?: string; // YYYY-MM-DD
+  emergencyContact?: string; // Contact phone
+  assignedShift?: string; // 'Morning' | 'Night' | 'Rotating'
+  status?: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
   active: boolean;
 }
 
@@ -113,12 +132,19 @@ export interface CreditCustomer {
   name: string;
   contactPerson: string;
   phone: string;
+  email?: string;
+  gstin?: string; // GST Number
+  panNumber?: string; // PAN
+  creditPeriodDays?: number; // Credit term (e.g. 15, 30 days)
+  discountPerLitre?: number; // Special concession ₹/L
+  maxVehiclesAllowed?: number;
   vehicleNumbers: string[];
   creditLimit: number;
   outstandingBalance: number;
   openingBalance: number;
   status: 'ACTIVE' | 'HOLD' | 'BLOCKED' | 'INACTIVE';
   address?: string;
+  billingAddress?: string;
 }
 
 export interface CreditTransaction {
@@ -264,7 +290,21 @@ export interface Branch {
   location: string;
   is_active: boolean;
   created_at?: string;
+
+  // Station Physical & Regulatory Details
+  gstin?: string; // GST Number
+  peso_license_no?: string; // Explosives/PESO License
+  operating_hours?: string; // e.g. "24 Hours" or "06:00 AM - 11:00 PM"
+  contact_email?: string;
+  address_street?: string;
+  pincode?: string;
   
+  // Manager Access Configuration
+  manager_name?: string;
+  manager_phone?: string;
+  manager_email?: string;
+  manager_access?: string; // e.g. "Full Operational Access", "Shift & Daybook Only", "Read Only"
+
   // Backwards compatibility mappings for UI
   bunk_name?: string;
   city?: string;
@@ -294,6 +334,11 @@ export interface BankAccount {
   accountType: 'Current' | 'CC/OD' | 'Savings';
   branchName?: string;
   ifscCode?: string;
+  accountHolderName?: string; // Entity legal name
+  branchAddress?: string; // Branch physical address
+  upiVpa?: string; // Station merchant UPI ID / VPA
+  posTerminalId?: string; // Linked EDC TID
+  overdraftLimit?: number; // Sanctioned OD/CC limit
   openingBalance: number;
   currentBalance: number;
   isPrimary: boolean;

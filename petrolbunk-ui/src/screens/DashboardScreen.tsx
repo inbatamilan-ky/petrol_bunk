@@ -3,15 +3,15 @@ import {
   ChevronRight,
   CreditCard,
   Fuel,
-  IndianRupee,
-  Printer
+  Printer,
+  Receipt
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MetricCard } from '../components/MetricCard';
 import { ScreenId } from '../components/NavigationBar';
 import { ThermalReceiptData, ThermalReceiptModal } from '../components/ThermalReceiptModal';
-import { useBunk } from '../context/BunkContext';
+import { useDashboardContext } from '../context/DashboardContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatDate, formatLitres, formatMeter } from '../utils/formatters';
 
@@ -28,7 +28,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     expenses,
     activeShift,
     role,
-  } = useBunk();
+  } = useDashboardContext();
 
   const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -130,7 +130,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           title="Daily Expenses"
           value={formatCurrency(totalExpenses)}
            
-          icon={IndianRupee}
+          icon={Receipt}
           accentColor={colors.speed}
           onPress={() => onNavigate('expenses')}
         />
@@ -155,23 +155,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             return (
               <View key={pump.id} style={[styles.pumpCard, isInactive && { opacity: 0.8, borderColor: '#FCA5A5' }]}>
                 <View style={styles.pumpCardHeader}>
-                  <View>
-                    <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
-                    <Text style={{ fontSize: 10, color: colors.textMuted }}>{pump.name}</Text>
-                  </View>
+                  <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
                   <View
                     style={{
                       paddingHorizontal: 6,
                       paddingVertical: 2,
                       borderRadius: 4,
-                      backgroundColor: isInactive ? '#FEE2E2' : isMaintenance ? '#FEF3C7' : '#DEF7EC',
+                      backgroundColor: isInactive ? '#F1F5F9' : isMaintenance ? '#FEF3C7' : '#DEF7EC',
                     }}
                   >
                     <Text
                       style={{
                         fontSize: 9,
                         fontWeight: '800',
-                        color: isInactive ? '#DC2626' : isMaintenance ? '#D97706' : '#03543F',
+                        color: isInactive ? '#475569' : isMaintenance ? '#D97706' : '#03543F',
                       }}
                     >
                       {pump.status}
@@ -190,7 +187,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   {pump.nozzles.map((noz) => (
                     <View key={noz.id} style={styles.nozzleItem}>
                       <View style={styles.nozzleTop}>
-                        <Text style={styles.nozzleNumber}>Nozzle #{noz.nozzleNo}</Text>
+                        <Text style={styles.nozzleNumber}>Nozzle {noz.nozzleNo}</Text>
                         <Text style={[styles.fuelCodeText, { color: noz.color }]}>{noz.fuelCode}</Text>
                       </View>
 
@@ -306,7 +303,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionPillText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -316,11 +313,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 16,
+    gap: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -549,7 +547,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   creditViewBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
