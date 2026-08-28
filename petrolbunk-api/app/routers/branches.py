@@ -51,6 +51,17 @@ def update_branch(id: str, payload: schemas.BranchUpdate, db: Session = Depends(
     db.refresh(branch)
     return branch
 
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_branch(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    branch = db.query(models.Branch).filter(models.Branch.id == id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    # Delete associated user branch mappings
+    db.query(models.UserBranch).filter(models.UserBranch.branch_id == id).delete()
+    db.delete(branch)
+    db.commit()
+    return None
+
 # Legacy endpoint to prevent frontend crash
 from app.routers import branches
 # Wait, this is already in branches.py, we don't need imports.

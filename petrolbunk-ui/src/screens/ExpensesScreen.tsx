@@ -22,13 +22,17 @@ import {
 import { DropdownPicker } from '../components/DropdownPicker';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
-import { useBunk } from '../context/BunkContext';
+import { useExpensesContext } from '../context/ExpensesContext';
+import { useExpenseCategories, useExpensePaymentMethods } from '../hooks/useMasters';
 import { colors, typography } from '../theme/colors';
 import { exportToCSV } from '../utils/exportHelpers';
 import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
 
 export const ExpensesScreen: React.FC = () => {
-  const { expenses, expenseTypes, pumps, addExpense, role } = useBunk();
+  const { expenses, expenseTypes, pumps, addExpense, role } = useExpensesContext();
+
+  const { options: expenseCategoryOptions } = useExpenseCategories();
+  const { options: expensePaymentMethodOptions } = useExpensePaymentMethods();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState<string>(expenseTypes[1]?.id || '');
@@ -193,7 +197,7 @@ export const ExpensesScreen: React.FC = () => {
             <Search size={16} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search voucher #, head, paid to, remarks..."
+              placeholder="Search voucher no, head, paid to, remarks..."
               placeholderTextColor={colors.textMuted}
               value={searchQuery}
               onChangeText={(text) => {
@@ -259,7 +263,7 @@ export const ExpensesScreen: React.FC = () => {
             {/* Table Header */}
             <View style={styles.tableHeaderRow}>
               <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-              <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
+              <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER NO</Text>
               <Text style={[styles.tableColHeader, { flex: 1.4, minWidth: 140 }]}>EXPENSE HEAD</Text>
               <Text style={[styles.tableColHeader, { flex: 1.6, minWidth: 160 }]}>PAID TO / REMARKS</Text>
               <Text style={[styles.tableColHeader, { width: 100 }]}>PAID BY</Text>
@@ -520,12 +524,12 @@ export const ExpensesScreen: React.FC = () => {
                       label="Paid To (Vendor / Person) *"
                       placeholder="Select or type recipient..."
                       options={[
-                        { label: 'Day Shift Operators (4 staff)', value: 'Day Shift Operators (4 staff)', subtitle: 'Operator Daily Bata' },
-                        { label: 'Night Shift Operators', value: 'Night Shift Operators', subtitle: 'Operator Daily Bata' },
+                        { label: 'Day Shift Operators (4 staff)', value: 'Day Shift Operators (4 staff)', subtitle: 'Operator Shift Expense' },
+                        { label: 'Night Shift Operators', value: 'Night Shift Operators', subtitle: 'Operator Shift Expense' },
                         { label: 'Sri Murugan Tea Stall', value: 'Sri Murugan Tea Stall', subtitle: 'Daily Tea & Snacks' },
                         { label: 'Morning Density Calibration Test', value: 'Morning Density Calibration Test', subtitle: 'Calibration & Density Sample' },
                         { label: 'Gokulam Chit Fund', value: 'Gokulam Chit Fund', subtitle: 'Monthly Chit Installment' },
-                        { label: 'Lorry Bata Expense', value: 'Lorry Bata Expense', subtitle: 'Tanker Decantation Bata' },
+                        { label: 'Tanker Decantation Expense', value: 'Tanker Decantation Expense', subtitle: 'Tanker Unloading Expense' },
                         { label: 'Stationery & Printing', value: 'Stationery & Printing', subtitle: 'Receipt Rolls & Registers' },
                         { label: 'Generator Diesel & Fuel', value: 'Generator Diesel & Fuel', subtitle: 'Station Backup' },
                         { label: 'Advance Payment to Staff', value: 'Advance Payment to Staff', subtitle: 'Staff Advance' },
@@ -572,7 +576,7 @@ export const ExpensesScreen: React.FC = () => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleAddExpenseSubmit} activeOpacity={0.8}>
-                <CheckCircle2 size={16} color="#000" />
+                <CheckCircle2 size={16} color="#FFFFFF" />
                 <Text style={styles.modalSubmitBtnText}>Save Expense Voucher</Text>
               </TouchableOpacity>
             </View>
@@ -601,10 +605,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   screenTitle: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   screenSubtitle: {
     color: colors.textSecondary,
@@ -619,14 +623,14 @@ const styles = StyleSheet.create({
   addExpenseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.speed,
-    paddingHorizontal: 12,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
   },
   addExpenseBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -642,7 +646,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   exportBtnText: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '600',
   },

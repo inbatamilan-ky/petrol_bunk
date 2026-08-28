@@ -114,6 +114,96 @@ export async function fetchDipTypes(): Promise<DropdownOption[]> {
   return toDropdownOptions(items);
 }
 
+/** 11. Shift statuses — In Progress, Closed & Audited, Pending Audit, Voided */
+export async function fetchShiftStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('shift-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 12. Staff statuses — Active on Duty, On Leave, Suspended, Inactive */
+export async function fetchStaffStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('staff-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 13. Staff roles — Operator, Cashier, Supervisor, Manager, Accountant */
+export async function fetchStaffRoles(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('staff-roles');
+  return toDropdownOptions(items);
+}
+
+/** 14. Expense payment methods — Petty Cash, Bank Transfer, UPI QR, Cheque */
+export async function fetchExpensePaymentMethods(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('expense-payment-methods');
+  return toDropdownOptions(items);
+}
+
+/** 15. Credit payment modes — Cash, NEFT/RTGS, Cheque, UPI */
+export async function fetchCreditPaymentModes(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('credit-payment-modes');
+  return toDropdownOptions(items);
+}
+
+/** 16. Rate change sources — Manual, SMS Auto, Batch Import, HO Push */
+export async function fetchRateChangeSources(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('rate-change-sources');
+  return toDropdownOptions(items);
+}
+
+/** 17. Tank statuses — Normal, Low Stock, Critical Low, Calibration */
+export async function fetchTankStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('tank-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 18. Digital settlement channels — UPI, POS Card, Fleet Card, Fastag */
+export async function fetchSettlementChannels(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('settlement-channels');
+  return toDropdownOptions(items);
+}
+
+/** 19. Digital settlement statuses — Settled, Batch Pending, Failed, Refunded */
+export async function fetchSettlementStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('settlement-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 20. Bank deposit statuses — Credited, In Transit, Rejected */
+export async function fetchBankDepositStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('bank-deposit-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 21. Units of measure — Litre, Can, Kg, Piece, Barrel */
+export async function fetchUnitsOfMeasure(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('units-of-measure');
+  return toDropdownOptions(items);
+}
+
+/** 22. Branch statuses — Fully Operational, Maintenance, Temporarily Closed, Decommissioned */
+export async function fetchBranchStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('branch-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 23. Report types — Sales Summary, Shift Register, Density Register, etc. */
+export async function fetchReportTypes(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('report-types');
+  return toDropdownOptions(items);
+}
+
+/** 24. Product statuses — Active & Selling, Out of Stock, Discontinued, Inactive */
+export async function fetchProductStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('product-statuses');
+  return toDropdownOptions(items);
+}
+
+/** 25. Expense statuses — Active, Inactive, Archived */
+export async function fetchExpenseStatuses(): Promise<DropdownOption[]> {
+  const items = await fetchMasterItems('expense-statuses');
+  return toDropdownOptions(items);
+}
+
 // ─── Master raw-item helpers (for badge colours etc.) ────────────────────────
 
 /** Returns the full MasterItem list for pump statuses (need .color for badges). */
@@ -129,6 +219,31 @@ export async function fetchCustomerStatusItems(): Promise<MasterItem[]> {
 /** Returns the full MasterItem list for expense categories (need .color for tags). */
 export async function fetchExpenseCategoryItems(): Promise<MasterItem[]> {
   return fetchMasterItems('expense-categories');
+}
+
+/** Returns the full MasterItem list for shift statuses. */
+export async function fetchShiftStatusItems(): Promise<MasterItem[]> {
+  return fetchMasterItems('shift-statuses');
+}
+
+/** Returns the full MasterItem list for staff statuses. */
+export async function fetchStaffStatusItems(): Promise<MasterItem[]> {
+  return fetchMasterItems('staff-statuses');
+}
+
+/** Returns the full MasterItem list for tank statuses. */
+export async function fetchTankStatusItems(): Promise<MasterItem[]> {
+  return fetchMasterItems('tank-statuses');
+}
+
+/** Returns the full MasterItem list for settlement statuses. */
+export async function fetchSettlementStatusItems(): Promise<MasterItem[]> {
+  return fetchMasterItems('settlement-statuses');
+}
+
+/** Returns the full MasterItem list for bank deposit statuses. */
+export async function fetchBankDepositStatusItems(): Promise<MasterItem[]> {
+  return fetchMasterItems('bank-deposit-statuses');
 }
 
 // ─── Admin mutation helpers (owner only) ─────────────────────────────────────

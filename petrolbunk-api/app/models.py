@@ -647,3 +647,199 @@ class MasterDipType(Base):
     sort_order  = Column(Integer, nullable=False, default=0)
     is_active   = Column(Boolean, nullable=False, default=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterShiftStatus(Base):
+    """Shift life-cycle statuses — Open, Completed, Pending Audit, Cancelled."""
+    __tablename__ = "master_shift_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    color       = Column(String(10),  nullable=True, default="#3B82F6")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterStaffStatus(Base):
+    """Staff & Operator employment statuses — Active, On Leave, Suspended, Inactive."""
+    __tablename__ = "master_staff_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterStaffRole(Base):
+    """Staff designations & roles — Attendant, Cashier, Supervisor, Manager, Accountant."""
+    __tablename__ = "master_staff_roles"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterExpensePaymentMethod(Base):
+    """Expense voucher payment methods — Petty Cash, Bank Transfer, UPI QR, Cheque."""
+    __tablename__ = "master_expense_payment_methods"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    icon        = Column(String(50),  nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterCreditPaymentMode(Base):
+    """Customer credit repayment modes — Cash, NEFT/RTGS, Cheque, UPI."""
+    __tablename__ = "master_credit_payment_modes"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    icon        = Column(String(50),  nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterRateChangeSource(Base):
+    """Fuel price change sources — Manual, SMS Auto, Batch Import, HO Push."""
+    __tablename__ = "master_rate_change_sources"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterTankStatus(Base):
+    """Underground tank levels & statuses — Normal, Low Stock, Critical, Maintenance."""
+    __tablename__ = "master_tank_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterSettlementChannel(Base):
+    """Digital collection channels — UPI QR, POS Card, Fleet Card, Fastag."""
+    __tablename__ = "master_settlement_channels"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    icon        = Column(String(50),  nullable=True)
+    color       = Column(String(10),  nullable=True, default="#8B5CF6")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterSettlementStatus(Base):
+    """Digital POS/UPI settlement states — Settled, Pending, Failed, Refunded."""
+    __tablename__ = "master_settlement_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterBankDepositStatus(Base):
+    """Bank cash deposit statuses — Confirmed, In Transit, Rejected."""
+    __tablename__ = "master_bank_deposit_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterUnitOfMeasure(Base):
+    """Units of measure — Litre, Can, Kg, Piece, Barrel."""
+    __tablename__ = "master_units_of_measure"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    symbol      = Column(String(20),  nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterBranchStatus(Base):
+    """Station / Branch statuses — Active, Maintenance, Temporarily Closed, Inactive."""
+    __tablename__ = "master_branch_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterReportType(Base):
+    """Financial & Operational report categories."""
+    __tablename__ = "master_report_types"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(60),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    category    = Column(String(60),  nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterProductStatus(Base):
+    """Product catalog operational statuses — Active, Out of Stock, Discontinued, Inactive."""
+    __tablename__ = "master_product_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MasterExpenseStatus(Base):
+    """Expense head operational statuses — Active, Inactive, Archived."""
+    __tablename__ = "master_expense_statuses"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    code        = Column(String(40),  nullable=False, unique=True)
+    label       = Column(String(100), nullable=False)
+    color       = Column(String(10),  nullable=True, default="#10B981")
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())

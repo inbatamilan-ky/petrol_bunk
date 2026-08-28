@@ -4,6 +4,7 @@ import { BunkProvider, useBunk } from './context/BunkContext';
 import { Header } from './components/Header';
 import { NavigationBar, ScreenId } from './components/NavigationBar';
 import { LoginScreen } from './screens/LoginScreen';
+import { BunkSelectionScreen } from './screens/BunkSelectionScreen';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { ShiftOperationsScreen } from './screens/ShiftOperationsScreen';
@@ -14,12 +15,14 @@ import { RateManagementScreen } from './screens/RateManagementScreen';
 import { CashBankScreen } from './screens/CashBankScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { MastersScreen } from './screens/MastersScreen';
+import { RolePermissionsScreen } from './screens/RolePermissionsScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { colors } from './theme/colors';
 
 const SIDEBAR_BREAKPOINT = 900;
 
 const MainAppContent: React.FC = () => {
-  const { isLoggedIn, login, isAuthChecking } = useBunk();
+  const { isLoggedIn, login, logout, isAuthChecking, role, hasSelectedBunk, selectBunk } = useBunk();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
   const [width, setWidth] = useState(Dimensions.get('window').width);
 
@@ -53,6 +56,16 @@ const MainAppContent: React.FC = () => {
     );
   }
 
+  // ── Multi-Bunk Station Selection: Only for Owner / SuperAdmin ────────────
+  if (role === 'Owner' && !hasSelectedBunk) {
+    return (
+      <SafeAreaView style={styles.appRoot}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <BunkSelectionScreen onSelectBunk={selectBunk} onLogout={logout} />
+      </SafeAreaView>
+    );
+  }
+
   const renderActiveScreen = () => {
     switch (currentScreen) {
       case 'dashboard': return <DashboardScreen onNavigate={setCurrentScreen} />;
@@ -62,9 +75,10 @@ const MainAppContent: React.FC = () => {
       case 'expenses': return <ExpensesScreen />;
       case 'rates':    return <RateManagementScreen />;
       case 'cashbank': return <CashBankScreen />;
-      case 'reports':  return <ReportsScreen />;
-      case 'masters':  return <MastersScreen />;
-      default:         return <DashboardScreen onNavigate={setCurrentScreen} />;
+      case 'reports':     return <ReportsScreen />;
+      case 'masters':     return <MastersScreen />;
+      case 'permissions': return <RolePermissionsScreen />;
+      default:            return <DashboardScreen onNavigate={setCurrentScreen} />;
     }
   };
 
@@ -75,11 +89,19 @@ const MainAppContent: React.FC = () => {
       {isDesktop ? (
         <View style={styles.desktopLayout}>
           <NavigationBar currentScreen={currentScreen} onSelectScreen={setCurrentScreen} isSidebar={true} />
-          <View style={styles.contentArea}>{renderActiveScreen()}</View>
+          <View style={styles.contentArea}>
+            <ErrorBoundary sourceName={currentScreen}>
+              {renderActiveScreen()}
+            </ErrorBoundary>
+          </View>
         </View>
       ) : (
         <View style={styles.mobileLayout}>
-          <View style={styles.contentArea}>{renderActiveScreen()}</View>
+          <View style={styles.contentArea}>
+            <ErrorBoundary sourceName={currentScreen}>
+              {renderActiveScreen()}
+            </ErrorBoundary>
+          </View>
           <NavigationBar currentScreen={currentScreen} onSelectScreen={setCurrentScreen} isSidebar={false} />
         </View>
       )}

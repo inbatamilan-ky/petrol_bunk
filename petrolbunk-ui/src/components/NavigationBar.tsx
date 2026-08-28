@@ -8,10 +8,11 @@ import {
   FileText,
   Fuel,
   Gauge,
-  IndianRupee,
   LayoutDashboard,
+  Receipt,
   Search,
   Settings,
+  ShieldCheck,
   TrendingUp,
   X
 } from 'lucide-react';
@@ -29,7 +30,8 @@ export type ScreenId =
   | 'rates'
   | 'cashbank'
   | 'reports'
-  | 'masters';
+  | 'masters'
+  | 'permissions';
 
 interface NavigationBarProps {
   currentScreen: ScreenId;
@@ -46,15 +48,16 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard',     icon: LayoutDashboard, roles: ['Owner', 'Manager'] },
-  { id: 'shifts',    label: 'Shift Ops',     icon: Fuel,            roles: ['Owner', 'Manager'] },
-  { id: 'tanks',     label: 'Nozzle Meters', icon: Gauge,           roles: ['Owner', 'Manager'] },
-  { id: 'credit',    label: 'Credit Ledger', icon: CreditCard,      roles: ['Owner', 'Manager'] },
-  { id: 'expenses',  label: 'Expenses',      icon: IndianRupee,     roles: ['Owner', 'Manager'] },
-  { id: 'rates',     label: 'Daily Rates',   icon: TrendingUp,      roles: ['Owner', 'Manager'] },
-  { id: 'cashbank',  label: 'Cash & Bank',   icon: Banknote,        roles: ['Owner', 'Manager'] },
-  { id: 'reports',   label: 'Reports',       icon: FileText,        roles: ['Owner'] },
-  { id: 'masters',   label: 'Masters',       icon: Settings,        roles: ['Owner'] },
+  { id: 'dashboard',   label: 'Dashboard',     icon: LayoutDashboard, roles: ['Owner', 'Manager'] },
+  { id: 'shifts',      label: 'Shift Ops',     icon: Fuel,            roles: ['Owner', 'Manager'] },
+  { id: 'tanks',       label: 'Nozzle Meters', icon: Gauge,           roles: ['Owner', 'Manager'] },
+  { id: 'credit',      label: 'Credit Ledger', icon: CreditCard,      roles: ['Owner', 'Manager'] },
+  { id: 'expenses',    label: 'Expenses',      icon: Receipt,         roles: ['Owner', 'Manager'] },
+  { id: 'rates',       label: 'Daily Rates',   icon: TrendingUp,      roles: ['Owner', 'Manager'] },
+  { id: 'cashbank',    label: 'Cash & Bank',   icon: Banknote,        roles: ['Owner', 'Manager'] },
+  { id: 'reports',     label: 'Reports',       icon: FileText,        roles: ['Owner'] },
+  { id: 'masters',     label: 'Masters',       icon: Settings,        roles: ['Owner'] },
+  { id: 'permissions', label: 'Role Access',   icon: ShieldCheck,     roles: ['Owner'] },
 ];
 
 export const NavigationBar: React.FC<NavigationBarProps> = ({
@@ -62,7 +65,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onSelectScreen,
   isSidebar = false,
 }) => {
-  const { role, activeShift, logout, branches, activeBranchId, switchBranch } = useBunk();
+  const { role, activeShift, logout, branches, activeBranchId, switchBranch, returnToBunkSelection } = useBunk();
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -107,7 +110,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                   {item.label}
                 </Text>
                 {item.id === 'shifts' && activeShift && <View style={styles.activeShiftDot} />}
-                {isActive && <ChevronRight size={14} color="#FFDE00" style={{ marginLeft: 'auto' }} />}
+                {isActive && <ChevronRight size={14} color="#FFFFFF" style={{ marginLeft: 'auto' }} />}
               </TouchableOpacity>
             );
           })}
@@ -115,7 +118,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
         
         {/* Sidebar Footer Branch Selector */}
-        {role === 'Owner' && (
+        {role === 'Owner' ? (
           <View style={styles.sidebarFooter}>
             <Text style={styles.sidebarSectionTitle}>ACTIVE BRANCH</Text>
             <TouchableOpacity
@@ -129,6 +132,16 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               </Text>
               <ChevronDown size={16} color="#64748B" style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.sidebarFooter}>
+            <Text style={styles.sidebarSectionTitle}>ASSIGNED STATION</Text>
+            <View style={[styles.branchButton, { backgroundColor: '#F1F5F9' }]}>
+              <Building2 size={16} color="#3B82F6" />
+              <Text style={[styles.branchButtonText, { fontWeight: '700', color: '#0F172A' }]} numberOfLines={1}>
+                {branches?.find((b: any) => b.id === activeBranchId)?.name || 'My Station'}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -156,10 +169,30 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                       <Text style={[styles.branchItemName, activeBranchId === b.id && styles.branchItemNameActive]}>{b.name}</Text>
                       <Text style={styles.branchItemCode}>{b.dealer_code} - {b.omc_brand}</Text>
                     </View>
-                    {activeBranchId === b.id && <Check size={18} color="#007DC6" />}
+                    {activeBranchId === b.id && <Check size={18} color="#3B82F6" />}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {role === 'Owner' && (
+                <TouchableOpacity
+                  style={{
+                    marginTop: 12,
+                    paddingVertical: 10,
+                    backgroundColor: '#F1F5F9',
+                    borderRadius: 8,
+                    alignItems: 'center',
+                  }}
+                  onPress={() => {
+                    setShowBranchModal(false);
+                    returnToBunkSelection();
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>
+                    Open All Stations Portal →
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </Modal>
@@ -187,7 +220,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               activeOpacity={0.7}
             >
               <View style={styles.iconWrapper}>
-                <Icon size={18} color={isActive ? '#007DC6' : '#64748B'} />
+                <Icon size={18} color={isActive ? '#3B82F6' : '#64748B'} />
                 {item.id === 'shifts' && activeShift && <View style={styles.bottomBadgeDot} />}
               </View>
               <Text style={[styles.bottomNavText, isActive && styles.bottomNavTextActive]} numberOfLines={1}>
@@ -256,11 +289,11 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   sidebarItemActive: {
-    backgroundColor: '#007DC6', // Bharat Petroleum Primary Blue
-    shadowColor: '#007DC6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    backgroundColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
   sidebarItemText: {
     color: '#475569',
@@ -363,7 +396,7 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   branchItemNameActive: {
-    color: '#007DC6',
+    color: '#3B82F6',
   },
   branchItemCode: {
     fontSize: 12,
@@ -422,7 +455,7 @@ logoutText: {
     fontWeight: '600',
   },
   bottomNavTextActive: {
-    color: '#007DC6',
+    color: '#3B82F6',
     fontWeight: '700',
   },
 });

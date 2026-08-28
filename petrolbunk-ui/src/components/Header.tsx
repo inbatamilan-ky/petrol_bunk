@@ -36,7 +36,20 @@ import { UserRole } from '../types';
 import { changePassword as apiChangePassword } from '../api/auth';
 
 export const Header: React.FC = () => {
-  const { role, setRole, products, activeShift, logout, currentUser, syncWithBackend, branches, activeBranchId, switchBranch } = useBunk();
+  const {
+    role,
+    setRole,
+    products,
+    activeShift,
+    logout,
+    currentUser,
+    syncWithBackend,
+    branches,
+    activeBranchId,
+    switchBranch,
+    returnToBunkSelection,
+    bunkProfile,
+  } = useBunk();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -178,7 +191,7 @@ export const Header: React.FC = () => {
               </View>
               {products.slice(0, 4).map((prod) => (
                 <View key={prod.id} style={styles.ratePill}>
-                  <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
+                  <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#3B82F6' }]} />
                   <Text style={styles.rateProdName}>{prod.code}:</Text>
                   <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
                 </View>
@@ -273,19 +286,38 @@ export const Header: React.FC = () => {
                 <View style={styles.popoverDivider} />
 
                 {/* Dropdown Options */}
+                {role === 'Owner' && (
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      returnToBunkSelection();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.popoverIconBox, { backgroundColor: '#EFF6FF' }]}>
+                      <Building2 size={15} color="#3B82F6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.popoverItemTitle}>All Stations Portal</Text>
+                      <Text style={styles.popoverItemSub}>Switch or manage bunks</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   style={styles.popoverItem}
                   onPress={handleOpenChangePassword}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.popoverIconBox, { backgroundColor: '#E0F2FE' }]}>
-                    <KeyRound size={15} color="#007DC6" />
+                    <KeyRound size={15} color="#3B82F6" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.popoverItemTitle}>Change Password</Text>
-                     
                   </View>
                 </TouchableOpacity>
+
 
                 <TouchableOpacity
                   style={[styles.popoverItem, styles.popoverItemLogout]}
@@ -314,7 +346,7 @@ export const Header: React.FC = () => {
             </View>
             {products.slice(0, 4).map((prod) => (
               <View key={prod.id} style={styles.ratePill}>
-                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#007DC6' }]} />
+                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#3B82F6' }]} />
                 <Text style={styles.rateProdName}>{prod.code}:</Text>
                 <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
               </View>
@@ -378,7 +410,7 @@ export const Header: React.FC = () => {
                 <View style={styles.passwordModalHeader}>
                   <View style={styles.passwordModalTitleRow}>
                     <View style={styles.keyIconWrapper}>
-                      <KeyRound size={20} color="#007DC6" />
+                      <KeyRound size={20} color="#3B82F6" />
                     </View>
                     <View>
                       <Text style={styles.passwordModalTitle}>Change Password</Text>
@@ -500,7 +532,7 @@ export const Header: React.FC = () => {
             <View style={styles.passwordModalHeader}>
               <View style={styles.passwordModalTitleRow}>
                 <View style={styles.keyIconWrapper}>
-                  <Building2 size={20} color="#007DC6" />
+                  <Building2 size={20} color="#3B82F6" />
                 </View>
                 <View>
                   <Text style={styles.passwordModalTitle}>Select Branch</Text>
@@ -525,15 +557,35 @@ export const Header: React.FC = () => {
                   }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.popoverItemTitle, activeBranchId === b.id && { color: '#007DC6' }]}>
+                    <Text style={[styles.popoverItemTitle, activeBranchId === b.id && { color: '#3B82F6' }]}>
                       {b.name}
                     </Text>
                     <Text style={styles.popoverItemSub}>{b.dealer_code} - {b.omc_brand}</Text>
                   </View>
-                  {activeBranchId === b.id && <CheckCircle2 size={18} color="#007DC6" />}
+                  {activeBranchId === b.id && <CheckCircle2 size={18} color="#3B82F6" />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
+
+            {role === 'Owner' && (
+              <TouchableOpacity
+                style={{
+                  marginTop: 12,
+                  paddingVertical: 10,
+                  backgroundColor: '#F1F5F9',
+                  borderRadius: 8,
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  setShowBranchModal(false);
+                  returnToBunkSelection();
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>
+                  Open All Stations Portal →
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -566,7 +618,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   supportBrand: {
-    color: '#007DC6',
+    color: '#3B82F6',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.3,
@@ -593,7 +645,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9FF',
   },
   refreshText: {
-    color: '#007DC6',
+    color: '#3B82F6',
     fontSize: 10,
     fontWeight: '700',
   },
@@ -613,11 +665,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 9,
-    backgroundColor: '#007DC6', // Bharat Petroleum Blue
+    backgroundColor: '#3B82F6', // Bharat Petroleum Blue
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    shadowColor: '#007DC6',
+    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 5,
@@ -683,7 +735,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   roleTabActive: {
-    backgroundColor: '#007DC6',
+    backgroundColor: '#3B82F6',
   },
   roleTabText: {
     color: '#64748B',
@@ -711,14 +763,14 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   profileBoxOpen: {
-    borderColor: '#007DC6',
+    borderColor: '#3B82F6',
     backgroundColor: '#F0F9FF',
   },
   avatarCircle: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#007DC6',
+    backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -769,7 +821,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#007DC6',
+    backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -784,7 +836,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   popoverRole: {
-    color: '#007DC6',
+    color: '#3B82F6',
     fontSize: 11,
     fontWeight: '600',
     marginTop: 2,
@@ -1104,7 +1156,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 11,
     borderRadius: 8,
-    backgroundColor: '#007DC6', // BP Blue
+    backgroundColor: '#3B82F6', // BP Blue
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1141,7 +1193,7 @@ popoverRoleTab: {
   borderRadius: 6,
 },
 popoverRoleTabActive: {
-  backgroundColor: '#007DC6',
+  backgroundColor: '#3B82F6',
 },
 popoverRoleTabText: {
   color: '#64748B',

@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   dayTextSelected: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   dayTextDisabled: {
@@ -518,6 +518,6 @@ const styles = StyleSheet.create({
   todayBtnPrimaryText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000',
+    color: '#FFFFFF',
   },
 });

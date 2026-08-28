@@ -28,11 +28,12 @@ import {
   Layers,
   Lock,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import { useRateManagementContext } from '../context/RateManagementContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatDateTime, formatDate, getTodayDateString } from '../utils/formatters';
 import { FuelRateHistory, RateChangeSource } from '../types';
 import { DatePickerInput } from '../components/DatePickerInput';
+import { useRateChangeSources } from '../hooks/useMasters';
 
 interface CsvParsedRow {
   productCode: string;
@@ -50,7 +51,9 @@ export const RateManagementScreen: React.FC = () => {
     updateBatchFuelRates,
     fuelRateHistory,
     role,
-  } = useBunk();
+  } = useRateManagementContext();
+
+  const { options: rateChangeSourceOptions } = useRateChangeSources();
 
   const isOwnerOrManager = role === 'Owner' || role === 'Manager';
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -427,7 +430,7 @@ export const RateManagementScreen: React.FC = () => {
               onPress={() => handleOpenRateModal('MANUAL')}
               activeOpacity={0.8}
             >
-              <CalendarCheck size={15} color="#000" />
+              <CalendarCheck size={15} color="#FFFFFF" />
               <Text style={styles.registerRatesBtnText}>Register Today's Rates</Text>
             </TouchableOpacity>
           )}
@@ -470,7 +473,6 @@ export const RateManagementScreen: React.FC = () => {
             <Text style={styles.badgeCountText}>{products.length} Products</Text>
           </View>
         </View>
-        <Text style={styles.sectionMeta}>Live pump rates currently active on nozzles</Text>
       </View>
 
       <View style={styles.cardsGrid}>
@@ -491,14 +493,16 @@ export const RateManagementScreen: React.FC = () => {
                           paddingHorizontal: 6,
                           paddingVertical: 1,
                           borderRadius: 4,
-                          backgroundColor: isActive ? '#DEF7EC' : '#FEE2E2',
+                          backgroundColor: isActive ? '#DEF7EC' : '#F1F5F9',
+                          borderColor: isActive ? '#A7F3D0' : '#CBD5E1',
+                          borderWidth: 1,
                         }}
                       >
                         <Text
                           style={{
                             fontSize: 9,
                             fontWeight: '800',
-                            color: isActive ? '#03543F' : '#DC2626',
+                            color: isActive ? '#03543F' : '#475569',
                           }}
                         >
                           {isActive ? 'ACTIVE' : 'INACTIVE'}
@@ -717,16 +721,16 @@ export const RateManagementScreen: React.FC = () => {
                   {/* Difference Badge */}
                   <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
                     {diff === 0 ? (
-                      <Text style={styles.diffZero}>0.00</Text>
+                      <Text style={styles.diffZero}>0</Text>
                     ) : diff > 0 ? (
                       <View style={styles.diffPlusBadge}>
                         <TrendingUp size={10} color={colors.danger} />
-                        <Text style={styles.diffPlusBadgeText}>+{diff.toFixed(2)}</Text>
+                        <Text style={styles.diffPlusBadgeText}>+{Math.round(diff)}</Text>
                       </View>
                     ) : (
                       <View style={styles.diffMinusBadge}>
                         <TrendingDown size={10} color={colors.success} />
-                        <Text style={styles.diffMinusBadgeText}>{diff.toFixed(2)}</Text>
+                        <Text style={styles.diffMinusBadgeText}>{Math.round(diff)}</Text>
                       </View>
                     )}
                   </View>
@@ -801,7 +805,7 @@ export const RateManagementScreen: React.FC = () => {
                 style={[styles.modalTabBtn, modalTab === 'MANUAL' && styles.modalTabBtnActive]}
                 onPress={() => setModalTab('MANUAL')}
               >
-                <Edit3 size={14} color={modalTab === 'MANUAL' ? '#000' : colors.textSecondary} />
+                <Edit3 size={14} color={modalTab === 'MANUAL' ? colors.primary : colors.textSecondary} />
                 <Text style={[styles.modalTabBtnText, modalTab === 'MANUAL' && styles.modalTabBtnTextActive]}>
                   Manual Form Entry
                 </Text>
@@ -811,7 +815,7 @@ export const RateManagementScreen: React.FC = () => {
                 style={[styles.modalTabBtn, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnActive]}
                 onPress={() => setModalTab('CSV_UPLOAD')}
               >
-                <FileSpreadsheet size={14} color={modalTab === 'CSV_UPLOAD' ? '#000' : colors.textSecondary} />
+                <FileSpreadsheet size={14} color={modalTab === 'CSV_UPLOAD' ? colors.primary : colors.textSecondary} />
                 <Text style={[styles.modalTabBtnText, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnTextActive]}>
                   CSV / File Upload
                 </Text>
@@ -860,8 +864,8 @@ export const RateManagementScreen: React.FC = () => {
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                   <Text style={styles.rateEntryProdName}>{prod.name}</Text>
                                   {!isProdActive && (
-                                    <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#FCA5A5' }}>
-                                      <Text style={{ fontSize: 8, fontWeight: '800', color: '#DC2626' }}>INACTIVE</Text>
+                                    <View style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#CBD5E1' }}>
+                                      <Text style={{ fontSize: 8, fontWeight: '800', color: '#475569' }}>INACTIVE</Text>
                                     </View>
                                   )}
                                 </View>
@@ -907,15 +911,15 @@ export const RateManagementScreen: React.FC = () => {
                                         { color: diff > 0 ? colors.danger : colors.success },
                                       ]}
                                     >
-                                      {diff > 0 ? '+' : ''}
-                                      {diff.toFixed(2)}
+                                        {diff > 0 ? '+' : ''}
+                                        {Math.round(diff)}
                                     </Text>
                                   </View>
                                 )}
                               </View>
                             ) : (
-                              <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEE2E2', borderRadius: 6, borderWidth: 1, borderColor: '#FCA5A5' }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#DC2626' }}>🔒 Locked (Inactive)</Text>
+                              <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>🔒 Inactive</Text>
                               </View>
                             )}
                           </View>
@@ -944,10 +948,10 @@ export const RateManagementScreen: React.FC = () => {
                     activeOpacity={0.8}
                   >
                     {isSavingRates ? (
-                      <ActivityIndicator size="small" color="#000" />
+                      <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
-                        <FileText size={16} color="#000" />
+                        <FileText size={16} color="#FFFFFF" />
                         <Text style={styles.saveRateEntryBtnText}>Save & Apply Manual Rates</Text>
                       </>
                     )}
@@ -1063,10 +1067,10 @@ export const RateManagementScreen: React.FC = () => {
                               </Text>
                               <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
                                 {diff === 0 ? (
-                                  <Text style={styles.diffZero}>0.00</Text>
+                                  <Text style={styles.diffZero}>0</Text>
                                 ) : (
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: diff > 0 ? colors.danger : colors.success }}>
-                                    {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                                    {diff > 0 ? '+' : ''}{Math.round(diff)}
                                   </Text>
                                 )}
                               </View>
@@ -1112,10 +1116,10 @@ export const RateManagementScreen: React.FC = () => {
                     activeOpacity={0.8}
                   >
                     {isSavingRates ? (
-                      <ActivityIndicator size="small" color="#000" />
+                      <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
-                        <UploadCloud size={16} color="#000" />
+                        <UploadCloud size={16} color="#FFFFFF" />
                         <Text style={styles.saveRateEntryBtnText}>
                           Upload & Apply {parsedCsvRows.filter((r) => r.isValid).length} Rates
                         </Text>
@@ -1178,21 +1182,16 @@ const styles = StyleSheet.create({
   registerRatesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 9,
+    borderRadius: 8,
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
   registerRatesBtnText: {
-    color: colors.primary,
+    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   uploadCsvHeaderBtn: {
     flexDirection: 'row',
@@ -1735,21 +1734,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   modalTabBtnActive: {
-    backgroundColor: colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalTabBtnText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.textSecondary,
   },
   modalTabBtnTextActive: {
-    color: '#000',
-    fontWeight: '800',
+    color: colors.primary,
+    fontWeight: '700',
   },
   formGroup: {
     gap: 6,
@@ -1757,25 +1753,25 @@ const styles = StyleSheet.create({
   formLabel: {
     color: colors.textSecondary,
     fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   formInput: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
   rateEntryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
@@ -1793,7 +1789,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   rateEntryProdName: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -1808,20 +1804,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   rateEntryRs: {
-    color: '#000',
-    fontSize: 15,
-    fontWeight: '800',
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
   },
   rateEntryInput: {
-    backgroundColor: '#FFF',
-    borderWidth: 1.5,
-    borderColor: colors.primary + '60',
-    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#000',
+    color: colors.textPrimary,
     width: 90,
     textAlign: 'right',
   },
@@ -1839,15 +1835,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 13,
-    borderRadius: 10,
+    paddingVertical: 11,
+    borderRadius: 8,
     gap: 8,
     marginTop: 6,
   },
   saveRateEntryBtnText: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   rateEntryFootnote: {
     color: colors.textMuted,

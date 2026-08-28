@@ -10,6 +10,9 @@ export interface AuthUser {
   employment_status: number; // 0 = Unemployed, 1 = Employed
   role: number; // 1 = Owner, 2 = Manager
   is_active: boolean;
+  branch_id?: string;
+  assigned_branch_id?: string;
+  assigned_branch_name?: string;
 }
 
 /** Returns 1-2 uppercase initials for display in profile avatars.

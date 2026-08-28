@@ -25,12 +25,12 @@ import {
   User,
   Share2,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import { useCreditLedgerContext } from '../context/CreditLedgerContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
 import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
-import { usePaymentModes } from '../hooks/useMasters';
+import { usePaymentModes, useCustomerStatuses, useCreditPaymentModes } from '../hooks/useMasters';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
@@ -46,9 +46,11 @@ export const CreditLedgerScreen: React.FC = () => {
     addCreditSale,
     recordCreditRepayment,
     addCustomer,
-  } = useBunk();
+  } = useCreditLedgerContext();
 
   const { options: paymentModeOptions } = usePaymentModes();
+  const { options: customerStatusOptions } = useCustomerStatuses();
+  const { options: creditPaymentModeOptions } = useCreditPaymentModes();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customers[0]?.id || '');
@@ -71,14 +73,14 @@ export const CreditLedgerScreen: React.FC = () => {
   const [saleAmount, setSaleAmount] = useState('');
 const [amountManuallyEdited, setAmountManuallyEdited] = useState(false);
 
-React.useEffect(() => {
-  if (!amountManuallyEdited) {
-    const rate = products.find((p) => p.id === saleProductId)?.currentRate || 92.71;
-    const litresNum = parseFloat(saleLitres) || 0;
-    const computed = Math.round(litresNum * rate * 100) / 100;
-    setSaleAmount(computed ? computed.toFixed(2) : '');
-  }
-}, [saleLitres, saleProductId, amountManuallyEdited, products]);
+  React.useEffect(() => {
+    if (!amountManuallyEdited) {
+      const rate = products.find((p) => p.id === saleProductId)?.currentRate || 93;
+      const litresNum = parseFloat(saleLitres) || 0;
+      const computed = Math.round(litresNum * rate);
+      setSaleAmount(computed ? String(computed) : '');
+    }
+  }, [saleLitres, saleProductId, amountManuallyEdited, products]);
 
   // Repayment Form
   const [payCustId, setPayCustId] = useState(customers[0]?.id || '');
@@ -469,7 +471,7 @@ React.useEffect(() => {
                 <View style={{ width: '100%', minWidth: 620 }}>
                   <View style={styles.tableHeaderRow}>
                     <Text style={[styles.tableColHeader, { width: 90 }]}>DATE</Text>
-                    <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER #</Text>
+                    <Text style={[styles.tableColHeader, { width: 110 }]}>VOUCHER NO</Text>
                     <Text style={[styles.tableColHeader, { flex: 2, minWidth: 160 }]}>PARTICULARS</Text>
                     <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>DEBIT (+₹)</Text>
                     <Text style={[styles.tableColHeader, { width: 110, textAlign: 'right' }]}>CREDIT (-₹)</Text>
@@ -606,33 +608,32 @@ React.useEffect(() => {
                   />
                 </View>
               </View>
-
-              {/* Amount Preview */}
-               {/* Amount Preview / Manual Override */}
-<View style={styles.formGroup}>
-  <Text style={styles.formLabel}>Total Credit Bill Amount (₹) — editable</Text>
-  <View style={styles.totalPreviewBox}>
-    <Text style={styles.previewLabel}>TOTAL CREDIT BILL AMOUNT</Text>
-    <TextInput
-      style={styles.previewAmount}
-      value={saleAmount}
-      onChangeText={(v) => {
-        setSaleAmount(v);
-        setAmountManuallyEdited(true);
-      }}
-      keyboardType="numeric"
-      placeholder="0.00"
-      placeholderTextColor={colors.textMuted}
-    />
-  </View>
-</View>
+              
+              {/* Amount Preview / Manual Override */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Total Credit Bill Amount (₹)</Text>
+                <View style={styles.totalPreviewBox}>
+                  <Text style={styles.previewLabel}>TOTAL CREDIT BILL AMOUNT</Text>
+                  <TextInput
+                    style={styles.previewAmountInput}
+                    value={saleAmount}
+                    onChangeText={(v) => {
+                      setSaleAmount(v);
+                      setAmountManuallyEdited(true);
+                    }}
+                    keyboardType="numeric"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
             </View>
           </ScrollView>
 
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleAddSaleSubmit} activeOpacity={0.8}>
-              <CheckCircle2 size={16} color="#000" />
-              <Text style={styles.modalSubmitBtnText}>Issue Credit Chit & Print Thermal Slip</Text>
+              <CheckCircle2 size={16} color="#FFFFFF" />
+              <Text style={styles.modalSubmitBtnText}>Issue Credit Chit & Print Slip</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -687,7 +688,7 @@ React.useEffect(() => {
                       placeholder="Select Payment Mode..."
                       options={paymentModeOptions.length > 0 ? paymentModeOptions : [
                         { label: 'Cash', value: 'Cash' },
-                        { label: 'UPI / GPay / PhonePe', value: 'UPI' },
+                        { label: 'UPI / QR', value: 'UPI' },
                         { label: 'Cheque', value: 'Cheque' },
                         { label: 'Bank Transfer / NEFT', value: 'NEFT' },
                         { label: 'Bank Transfer / RTGS', value: 'Bank Transfer' },
@@ -726,7 +727,7 @@ React.useEffect(() => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleRepaymentSubmit} activeOpacity={0.8}>
-                <ArrowDownLeft size={16} color="#000" />
+                <ArrowDownLeft size={16} color="#FFFFFF" />
                 <Text style={styles.modalSubmitBtnText}>Record Payment & Adjust Ledger</Text>
               </TouchableOpacity>
             </View>
@@ -829,7 +830,7 @@ React.useEffect(() => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleCreateCustomerSubmit} activeOpacity={0.8}>
-                <Building size={16} color="#000" />
+                <Building size={16} color="#FFFFFF" />
                 <Text style={styles.modalSubmitBtnText}>Create Customer Account</Text>
               </TouchableOpacity>
             </View>
@@ -865,10 +866,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   screenTitle: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   screenSubtitle: {
     color: colors.textSecondary,
@@ -884,13 +885,13 @@ const styles = StyleSheet.create({
   primaryActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
   },
   primaryActionBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -902,7 +903,7 @@ const styles = StyleSheet.create({
   customerListSection: {
     width: 320,
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
@@ -911,7 +912,7 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -921,7 +922,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 12,
   },
   custScrollContainer: {
@@ -929,8 +930,8 @@ const styles = StyleSheet.create({
     maxHeight: 650,
   },
   custCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
     padding: 10,
     borderWidth: 1,
     borderColor: colors.border,
@@ -938,7 +939,7 @@ const styles = StyleSheet.create({
   },
   custCardActive: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.primaryLight,
   },
   custCardTop: {
     flexDirection: 'row',
@@ -952,19 +953,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   custCodeBadge: {
-    backgroundColor: colors.surfaceHighlight,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
   custCodeText: {
-    color: colors.accent,
+    color: colors.primary,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     fontFamily: typography.monoFont,
   },
   custName: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -989,7 +992,7 @@ const styles = StyleSheet.create({
   },
   limitBarTrack: {
     height: 4,
-    backgroundColor: '#0B0F19',
+    backgroundColor: colors.borderLight,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -1017,7 +1020,7 @@ const styles = StyleSheet.create({
   },
   statementHeaderCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 16,
@@ -1035,23 +1038,23 @@ const styles = StyleSheet.create({
     minWidth: 260,
   },
   bannerCodeBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.creditOrange + '20',
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.creditOrange,
+    borderColor: colors.primaryBorder,
   },
   bannerCodeText: {
-    color: colors.creditOrange,
-    fontSize: 16,
-    fontWeight: '900',
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '800',
     fontFamily: typography.monoFont,
   },
   bannerCustName: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -1073,10 +1076,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   balDisplayLabel: {
-    color: colors.textMuted,
-    fontSize: 9,
+    color: colors.textSecondary,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  balDisplayVal: {
+    color: colors.creditOrange,
+    fontSize: 22,
+    fontWeight: '900',
+    fontFamily: typography.monoFont,
   },
   balDisplayAmount: {
     color: colors.creditOrange,
@@ -1084,7 +1093,36 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontFamily: typography.monoFont,
   },
+  limitPill: {
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  limitPillText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
   statementActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statementActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  actionBtnGroup: {
     flexDirection: 'row',
     gap: 8,
   },
@@ -1092,21 +1130,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
     gap: 6,
     borderWidth: 1,
     borderColor: colors.border,
   },
   statementBtnText: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 11,
     fontWeight: '600',
   },
   tableCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
@@ -1120,9 +1158,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingBottom: 8,
     paddingHorizontal: 6,
+    backgroundColor: colors.surfaceElevated,
+    paddingVertical: 8,
+    borderRadius: 6,
   },
   tableColHeader: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1167,7 +1208,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -1176,7 +1217,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
@@ -1191,7 +1232,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   modalTitle: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -1211,7 +1252,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pillOption: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -1228,7 +1269,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   pillOptionTextActive: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   dualFormRow: {
@@ -1236,17 +1277,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   textInput: {
-    backgroundColor: '#dbdde4',
-    color: '#000',
+    backgroundColor: colors.surface,
+    color: colors.textPrimary,
     fontSize: 13,
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
   totalPreviewBox: {
-    backgroundColor: '#dbdde4',
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
@@ -1260,13 +1301,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  previewAmount: {
-    color: colors.creditOrange,
-    fontSize: 18,
-    fontWeight: '900',
-    fontFamily: typography.monoFont,
-    marginTop: 2,
-  },
   modalFooter: {
     marginTop: 4,
   },
@@ -1276,24 +1310,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 6,
     gap: 8,
   },
   modalSubmitBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
-   
-// ADD THIS NEW STYLE:
-previewAmountInput: {
-  color: colors.creditOrange,
-  fontSize: 18,
-  fontWeight: '900',
-  fontFamily: typography.monoFont,
-  marginTop: 2,
-  textAlign: 'center',
-  minWidth: 140,
-  paddingVertical: 2,
-},
+  previewAmountInput: {
+    color: colors.creditOrange,
+    fontSize: 18,
+    fontWeight: '900',
+    fontFamily: typography.monoFont,
+    marginTop: 2,
+    textAlign: 'center',
+    minWidth: 140,
+    paddingVertical: 2,
+  },
 });

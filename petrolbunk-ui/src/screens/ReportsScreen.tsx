@@ -34,7 +34,6 @@ import {
   PieChart,
   Activity,
   Sliders,
-  Sparkles,
   Calendar,
   Filter,
   DollarSign,
@@ -47,12 +46,13 @@ import {
   CalendarDays,
   Percent,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import { useReportsContext } from '../context/ReportsContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
+import { useReportTypes } from '../hooks/useMasters';
 
 type ReportCategory =
   | 'bi_analytics'
@@ -158,7 +158,7 @@ const GenericLineGraph: React.FC<GenericLineGraphProps> = ({
       <View style={styles.lineChartHeader}>
         <View style={{ flex: 1, minWidth: 220 }}>
           <Text style={styles.chartTitle}>{title}</Text>
-          <Text style={styles.chartSubtitle}>{subtitle}</Text>
+          {!!subtitle && <Text style={styles.chartSubtitle}>{subtitle}</Text>}
         </View>
 
         <View style={styles.seriesLegendRow}>
@@ -171,7 +171,7 @@ const GenericLineGraph: React.FC<GenericLineGraphProps> = ({
                 onPress={() => toggleSeries(s.id)}
               >
                 <View style={[styles.legendLineMarker, { backgroundColor: s.color }]} />
-                <Text style={[styles.legendToggleText, isVisible && { color: '#000', fontWeight: '800' }]}>
+                <Text style={[styles.legendToggleText, isVisible && { color: colors.textPrimary, fontWeight: '700' }]}>
                   {s.name}
                 </Text>
               </TouchableOpacity>
@@ -337,7 +337,8 @@ const GenericLineGraph: React.FC<GenericLineGraphProps> = ({
 };
 
 export const ReportsScreen: React.FC = () => {
-  const { shifts, customers, expenses, products, creditTransactions, creditPayments } = useBunk();
+  const { shifts, customers, expenses, products, creditTransactions, creditPayments } = useReportsContext();
+  const { options: reportTypeOptions } = useReportTypes();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -610,7 +611,7 @@ export const ReportsScreen: React.FC = () => {
                     }}
                     activeOpacity={0.7}
                   >
-                    <IconComponent size={15} color={isActive ? '#000' : colors.textSecondary} />
+                    <IconComponent size={15} color={isActive ? colors.primary : colors.textSecondary} />
                     <Text style={[styles.subNavText, isActive && styles.subNavTextActive]}>
                       {item.label}
                     </Text>
@@ -723,7 +724,7 @@ export const ReportsScreen: React.FC = () => {
                     <Text style={styles.actionPillText}>Export Excel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.7}>
-                    <Printer size={15} color="#007DC6" />
+                    <Printer size={15} color="#3B82F6" />
                     <Text style={styles.actionPillText}>Print</Text>
                   </TouchableOpacity>
                 </View>
@@ -756,7 +757,7 @@ export const ReportsScreen: React.FC = () => {
                     {filteredShifts.map((s) => (
                       <View key={s.id} style={styles.tableRow}>
                         <Text style={[styles.tdText, { width: 90 }]}>{formatDate(s.shiftDate)}</Text>
-                        <Text style={[styles.tdTextMono, { width: 100, color: '#007DC6' }]}>{s.shiftNo}</Text>
+                        <Text style={[styles.tdTextMono, { width: 100, color: '#3B82F6' }]}>{s.shiftNo}</Text>
                         <Text style={[styles.tdText, { width: 80 }]}>Pump {s.pumpNo}</Text>
                         <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{s.operatorName}</Text>
                         <Text style={[styles.tdTextMono, { width: 110, textAlign: 'right', color: '#0284C7' }]}>
@@ -815,7 +816,7 @@ export const ReportsScreen: React.FC = () => {
                     <Text style={styles.actionPillText}>Export Excel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.7}>
-                    <Printer size={15} color="#007DC6" />
+                    <Printer size={15} color="#3B82F6" />
                     <Text style={styles.actionPillText}>Print</Text>
                   </TouchableOpacity>
                 </View>
@@ -837,7 +838,7 @@ export const ReportsScreen: React.FC = () => {
               <View style={styles.tableWrapper}>
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.thText, { width: 90 }]}>DATE</Text>
-                  <Text style={[styles.thText, { width: 100 }]}>VOUCHER #</Text>
+                  <Text style={[styles.thText, { width: 100 }]}>VOUCHER NO</Text>
                   <Text style={[styles.thText, { flex: 1.5 }]}>EXPENSE CATEGORY</Text>
                   <Text style={[styles.thText, { width: 120 }]}>PAID TO</Text>
                   <Text style={[styles.thText, { width: 100 }]}>PAID BY</Text>
@@ -853,7 +854,7 @@ export const ReportsScreen: React.FC = () => {
                     filteredExpenses.map((exp) => (
                       <View key={exp.id} style={styles.tableRow}>
                         <Text style={[styles.tdText, { width: 90 }]}>{formatDate(exp.date)}</Text>
-                        <Text style={[styles.tdTextMono, { width: 100, color: '#007DC6' }]}>{exp.voucherNo}</Text>
+                        <Text style={[styles.tdTextMono, { width: 100, color: '#3B82F6' }]}>{exp.voucherNo}</Text>
                         <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{exp.expenseTypeName}</Text>
                         <Text style={[styles.tdText, { width: 120, color: '#64748B' }]}>{exp.paidTo || '-'}</Text>
                         <Text style={[styles.tdText, { width: 100, color: '#64748B' }]}>{exp.paidBy || '-'}</Text>
@@ -909,7 +910,7 @@ export const ReportsScreen: React.FC = () => {
                     <Text style={styles.actionPillText}>Export Excel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.7}>
-                    <Printer size={15} color="#007DC6" />
+                    <Printer size={15} color="#3B82F6" />
                     <Text style={styles.actionPillText}>Print</Text>
                   </TouchableOpacity>
                 </View>
@@ -948,7 +949,7 @@ export const ReportsScreen: React.FC = () => {
                     filteredTransactions.map((tx) => (
                       <View key={tx.id} style={styles.tableRow}>
                         <Text style={[styles.tdText, { width: 85 }]}>{formatDate(tx.date)}</Text>
-                        <Text style={[styles.tdTextMono, { width: 95, color: '#007DC6' }]}>{tx.slipNo}</Text>
+                        <Text style={[styles.tdTextMono, { width: 95, color: '#3B82F6' }]}>{tx.slipNo}</Text>
                         <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{tx.customerName}</Text>
                         <Text style={[styles.tdTextMono, { width: 100, color: '#64748B' }]}>{tx.vehicleNo || '-'}</Text>
                         <Text style={[styles.tdText, { width: 80 }]}>{tx.productName}</Text>
@@ -991,7 +992,7 @@ export const ReportsScreen: React.FC = () => {
               fullDates={cashflowTimeSeries.map((c) => c.date)}
               series={[
                 { id: 'cash', name: 'Cash Collections', color: colors.cashGreen, values: cashflowTimeSeries.map((c) => c.cash) },
-                { id: 'upi', name: 'UPI / QR (PhonePe/GPay)', color: colors.upiPurple, values: cashflowTimeSeries.map((c) => c.upi) },
+                { id: 'upi', name: 'UPI / QR', color: colors.upiPurple, values: cashflowTimeSeries.map((c) => c.upi) },
                 { id: 'card', name: 'POS Cards', color: colors.cardBlue, values: cashflowTimeSeries.map((c) => c.card) },
                 { id: 'credit', name: 'Credit Chits', color: colors.creditOrange, dashed: true, values: cashflowTimeSeries.map((c) => c.credit) },
               ]}
@@ -1023,7 +1024,7 @@ export const ReportsScreen: React.FC = () => {
                   <Text style={styles.modeCardPct}>{Math.round((totalUPI / totalNonZeroSales) * 100)}% of total sales</Text>
                 </View>
 
-                <View style={[styles.modeCard, { borderLeftColor: '#007DC6' }]}>
+                <View style={[styles.modeCard, { borderLeftColor: '#3B82F6' }]}>
                   <Text style={styles.modeCardLabel}>POS CARDS</Text>
                   <Text style={styles.modeCardVal}>{formatCurrency(totalCard)}</Text>
                   <Text style={styles.modeCardPct}>{Math.round((totalCard / totalNonZeroSales) * 100)}% of total sales</Text>
@@ -1069,7 +1070,7 @@ export const ReportsScreen: React.FC = () => {
                     <Text style={styles.actionPillText}>Export Excel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.7}>
-                    <Printer size={15} color="#007DC6" />
+                    <Printer size={15} color="#3B82F6" />
                     <Text style={styles.actionPillText}>Print</Text>
                   </TouchableOpacity>
                 </View>
@@ -1089,7 +1090,7 @@ export const ReportsScreen: React.FC = () => {
 
                 <View style={styles.pnlRow}>
                   <Text style={styles.pnlLabelBold}>ESTIMATED DEALER COMMISSION (@ ₹3.50/L)</Text>
-                  <Text style={[styles.pnlValBold, { color: '#007DC6' }]}>{formatCurrency(estimatedFuelMargin)}</Text>
+                  <Text style={[styles.pnlValBold, { color: '#3B82F6' }]}>{formatCurrency(estimatedFuelMargin)}</Text>
                 </View>
 
                 <View style={styles.pnlDivider} />
@@ -1130,7 +1131,7 @@ export const ReportsScreen: React.FC = () => {
                   <Text style={styles.actionPillText}>Excel Report</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionPillBtn} onPress={handlePrint} activeOpacity={0.7}>
-                  <Printer size={15} color="#007DC6" />
+                  <Printer size={15} color="#3B82F6" />
                   <Text style={styles.actionPillText}>Print</Text>
                 </TouchableOpacity>
               </View>
@@ -1151,7 +1152,7 @@ export const ReportsScreen: React.FC = () => {
 
             <View style={styles.tableWrapper}>
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.thText, { width: 50 }]}>#</Text>
+                <Text style={[styles.thText, { width: 50 }]}>S.NO</Text>
                 <Text style={[styles.thText, { flex: 1.5 }]}>PARTY NAME</Text>
                 <Text style={[styles.thText, { width: 100 }]}>CODE</Text>
                 <Text style={[styles.thText, { width: 120 }]}>PHONE</Text>
@@ -1169,7 +1170,7 @@ export const ReportsScreen: React.FC = () => {
                     <View key={cust.id} style={styles.tableRow}>
                       <Text style={[styles.tdTextMuted, { width: 50 }]}>{index + 1}</Text>
                       <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{cust.name}</Text>
-                      <Text style={[styles.tdTextMono, { width: 100, color: '#007DC6' }]}>{cust.code}</Text>
+                      <Text style={[styles.tdTextMono, { width: 100, color: '#3B82F6' }]}>{cust.code}</Text>
                       <Text style={[styles.tdText, { width: 120, color: '#64748B' }]}>{cust.phone || '-'}</Text>
                       <Text style={[styles.tdTextMono, { width: 150, textAlign: 'right', color: cust.outstandingBalance > 0 ? '#EA580C' : '#16A34A', fontWeight: '700' }]}>
                         {formatCurrency(cust.outstandingBalance)}
@@ -1191,7 +1192,7 @@ export const ReportsScreen: React.FC = () => {
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Total Credit Limit:</Text>
-                <Text style={[styles.summaryVal, { color: '#007DC6' }]}>{formatCurrency(totalCreditLimit)}</Text>
+                <Text style={[styles.summaryVal, { color: '#3B82F6' }]}>{formatCurrency(totalCreditLimit)}</Text>
               </View>
             </View>
           </View>
@@ -1200,7 +1201,7 @@ export const ReportsScreen: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    const headers = ['#', 'PARTY NAME', 'CODE', 'PHONE', 'RECEIVABLE BALANCE (₹)', 'CREDIT LIMIT (₹)', 'UTILIZATION %'];
+    const headers = ['S.NO', 'PARTY NAME', 'CODE', 'PHONE', 'RECEIVABLE BALANCE (₹)', 'CREDIT LIMIT (₹)', 'UTILIZATION %'];
     const rows = filteredCustomers.map((c, i) => [
       i + 1,
       c.name,

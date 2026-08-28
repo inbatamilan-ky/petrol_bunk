@@ -9,8 +9,8 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Fuel, Lock, User, ShieldCheck, Eye, EyeOff, KeyRound, X, CheckCircle2 } from 'lucide-react';
-import { colors } from '../theme/colors';
+import { Fuel, Lock, User, Eye, EyeOff, KeyRound, X, CheckCircle2, Shield } from 'lucide-react';
+import { colors, typography } from '../theme/colors';
 import { login, forgotPassword, resetPassword, AuthUser } from '../api/auth';
 
 const REMEMBER_ME_KEY = 'fuelPulse_rememberMe_username';
@@ -53,14 +53,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   // ── Login handler ────────────────────────────────────────────────────
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      setError('Please enter username and password.');
+      setError('Please enter your mobile number and password.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const user = await login(username.trim(), password);
-      // Persist or clear remembered username
       try {
         if (rememberMe) {
           localStorage.setItem(REMEMBER_ME_KEY, username.trim());
@@ -70,7 +69,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       } catch {}
       onLoginSuccess(user);
     } catch (e: any) {
-      setError(e.message || 'Login failed. Please check your credentials.');
+      setError(e.message || 'Invalid credentials. Please check and try again.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +78,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   // ── Forgot: Step 1 — request token ───────────────────────────────────
   const handleForgotRequest = async () => {
     if (!forgotUsername.trim()) {
-      setForgotError('Enter your username first.');
+      setForgotError('Please enter your mobile number / username.');
       return;
     }
     setForgotLoading(true);
@@ -87,7 +86,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     try {
       const res = await forgotPassword(forgotUsername.trim());
       if (res.token) {
-        setResetToken(res.token);  // Auto-fill token (dev mode — no email)
+        setResetToken(res.token);
       }
       setForgotSuccess(res.message);
       setForgotStep('reset');
@@ -135,61 +134,57 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>
-          {/* Brand Header */}
+          {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoCircle}>
-              <Fuel size={28} color="#FFFFFF" />
-              <View style={styles.logoDot} />
+            <View style={styles.logoBadge}>
+              <Fuel size={24} color="#FFFFFF" />
             </View>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>PETROL BUNK</Text>
-            </View>
-            <Text style={styles.subtitle}>Petrol Bunk accounts Management System</Text>
+            <Text style={styles.title}>Petrol Bunk Account Management System</Text>
+            <Text style={styles.subtitle}>Sign in to manage station shifts and accounts</Text>
           </View>
 
-          {/* Form Fields */}
+          {/* Form */}
           <View style={styles.form}>
-            <Text style={styles.label}>Mobile Number</Text>
-            <View style={styles.inputWrapper}>
-              <User size={16} color="#0e2d59" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={username}
-                 onChangeText={(text) => setUsername(text.replace(/[^0-9]/g, ''))}
-                      placeholder="Enter your mobile number"
-                      keyboardType="phone-pad"
-                      maxLength={10}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="next"
-              />
-            </View>
-        
-                     
-
-
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Lock size={16} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
-                secureTextEntry={!showPassword}
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
-              />
-              <TouchableOpacity onPress={() => setShowPassword((p) => !p)} activeOpacity={0.7}>
-                {showPassword
-                  ? <EyeOff size={16} color="#64748B" />
-                  : <Eye size={16} color="#64748B" />
-                }
-              </TouchableOpacity>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Mobile Number</Text>
+              <View style={styles.inputWrapper}>
+                <User size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  value={username}
+                  onChangeText={(text) => setUsername(text.replace(/[^0-9]/g, ''))}
+                  placeholder="Enter 10-digit mobile number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
             </View>
 
-            {/* Remember Me + Forgot Password row */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                />
+                <TouchableOpacity onPress={() => setShowPassword((p) => !p)} activeOpacity={0.7} style={styles.eyeBtn}>
+                  {showPassword ? <EyeOff size={16} color={colors.textSecondary} /> : <Eye size={16} color={colors.textSecondary} />}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Remember Me & Forgot Password */}
             <View style={styles.rememberRow}>
               <TouchableOpacity
                 style={styles.rememberMeBtn}
@@ -227,12 +222,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </TouchableOpacity>
           </View>
 
-          {/* <View style={styles.roleHintBox}>
-            <ShieldCheck size={13} color="#64748B" />
-            <Text style={styles.roleHintText}>Supported Roles: 1 = Owner • 2 = Manager</Text>
-          </View> */}
-
-          <Text style={styles.footer}>KY Technologies © {new Date().getFullYear()}</Text>
+          <View style={styles.footerWrap}>
+            <Shield size={12} color={colors.textMuted} />
+            <Text style={styles.footerText}>Multi-Bunk Secure Portal</Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -240,41 +233,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       <Modal visible={showForgot} transparent animationType="fade" onRequestClose={closeForgotModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
-              <View style={styles.modalIconCircle}>
-                <KeyRound size={20} color="#007DC6" />
-              </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <KeyRound size={18} color={colors.primary} />
                 <Text style={styles.modalTitle}>
-                  {forgotStep === 'done' ? 'Password Reset!' : 'Forgot Password'}
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {forgotStep === 'request' && 'Enter your username to receive a reset token.'}
-                  {forgotStep === 'reset' && 'Enter the token and your new password.'}
-                  {forgotStep === 'done' && 'Your password has been reset successfully.'}
+                  {forgotStep === 'done' ? 'Password Reset' : 'Reset Password'}
                 </Text>
               </View>
               <TouchableOpacity onPress={closeForgotModal} activeOpacity={0.7}>
-                <X size={20} color="#64748B" />
+                <X size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {/* Step 1 — Request Token */}
             {forgotStep === 'request' && (
               <View style={styles.modalBody}>
-                <Text style={styles.label}>Username</Text>
-                <View style={styles.inputWrapper}>
-                  <User size={16} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    value={forgotUsername}
-                    onChangeText={setForgotUsername}
-                    placeholder="Enter your username"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                <Text style={styles.modalSubtitle}>Enter your registered mobile number to request a reset token.</Text>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Mobile Number</Text>
+                  <View style={styles.inputWrapper}>
+                    <User size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      value={forgotUsername}
+                      onChangeText={setForgotUsername}
+                      placeholder="Enter mobile number"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="phone-pad"
+                      autoCapitalize="none"
+                    />
+                  </View>
                 </View>
 
                 {forgotError && (
@@ -289,15 +276,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   disabled={forgotLoading}
                   activeOpacity={0.85}
                 >
-                  {forgotLoading
-                    ? <ActivityIndicator color="#FFF" size="small" />
-                    : <Text style={styles.loginBtnText}>Get Reset Token</Text>
-                  }
+                  {forgotLoading ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.loginBtnText}>Generate Reset Token</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* Step 2 — Enter Token + New Password */}
             {forgotStep === 'reset' && (
               <View style={styles.modalBody}>
                 {forgotSuccess && (
@@ -306,48 +293,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   </View>
                 )}
 
-                <Text style={styles.label}>Reset Token</Text>
-                <View style={styles.inputWrapper}>
-                  <KeyRound size={16} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { fontSize: 12, fontFamily: 'monospace' } as any]}
-                    value={resetToken}
-                    onChangeText={setResetToken}
-                    placeholder="Paste token here"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Reset Token</Text>
+                  <View style={styles.inputWrapper}>
+                    <KeyRound size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { fontFamily: typography.monoFont }]}
+                      value={resetToken}
+                      onChangeText={setResetToken}
+                      placeholder="Token"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
                 </View>
 
-                <Text style={styles.label}>New Password</Text>
-                <View style={styles.inputWrapper}>
-                  <Lock size={16} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    placeholder="Min. 4 characters"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry={!showNewPwd}
-                  />
-                  <TouchableOpacity onPress={() => setShowNewPwd((p) => !p)} activeOpacity={0.7}>
-                    {showNewPwd ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
-                  </TouchableOpacity>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>New Password</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="Minimum 4 characters"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry={!showNewPwd}
+                    />
+                    <TouchableOpacity onPress={() => setShowNewPwd((p) => !p)} activeOpacity={0.7} style={styles.eyeBtn}>
+                      {showNewPwd ? <EyeOff size={16} color={colors.textSecondary} /> : <Eye size={16} color={colors.textSecondary} />}
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                <Text style={styles.label}>Confirm New Password</Text>
-                <View style={styles.inputWrapper}>
-                  <Lock size={16} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    placeholder="Repeat new password"
-                    placeholderTextColor="#94A3B8"
-                    secureTextEntry={!showNewPwd}
-                    onSubmitEditing={handleResetPassword}
-                  />
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Confirm New Password</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Re-enter new password"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry={!showNewPwd}
+                    />
+                  </View>
                 </View>
 
                 {forgotError && (
@@ -362,23 +352,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   disabled={forgotLoading}
                   activeOpacity={0.85}
                 >
-                  {forgotLoading
-                    ? <ActivityIndicator color="#FFF" size="small" />
-                    : <Text style={styles.loginBtnText}>Reset Password</Text>
-                  }
+                  {forgotLoading ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.loginBtnText}>Set New Password</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* Step 3 — Done */}
             {forgotStep === 'done' && (
-              <View style={[styles.modalBody, { alignItems: 'center', gap: 14 }]}>
-                <CheckCircle2 size={48} color="#16A34A" />
-                <Text style={styles.doneText}>
-                  Password reset successfully! You can now log in with your new password.
-                </Text>
+              <View style={[styles.modalBody, { alignItems: 'center', gap: 12, paddingVertical: 20 }]}>
+                <CheckCircle2 size={40} color={colors.success} />
+                <Text style={styles.doneText}>Password updated successfully. You can now sign in.</Text>
                 <TouchableOpacity style={styles.loginBtn} onPress={closeForgotModal} activeOpacity={0.85}>
-                  <Text style={styles.loginBtnText}>Back to Login</Text>
+                  <Text style={styles.loginBtnText}>Return to Sign In</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -392,125 +380,92 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    width: '100%',
-    height: '100%' as any,
+    backgroundColor: colors.background,
   },
   container: {
     flexGrow: 1,
-    minHeight: '100%' as any,
-    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    paddingVertical: 36,
-    width: '100%',
+    paddingVertical: 48,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 36,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 32,
     width: '100%',
-    maxWidth: 450,
+    maxWidth: 420,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 8,
+    borderColor: colors.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 26,
+    marginBottom: 24,
   },
-  logoCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#007DC6',
+  logoBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: '#007DC6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  logoDot: {
-    position: 'absolute',
-    top: 7,
-    right: 7,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#FFDE00', // Bharat Petroleum Yellow
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
-  },
-  proTag: {
-    backgroundColor: '#FFFDEB',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#FFDE00',
-  },
-  proTagText: {
-    color: '#B45309',
-    fontSize: 10,
-    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
   },
   form: {
-    gap: 6,
+    gap: 14,
+  },
+  fieldGroup: {
+    gap: 4,
   },
   label: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 8,
-    marginBottom: 2,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   inputIcon: {
     marginRight: 8,
   },
   input: {
     flex: 1,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0F172A',
-    outlineStyle: 'none',
-  } as any,
-  // ── Remember Me row ──────────────────────────────────────────────────
+    fontSize: 13,
+    color: colors.textPrimary,
+    padding: 0,
+  },
+  eyeBtn: {
+    padding: 4,
+  },
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 2,
   },
   rememberMeBtn: {
     flexDirection: 'row',
@@ -521,157 +476,130 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surface,
   },
   checkboxChecked: {
-    backgroundColor: '#007DC6',
-    borderColor: '#007DC6',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   checkmark: {
-    color: '#FFF',
-    fontSize: 10,
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: '800',
     lineHeight: 12,
   },
   rememberMeText: {
     fontSize: 12,
-    color: '#475569',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   forgotLink: {
     fontSize: 12,
-    color: '#007DC6',
+    color: colors.primary,
     fontWeight: '600',
   },
-  // ── Alerts ───────────────────────────────────────────────────────────
   errorBox: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FECACA',
-    borderRadius: 8,
+    borderRadius: 6,
     padding: 10,
-    marginTop: 8,
   },
   errorText: {
-    color: '#DC2626',
+    color: colors.danger,
     fontSize: 12,
     fontWeight: '500',
   },
   infoBox: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 8,
+    borderColor: colors.primaryBorder,
+    borderRadius: 6,
     padding: 10,
+    marginBottom: 8,
   },
   infoText: {
-    color: '#1D4ED8',
+    color: colors.primary,
     fontSize: 12,
-    fontWeight: '500',
   },
-  // ── Login Button ─────────────────────────────────────────────────────
   loginBtn: {
-    backgroundColor: '#007DC6',
+    backgroundColor: colors.primary,
     borderRadius: 8,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    marginTop: 18,
-    shadowColor: '#007DC6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    justifyContent: 'center',
+    marginTop: 4,
   },
   loginBtnDisabled: {
     opacity: 0.6,
   },
   loginBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
-  roleHintBox: {
+  footerWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    marginTop: 16,
-    paddingTop: 12,
+    gap: 6,
+    marginTop: 24,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.borderLight,
   },
-  roleHintText: {
-    color: '#64748B',
+  footerText: {
     fontSize: 11,
+    color: colors.textMuted,
     fontWeight: '500',
   },
-  footer: {
-    textAlign: 'center',
-    color: '#94A3B8',
-    fontSize: 11,
-    marginTop: 14,
-  },
-  // ── Modal ────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
     width: '100%',
-    maxWidth: 460,
+    maxWidth: 420,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#F8FAFC',
-  },
-  modalIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
   },
   modalTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   modalSubtitle: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
+    color: colors.textSecondary,
+    marginBottom: 8,
   },
   modalBody: {
-    padding: 20,
-    gap: 4,
+    padding: 16,
+    gap: 10,
   },
   doneText: {
-    fontSize: 14,
-    color: '#374151',
+    fontSize: 13,
+    color: colors.textPrimary,
     textAlign: 'center',
-    fontWeight: '500',
-    lineHeight: 22,
   },
 });

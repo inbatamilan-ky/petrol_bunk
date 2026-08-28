@@ -13,7 +13,6 @@ import {
   Calculator,
   FileSpreadsheet,
   Printer,
-  Sparkles,
   Droplets,
   Layers,
   ArrowUpRight,
@@ -24,15 +23,19 @@ import {
   Zap,
   IndianRupee,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import { useTankDipContext } from '../context/TankDipContext';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportHelpers';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
+import { useDipTypes, useTankStatuses } from '../hooks/useMasters';
 
 export const TankDipScreen: React.FC = () => {
-  const { products, pumps, shifts, role, dailyNozzleMeters, saveBatchNozzleMeters } = useBunk();
+  const { products, pumps, shifts, role, dailyNozzleMeters, saveBatchNozzleMeters } = useTankDipContext();
+
+  const { options: dipTypeOptions } = useDipTypes();
+  const { options: tankStatusOptions, items: tankStatusItems } = useTankStatuses();
 
   const [selectedPumpFilter, setSelectedPumpFilter] = useState<string>('ALL');
   const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
@@ -185,7 +188,7 @@ export const TankDipScreen: React.FC = () => {
   const handleExportCSV = () => {
     const headers = [
       'Date',
-      'Pump Island',
+      'Pump',
       'Nozzle Number',
       'Product Name',
       'Fuel Code',
@@ -211,16 +214,16 @@ export const TankDipScreen: React.FC = () => {
 
         nozzleRows.push([
           selectedDate,
-          `Pump #${pump.pumpNo} (${pump.name})`,
-          `Nozzle #${noz.nozzleNo}`,
+          `Pump ${pump.pumpNo}`,
+          `Nozzle ${noz.nozzleNo}`,
           noz.productName,
           noz.fuelCode,
-          start.toFixed(2),
-          end.toFixed(2),
-          test.toFixed(2),
-          sold.toFixed(2),
-          `₹${rate.toFixed(2)}`,
-          `₹${amt.toFixed(2)}`,
+          String(Math.round(start)),
+          String(Math.round(end)),
+          String(Math.round(test)),
+          String(Math.round(sold)),
+          `₹${Math.round(rate)}`,
+          `₹${Math.round(amt)}`,
         ]);
       });
     });
@@ -294,8 +297,8 @@ export const TankDipScreen: React.FC = () => {
             disabled={isSaving}
             activeOpacity={0.8}
           >
-            <CheckCircle2 size={15} color={savedSuccess ? colors.success : '#000'} />
-            <Text style={[styles.actionPillText, { color: savedSuccess ? colors.success : '#000', fontWeight: '800' }]}>
+            <CheckCircle2 size={15} color={savedSuccess ? colors.success : '#FFFFFF'} />
+            <Text style={[styles.actionPillText, { color: savedSuccess ? colors.success : '#FFFFFF', fontWeight: '700' }]}>
               {isSaving ? 'Saving...' : savedSuccess ? 'Saved..!' : 'Save Readings'}
             </Text>
           </TouchableOpacity>
@@ -341,7 +344,7 @@ export const TankDipScreen: React.FC = () => {
           <Text style={[styles.kpiValue, { color: colors.warning }]}>{formatLitres(stationTotalTesting)}</Text>
         </View>
 
-        {/* Card 4: Active Dispenser Islands */}
+        {/* Card 4: Active Pumps */}
         <View style={[styles.kpiCard, { borderLeftColor: colors.upiPurple }]}>
           <View style={styles.kpiCardTop}>
             <Text style={styles.kpiLabel}>PUMP STATION</Text>
@@ -393,13 +396,13 @@ export const TankDipScreen: React.FC = () => {
       <View style={styles.filterBar}>
         {/* Pump Filter Pills */}
         <View style={styles.filterPillsGroup}>
-          <Text style={styles.filterLabel}>PUMP STATION:</Text>
+          <Text style={styles.filterLabel}>PUMP:</Text>
           <TouchableOpacity
             style={[styles.filterPill, selectedPumpFilter === 'ALL' && styles.filterPillActive]}
             onPress={() => setSelectedPumpFilter('ALL')}
           >
             <Text style={[styles.filterPillText, selectedPumpFilter === 'ALL' && styles.filterPillTextActive]}>
-              All Pump Stations ({pumps.length})
+              All Pumps
             </Text>
           </TouchableOpacity>
 
@@ -410,7 +413,7 @@ export const TankDipScreen: React.FC = () => {
               onPress={() => setSelectedPumpFilter(String(p.pumpNo))}
             >
               <Text style={[styles.filterPillText, selectedPumpFilter === String(p.pumpNo) && styles.filterPillTextActive]}>
-                Pump #{p.pumpNo}
+                Pump {p.pumpNo}
               </Text>
             </TouchableOpacity>
           ))}
@@ -434,7 +437,7 @@ export const TankDipScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* ── Pump Islands & Nozzle Totalizers Grid ─────────────────────────── */}
+      {/* ── Pumps & Nozzle Totalizers Grid ─────────────────────────── */}
       <View style={styles.pumpsContainer}>
         {filteredPumps.map((pump) => {
           let pumpTotalLitres = 0;
@@ -443,21 +446,18 @@ export const TankDipScreen: React.FC = () => {
 
           return (
             <View key={pump.id} style={styles.pumpCard}>
-              {/* Island Header */}
+              {/* Pump Header */}
               <View style={styles.pumpCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={styles.pumpBadgeIcon}>
                     <Gauge size={16} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.pumpCardTitle}>Pump #{pump.pumpNo} — {pump.name}</Text>
+                    <Text style={styles.pumpCardTitle}>Pump {pump.pumpNo}</Text>
                     <Text style={styles.pumpCardSub}>{pump.nozzles.length} Electronic Nozzle</Text>
                   </View>
                 </View>
 
-                <View style={[styles.activeTag, pump.status === 'INACTIVE' && { backgroundColor: '#FEE2E2' }, pump.status === 'MAINTENANCE' && { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.activeTagText, pump.status === 'INACTIVE' && { color: '#DC2626' }, pump.status === 'MAINTENANCE' && { color: '#D97706' }]}>{pump.status}</Text>
-                </View>
               </View>
 
               {/* Nozzles Table Container */}
@@ -493,20 +493,20 @@ export const TankDipScreen: React.FC = () => {
                       <View style={{ width: 140 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <View style={[styles.fuelDot, { backgroundColor: noz.color || colors.primary }]} />
-                          <Text style={styles.nozzleNumberText}>Noz #{noz.nozzleNo}</Text>
+                          <Text style={styles.nozzleNumberText}>Noz {noz.nozzleNo}</Text>
                           <View style={[styles.fuelPill, { backgroundColor: (noz.color || colors.primary) + '18' }]}>
                             <Text style={[styles.fuelPillText, { color: noz.color || colors.primary }]}>
                               {noz.fuelCode}
                             </Text>
                           </View>
                           {isNozInactive && (
-                            <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ fontSize: 8, fontWeight: '800', color: '#DC2626' }}>INACTIVE</Text>
+                            <View style={{ backgroundColor: '#F1F5F9', borderColor: '#CBD5E1', borderWidth: 1, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ fontSize: 8, fontWeight: '800', color: '#475569' }}>INACTIVE</Text>
                             </View>
                           )}
                         </View>
                         <Text style={styles.nozzleProdSub} numberOfLines={1}>
-                          {noz.productName} • ₹{rate.toFixed(2)}/L
+                          {noz.productName} • ₹{Math.round(rate)}/L
                         </Text>
                       </View>
 
@@ -568,10 +568,10 @@ export const TankDipScreen: React.FC = () => {
                 })}
               </View>
 
-              {/* Pump Island Subtotal Footer */}
+              {/* Pump Subtotal Footer */}
               <View style={styles.pumpTotalFooter}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.pumpTotalLabel}>PUMP #{pump.pumpNo} PUMP STATION TOTAL:</Text>
+                  <Text style={styles.pumpTotalLabel}>PUMP {pump.pumpNo} PUMP STATION TOTAL:</Text>
                   {pumpTotalTest > 0 && (
                     <Text style={styles.pumpTotalTestText}>(Testing: {formatLitres(pumpTotalTest)})</Text>
                   )}
@@ -614,10 +614,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   screenTitle: {
-    color: '#000',
-    fontSize: 22,
+    color: colors.textPrimary,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   screenSubtitle: {
     color: colors.textSecondary,
@@ -706,9 +706,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   kpiValue: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '800',
     fontFamily: typography.monoFont,
   },
   kpiSub: {
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   // ── Product-wise Fuel Dispensed Ribbon ─────────────────────────────────────
   productMixCard: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
@@ -731,9 +731,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   productMixTitle: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   dateBadgeText: {
     color: colors.textMuted,
@@ -759,7 +759,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   prodNameText: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -770,14 +770,13 @@ const styles = StyleSheet.create({
   },
   prodLitresVal: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '800',
     fontFamily: typography.monoFont,
   },
   prodAmtVal: {
-    color: colors.cashGreen,
-    fontSize: 12,
-    fontWeight: '800',
+    color: colors.textSecondary,
+    fontSize: 11,
     fontFamily: typography.monoFont,
   },
 
@@ -825,17 +824,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterPillTextActive: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
 
-  // ── Pump Islands & Nozzle Tables ───────────────────────────────────────────
+  // ── Pumps & Nozzle Tables ───────────────────────────────────────────
   pumpsContainer: {
     gap: 16,
   },
   pumpCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
@@ -845,23 +844,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   pumpBadgeIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary + '18',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pumpCardTitle: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   pumpCardSub: {
     color: colors.textSecondary,
@@ -899,12 +898,12 @@ const styles = StyleSheet.create({
   nozzleTableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border + '90',
+    borderColor: colors.border,
     gap: 8,
   },
   fuelDot: {
@@ -913,9 +912,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   nozzleNumberText: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   fuelPill: {
     paddingHorizontal: 5,
@@ -933,13 +932,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   meterInput: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     fontFamily: typography.monoFont,
     borderWidth: 1,
     borderColor: colors.border,

@@ -78,7 +78,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               {/* Title & Metadata */}
               <Text style={styles.receiptDocTitle}>{data.title.toUpperCase()}</Text>
               <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Receipt #:</Text>
+                <Text style={styles.metaLabel}>Receipt No:</Text>
                 <Text style={styles.metaVal}>{data.receiptNo}</Text>
               </View>
               <View style={styles.metaRow}>
@@ -204,7 +204,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           {/* Bottom Print Buttons */}
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.printBtn} onPress={handlePrint} activeOpacity={0.8}>
-              <Printer size={16} color="#000" />
+              <Printer size={16} color="#FFFFFF" />
               <Text style={styles.printBtnText}>Print Thermal Slip (POS)</Text>
             </TouchableOpacity>
           </View>
@@ -217,7 +217,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -226,11 +226,16 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     maxHeight: '90%',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -238,7 +243,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -246,7 +252,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalHeaderTitle: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -256,20 +262,22 @@ const styles = StyleSheet.create({
   paperScroll: {
     maxHeight: 520,
     flexShrink: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
   },
   paperContent: {
     padding: 16,
   },
   thermalPaper: {
-    backgroundColor: '#000',
+    backgroundColor: '#FFFEF9',
     padding: 18,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.06,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 2,
   },
   receiptBrand: {
     fontSize: 15,
@@ -370,9 +378,9 @@ const styles = StyleSheet.create({
   },
   grandTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: '#111827',
+    borderTopColor: '#374151',
     borderBottomWidth: 1,
-    borderBottomColor: '#111827',
+    borderBottomColor: '#374151',
     paddingVertical: 4,
     marginVertical: 4,
   },
@@ -426,10 +434,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modalFooter: {
-    padding: 12,
+    padding: 14,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+    borderTopColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
   printBtn: {
     backgroundColor: colors.primary,
@@ -441,7 +449,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   printBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },

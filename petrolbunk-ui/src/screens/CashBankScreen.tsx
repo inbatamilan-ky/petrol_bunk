@@ -25,7 +25,6 @@ import {
   Truck,
   ArrowDownRight,
   Layers,
-  Sparkles,
   RefreshCw,
   Clock,
   ShieldCheck,
@@ -36,17 +35,28 @@ import {
   Smartphone,
   Wallet,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import { useCashBankContext } from '../context/CashBankContext';
 import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
 import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
+import {
+  useBankAccountTypes,
+  useSettlementChannels,
+  useSettlementStatuses,
+  useBankDepositStatuses,
+} from '../hooks/useMasters';
 import { colors, typography } from '../theme/colors';
 import { formatCurrency, formatDate, getTodayDateString, formatDateTime } from '../utils/formatters';
 import { CashDenomination, BankDeposit } from '../types';
 
 export const CashBankScreen: React.FC = () => {
-  const { shifts, expenses, bankDeposits, bankAccounts, creditPayments, recordBankDeposit, role, bunkProfile } = useBunk();
+  const { shifts, expenses, bankDeposits, bankAccounts, creditPayments, recordBankDeposit, role, bunkProfile } = useCashBankContext();
+
+  const { options: bankAccountTypeOptions } = useBankAccountTypes();
+  const { options: settlementChannelOptions } = useSettlementChannels();
+  const { options: settlementStatusOptions } = useSettlementStatuses();
+  const { options: bankDepositStatusOptions } = useBankDepositStatuses();
 
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
@@ -292,7 +302,7 @@ export const CashBankScreen: React.FC = () => {
             onPress={() => setShowDepositModal(true)}
             activeOpacity={0.8}
           >
-            <PlusCircle size={15} color="#000" />
+            <PlusCircle size={15} color="#FFFFFF" />
             <Text style={styles.depositBtnText}>New Bank Cash Deposit</Text>
           </TouchableOpacity>
         </View>
@@ -367,7 +377,7 @@ export const CashBankScreen: React.FC = () => {
             <Text style={styles.digitalTitle}>Digital, Online UPI & POS Settlement Channels</Text>
           </View>
           <Text style={styles.digitalTotalTag}>
-            Total Online: <Text style={{ fontWeight: '900', color: '#000' }}>{formatCurrency(totalDigitalOnline)}</Text>
+            Total Online: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{formatCurrency(totalDigitalOnline)}</Text>
           </Text>
         </View>
 
@@ -383,7 +393,6 @@ export const CashBankScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.channelName}>UPI / Dynamic QR</Text>
-            <Text style={styles.channelSub}>PhonePe, GPay, Paytm, BharatPe</Text>
             <Text style={[styles.channelVal, { color: colors.upiPurple }]}>
               {formatCurrency(totalUpiCollected)}
             </Text>
@@ -400,7 +409,6 @@ export const CashBankScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.channelName}>POS Card Swipes</Text>
-            <Text style={styles.channelSub}>Visa, RuPay, Mastercard POS</Text>
             <Text style={[styles.channelVal, { color: colors.cardBlue }]}>
               {formatCurrency(totalCardCollected)}
             </Text>
@@ -417,7 +425,6 @@ export const CashBankScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.channelName}>OMC Fleet Cards</Text>
-            <Text style={styles.channelSub}>XtraPower / SmartFleet / DriveTrack</Text>
             <Text style={[styles.channelVal, { color: colors.diesel }]}>
               {formatCurrency(totalFleetCardCollected)}
             </Text>
@@ -434,7 +441,6 @@ export const CashBankScreen: React.FC = () => {
               </View>
             </View>
             <Text style={styles.channelName}>Customer Online Repayments</Text>
-            <Text style={styles.channelSub}>Direct Bank Transfer & Cheques</Text>
             <Text style={[styles.channelVal, { color: colors.accent }]}>
               {formatCurrency(totalCreditOnlineRecovered + totalChequeCollected)}
             </Text>
@@ -459,7 +465,6 @@ export const CashBankScreen: React.FC = () => {
               <View style={[styles.stepDot, { backgroundColor: colors.success }]} />
               <View>
                 <Text style={styles.waterfallRowTitle}>(+) Total Shift Cash Collected</Text>
-                <Text style={styles.waterfallRowSub}>Physical cash received from all pump shift operators</Text>
               </View>
             </View>
             <Text style={[styles.waterfallAmount, { color: colors.success }]}>
@@ -473,7 +478,6 @@ export const CashBankScreen: React.FC = () => {
               <View style={[styles.stepDot, { backgroundColor: colors.success }]} />
               <View>
                 <Text style={styles.waterfallRowTitle}>(+) Credit Customer Cash Inflow</Text>
-                <Text style={styles.waterfallRowSub}>Cash payments recovered on outstanding credit ledger</Text>
               </View>
             </View>
             <Text style={[styles.waterfallAmount, { color: colors.success }]}>
@@ -487,7 +491,6 @@ export const CashBankScreen: React.FC = () => {
               <View style={[styles.stepDot, { backgroundColor: colors.danger }]} />
               <View>
                 <Text style={styles.waterfallRowTitle}>(-)Cash Expenses Paid</Text>
-                <Text style={styles.waterfallRowSub}>Daily operating expenses paid from drawer cash</Text>
               </View>
             </View>
             <Text style={[styles.waterfallAmount, { color: colors.danger }]}>
@@ -501,7 +504,6 @@ export const CashBankScreen: React.FC = () => {
               <View style={[styles.stepDot, { backgroundColor: colors.primary }]} />
               <View>
                 <Text style={styles.waterfallRowTitle}>(-) Total Bank Deposits & Cash Drops</Text>
-                <Text style={styles.waterfallRowSub}>Physical cash deposited to bank accounts</Text>
               </View>
             </View>
             <Text style={[styles.waterfallAmount, { color: colors.primary }]}>
@@ -513,7 +515,6 @@ export const CashBankScreen: React.FC = () => {
           <View style={styles.waterfallTotalRow}>
             <View>
               <Text style={styles.waterfallTotalTitle}>= NET EXPECTED CASH IN SAFE (VAULT)</Text>
-              <Text style={styles.waterfallTotalSub}>Cash that must be present in bunk counter/safe</Text>
             </View>
             <Text style={styles.waterfallTotalAmount}>
               {formatCurrency(expectedCashInHand)}
@@ -536,7 +537,7 @@ export const CashBankScreen: React.FC = () => {
               onPress={handleAutoFillDenominations}
               activeOpacity={0.7}
             >
-              <Sparkles size={13} color={colors.accent} />
+              <Calculator size={13} color={colors.accent} />
               <Text style={styles.autoFillBtnText}>Auto-Match Safe Cash</Text>
             </TouchableOpacity>
 
@@ -581,9 +582,6 @@ export const CashBankScreen: React.FC = () => {
 
         {/* Quick Deposit Trigger from Denomination */}
         <View style={styles.denomFooter}>
-          <Text style={styles.denomFooterSub}>
-            Physical notes counted in cash drawer. Click below to deposit this exact amount to bank.
-          </Text>
           <TouchableOpacity
             style={styles.depositCountedBtn}
             onPress={() => setShowDepositModal(true)}
@@ -648,7 +646,7 @@ export const CashBankScreen: React.FC = () => {
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableCol, { width: 90 }]}>DATE</Text>
                 <Text style={[styles.tableCol, { width: 220 }]}>BANK & ACCOUNT</Text>
-                <Text style={[styles.tableCol, { width: 130 }]}>REFERENCE #</Text>
+                <Text style={[styles.tableCol, { width: 130 }]}>REFERENCE NO</Text>
                 <Text style={[styles.tableCol, { width: 100 }]}>DEPOSITED BY</Text>
                 <Text style={[styles.tableCol, { width: 110, textAlign: 'right' }]}>AMOUNT (₹)</Text>
                 <Text style={[styles.tableCol, { width: 70, textAlign: 'center' }]}>ACTION</Text>
@@ -801,7 +799,7 @@ export const CashBankScreen: React.FC = () => {
                 style={styles.saveDepositBtn}
                 onPress={handleSaveDeposit}
               >
-                <CheckCircle2 size={16} color="#000" />
+                <CheckCircle2 size={16} color="#FFFFFF" />
                 <Text style={styles.saveDepositText}>Confirm & Print Slip</Text>
               </TouchableOpacity>
             </View>
@@ -837,10 +835,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   screenTitle: {
-    color: '#000',
-    fontSize: 22,
+    color: colors.textPrimary,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   screenSubtitle: {
     color: colors.textSecondary,
@@ -882,11 +880,8 @@ const styles = StyleSheet.create({
   },
   dateFilterTabActive: {
     backgroundColor: colors.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   dateFilterTabText: {
     color: colors.textSecondary,
@@ -894,8 +889,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dateFilterTabTextActive: {
-    color: '#000',
-    fontWeight: '800',
+    color: colors.primary,
+    fontWeight: '700',
   },
   dayBookBtn: {
     flexDirection: 'row',
@@ -921,16 +916,11 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 8,
     gap: 6,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
   },
   depositBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 
   // ── Matrix Grid Styles ─────────────────────────────────────────────────────
@@ -943,7 +933,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 240,
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
@@ -956,15 +946,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   matrixLabel: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   matrixValue: {
-    color: '#000',
+    color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '800',
     fontFamily: typography.monoFont,
   },
   matrixSub: {
