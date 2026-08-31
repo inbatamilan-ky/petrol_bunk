@@ -187,7 +187,7 @@ export const MastersScreen: React.FC = () => {
     omc_brand: 'BPCL',
     gstin: '',
     peso_license_no: '',
-    operating_hours: '24 Hours Open',
+    operating_hours: '',
     contact_email: '',
     address_street: '',
     pincode: '',
@@ -206,7 +206,7 @@ export const MastersScreen: React.FC = () => {
       omc_brand: 'BPCL',
       gstin: '',
       peso_license_no: '',
-      operating_hours: '24 Hours Open',
+      operating_hours: '',
       contact_email: '',
       address_street: '',
       pincode: '',
@@ -227,7 +227,7 @@ export const MastersScreen: React.FC = () => {
       omc_brand: b.omc_brand || 'BPCL',
       gstin: b.gstin || '',
       peso_license_no: b.peso_license_no || '',
-      operating_hours: b.operating_hours || '24 Hours Open',
+      operating_hours: b.operating_hours || '',
       contact_email: b.contact_email || '',
       address_street: b.address_street || '',
       pincode: b.pincode || '',
@@ -1303,7 +1303,7 @@ export const MastersScreen: React.FC = () => {
                     style={styles.fieldInput}
                     value={branchForm.name}
                     onChangeText={(t) => setBranchForm({ ...branchForm, name: t })}
-                    placeholder="e.g. BPCL Guindy Express Auto Fuel"
+                    placeholder="Bunk Name"
                   />
                 </View>
 
@@ -1329,7 +1329,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.dealer_code}
                       onChangeText={(t) => setBranchForm({ ...branchForm, dealer_code: t })}
-                      placeholder="e.g. 184920"
+                      placeholder=""
                     />
                   </View>
                 </View>
@@ -1341,7 +1341,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.location}
                       onChangeText={(t) => setBranchForm({ ...branchForm, location: t })}
-                      placeholder="e.g. Chennai (Tamil Nadu)"
+                      placeholder=" "
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1349,9 +1349,9 @@ export const MastersScreen: React.FC = () => {
                     <TextInput
                       style={styles.fieldInput}
                       value={branchForm.pincode}
-                      onChangeText={(t) => setBranchForm({ ...branchForm, pincode: t })}
-                      placeholder="e.g. 600032"
+                      onChangeText={(t) => setBranchForm({ ...branchForm, pincode: (t.replace(/[^0-9]/g, '')) })}
                       keyboardType="numeric"
+                       maxLength={7}
                     />
                   </View>
                 </View>
@@ -1364,7 +1364,6 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.gstin}
                       onChangeText={(t) => setBranchForm({ ...branchForm, gstin: t.toUpperCase() })}
-                      placeholder="e.g. 33AAAAA0000A1Z5"
                       autoCapitalize="characters"
                     />
                   </View>
@@ -1374,7 +1373,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.peso_license_no}
                       onChangeText={(t) => setBranchForm({ ...branchForm, peso_license_no: t })}
-                      placeholder="e.g. PESO-EXP-TN-2023-9011"
+                   
                     />
                   </View>
                 </View>
@@ -1386,7 +1385,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.operating_hours}
                       onChangeText={(t) => setBranchForm({ ...branchForm, operating_hours: t })}
-                      placeholder="e.g. 24 Hours Open"
+                   
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1395,7 +1394,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.contact_email}
                       onChangeText={(t) => setBranchForm({ ...branchForm, contact_email: t })}
-                      placeholder="e.g. guindy@kypetrol.com"
+                      placeholder="email"
                       keyboardType="email-address"
                     />
                   </View>
@@ -1409,7 +1408,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.manager_name}
                       onChangeText={(t) => setBranchForm({ ...branchForm, manager_name: t })}
-                      placeholder="e.g. Suresh Kumar"
+                      placeholder="name"
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1418,7 +1417,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={branchForm.manager_phone}
                       onChangeText={(t) => setBranchForm({ ...branchForm, manager_phone: t })}
-                      placeholder="e.g. +91 98401 23456"
+                      placeholder="number"
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -1474,7 +1473,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={prodName}
                       onChangeText={setProdName}
-                      placeholder="e.g. Motor Spirit (MS Petrol)"
+                      placeholder="name"
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1483,7 +1482,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={prodCode}
                       onChangeText={setProdCode}
-                      placeholder="e.g. MS"
+                      placeholder=""
                       autoCapitalize="characters"
                     />
                   </View>
@@ -1526,24 +1525,25 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={prodRate}
                       onChangeText={setProdRate}
-                      placeholder="e.g. 101"
+                      placeholder=""
                       keyboardType="numeric"
                     />
                   </View>
                   <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>HSN Code</Text>
+                    <Text style={styles.fieldLabel}>GST Rate(%) </Text>
                     <TextInput
                       style={styles.fieldInput}
-                      value={prodHsnCode}
-                      onChangeText={setProdHsnCode}
-                      placeholder="e.g. 2710"
+                      value={prodGstRate}
+                      onChangeText={setProdGstRate}
+                      placeholder="0"
+                      keyboardType="numeric"
                     />
                   </View>
                 </View>
 
-                <View style={styles.formGrid2}>
+                {/* <View style={styles.formGrid2}>
                   <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>GST Rate (%)</Text>
+                    <Text style={styles.fieldLabel}>HSN Code (%)</Text>
                     <TextInput
                       style={styles.fieldInput}
                       value={prodGstRate}
@@ -1562,7 +1562,7 @@ export const MastersScreen: React.FC = () => {
                       keyboardType="numeric"
                     />
                   </View>
-                </View>
+                </View> */}
 
                 <Text style={styles.formSectionHeading}>3. QUALITY & DENSITY LIMITS</Text>
                 <View style={styles.formGrid2}>
@@ -1586,13 +1586,13 @@ export const MastersScreen: React.FC = () => {
                         placeholder="Min"
                         keyboardType="numeric"
                       />
-                      <TextInput
+                      {/* <TextInput
                         style={[styles.fieldInput, { flex: 1 }]}
                         value={prodDensityMax}
                         onChangeText={setProdDensityMax}
                         placeholder="Max"
                         keyboardType="numeric"
-                      />
+                      /> */}
                     </View>
                   </View>
                 </View>
@@ -1652,7 +1652,7 @@ export const MastersScreen: React.FC = () => {
                   </View>
                 </View>
 
-                <View style={styles.formGrid2}>
+                {/* <View style={styles.formGrid2}>
                   <View style={styles.formGroup}>
                     <Text style={styles.fieldLabel}>Make / Manufacturer</Text>
                     <TextInput
@@ -1713,7 +1713,7 @@ export const MastersScreen: React.FC = () => {
                       placeholder="e.g. Dual Side / Lane 1"
                     />
                   </View>
-                </View>
+                </View> */}
 
                 <Text style={styles.formSectionHeading}>2. NOZZLE CONFIGURATION</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1799,7 +1799,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opName}
                       onChangeText={setOpName}
-                      placeholder="e.g. Murugan K"
+                      placeholder="name"
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1808,7 +1808,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opCode}
                       onChangeText={setOpCode}
-                      placeholder="e.g. EMP-105"
+                      placeholder=""
                     />
                   </View>
                 </View>
@@ -1820,7 +1820,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opPhone}
                       onChangeText={(t) => setOpPhone(t.replace(/[^0-9+ ]/g, ''))}
-                      placeholder="e.g. +91 98421 88721"
+                      placeholder="number"
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -1830,7 +1830,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opAadhaar}
                       onChangeText={setOpAadhaar}
-                      placeholder="e.g. 5412-8821-9921"
+                      placeholder="Gov ID No"
                     />
                   </View>
                 </View>
@@ -1842,7 +1842,7 @@ export const MastersScreen: React.FC = () => {
                     style={styles.fieldInput}
                     value={opSalary}
                     onChangeText={setOpSalary}
-                    placeholder="18000"
+                    placeholder=" "
                     keyboardType="numeric"
                   />
                 </View>
@@ -1868,7 +1868,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opEmergency}
                       onChangeText={setOpEmergency}
-                      placeholder="e.g. +91 94431 11223"
+                      placeholder="Emergency number"
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -1910,7 +1910,7 @@ export const MastersScreen: React.FC = () => {
                   style={styles.fieldInput}
                   value={etName}
                   onChangeText={setEtName}
-                  placeholder="e.g. Generator Diesel & Service"
+                  placeholder=" "
                 />
               </View>
 
@@ -1968,7 +1968,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custName}
                       onChangeText={setCustName}
-                      placeholder="e.g. SRS Logistics & Transport Pvt Ltd"
+                      placeholder="company name"
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1977,7 +1977,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custCode}
                       onChangeText={setCustCode}
-                      placeholder="e.g. CUST-SRS"
+                      placeholder=""
                       autoCapitalize="characters"
                     />
                   </View>
@@ -1990,7 +1990,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custPerson}
                       onChangeText={setCustPerson}
-                      placeholder="e.g. Ramesh V (Fleet Manager)"
+                      placeholder=""
                     />
                   </View>
                   <View style={styles.formGroup}>
@@ -1999,7 +1999,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custPhone}
                       onChangeText={(t) => setCustPhone(t.replace(/[^0-9+ ]/g, ''))}
-                      placeholder="e.g. +91 98401 99120"
+                      placeholder="number"
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -2013,7 +2013,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custGstin}
                       onChangeText={(t) => setCustGstin(t.toUpperCase())}
-                      placeholder="e.g. 33AAAAA0000A1Z5"
+                      placeholder=" "
                       autoCapitalize="characters"
                     />
                   </View>
@@ -2023,7 +2023,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custPan}
                       onChangeText={(t) => setCustPan(t.toUpperCase())}
-                      placeholder="e.g. AAAAA0000A"
+                      placeholder=" "
                       autoCapitalize="characters"
                     />
                   </View>
@@ -2036,7 +2036,7 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={custLimit}
                       onChangeText={setCustLimit}
-                      placeholder="500000"
+                      placeholder=" "
                       keyboardType="numeric"
                     />
                   </View>
@@ -2082,7 +2082,7 @@ export const MastersScreen: React.FC = () => {
                     style={styles.fieldInput}
                     value={custVehicles}
                     onChangeText={setCustVehicles}
-                    placeholder="e.g. TN 01 AB 1234, TN 01 CD 5678, TN 09 EF 9012"
+                    placeholder=" "
                   />
                 </View>
 
@@ -2092,7 +2092,7 @@ export const MastersScreen: React.FC = () => {
                     style={styles.fieldInput}
                     value={custBillingAddress}
                     onChangeText={setCustBillingAddress}
-                    placeholder="Full street address for thermal billing"
+                    placeholder=""
                   />
                 </View>
 
