@@ -375,7 +375,7 @@ export const Header: React.FC = () => {
                 </View>
                 <Text style={styles.confirmModalTitle}>Confirm Sign Out</Text>
                 <Text style={styles.confirmModalMessage}>
-                  Are you sure you want to log out of FuelPulse? Any unsaved shift entries should be saved before exiting.
+                  Are you sure you want to log out of petrol bunk? Any unsaved shift entries should be saved before exiting.
                 </Text>
 
                 <View style={styles.confirmModalActions}>

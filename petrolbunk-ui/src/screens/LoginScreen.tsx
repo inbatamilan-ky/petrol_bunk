@@ -136,11 +136,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <View style={styles.card}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <Fuel size={24} color="#FFFFFF" />
-            </View>
-            <Text style={styles.title}>Petrol Bunk Account Management System</Text>
+             <View style={styles.logoBadge}>
+                      <Fuel size={20} color="#FFFFFF" />
+                      <View style={styles.logoDot} />
+                    </View>
+                    <View>
+
+            <Text style={styles.title}>Petrol Bunk Accounting System</Text>
             <Text style={styles.subtitle}>Sign in to manage station shifts and accounts</Text>
+          </View>
           </View>
 
           {/* Form */}
@@ -415,6 +419,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+  }, logoDot: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FFDE00', // Bharat Petroleum Yellow
   },
   title: {
     fontSize: 18,
@@ -457,7 +469,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textPrimary,
     padding: 0,
-  },
+    outlineStyle: 'none',
+  } as any,
   eyeBtn: {
     padding: 4,
   },
