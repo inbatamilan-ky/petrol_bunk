@@ -17,8 +17,8 @@ export const formatLitres = (litres: number | undefined | null): string => {
 };
 
 export const formatMeter = (reading: number | undefined | null): string => {
-  if (reading === undefined || reading === null || isNaN(reading)) return '0';
-  return String(Math.round(reading));
+  if (reading === undefined || reading === null || isNaN(reading)) return '0.00';
+  return Number(reading).toFixed(2);
 };
 
 export const formatDate = (dateStr: string): string => {

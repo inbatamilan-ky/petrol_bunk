@@ -102,6 +102,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Today's Fuel Sales"
           value={formatCurrency(totalSalesToday)}
+          subtitle={"Total litres: "+formatLitres(totalLitresToday)}
           icon={Fuel}
           accentColor={colors.petrol}
            
@@ -207,7 +208,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Recent Shifts & Settlement Section */}
       <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Shift Settlements</Text>
+            <Text style={styles.sectionTitle}>Recent Shifts</Text>
             <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
               <Text style={styles.linkText}>All Shifts</Text>
               <ChevronRight size={14} color={colors.primary} />
@@ -234,14 +235,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
                   <View style={styles.shiftCardRight}>
                     <Text style={[styles.shiftAmountText, isClosed && { color: colors.inactiveGrey }]}>{formatCurrency(shift.totalSalesAmount)}</Text>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                       style={styles.printSlipBtn}
                       onPress={() => openShiftThermal(shift)}
                       activeOpacity={0.7}
                     >
                       <Printer size={13} color={colors.textSecondary} />
                       <Text style={styles.printSlipText}>POS Slip</Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </View>
                 </View>
               );

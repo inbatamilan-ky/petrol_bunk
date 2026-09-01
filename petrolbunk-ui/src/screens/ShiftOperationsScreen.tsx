@@ -469,7 +469,7 @@ export const ShiftOperationsScreen: React.FC = () => {
         </View>
 
         <View style={styles.headerButtons}>
-          {currentShift && !isClosed && (
+          {/* {currentShift && !isClosed && (
             <TouchableOpacity
               style={[styles.saveDraftBtn, draftSavedToast && styles.saveDraftBtnSuccess]}
               onPress={handleSaveDraft}
@@ -490,7 +490,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                 </>
               )}
             </TouchableOpacity>
-          )}
+          )} */}
 
           <TouchableOpacity
             style={styles.openShiftBtn}
@@ -507,7 +507,7 @@ export const ShiftOperationsScreen: React.FC = () => {
       <View style={styles.pumpFilterCard}>
         <View style={styles.pumpFilterHeader}>
           <Gauge size={15} color="#007DC6" />
-          <Text style={styles.pumpFilterTitle}>SELECT PUMP DISPENSER:</Text>
+          <Text style={styles.pumpFilterTitle}>PUMP DISPENSER:</Text>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pumpTabsScroll}>
@@ -695,14 +695,7 @@ export const ShiftOperationsScreen: React.FC = () => {
               </View>
 
               <View style={styles.metaActions}>
-                <TouchableOpacity
-                  style={styles.printBtn}
-                  onPress={() => generateThermalReceipt(currentShift)}
-                  activeOpacity={0.8}
-                >
-                  <Printer size={14} color="#0F172A" />
-                  <Text style={styles.printBtnText}>Print Slip</Text>
-                </TouchableOpacity>
+           
 
                 <TouchableOpacity
                   style={styles.editShiftBtn}
@@ -745,11 +738,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                 <Calculator size={18} color="#007DC6" />
                 <Text style={styles.sectionTitle}>1. Nozzle Meter Readings & Sales Calculation</Text>
               </View>
-              {!isClosed && (
-                <Text style={styles.hintTypableText}>
-                  ✏️ Type closing meter & testing litres freely below
-                </Text>
-              )}
+           
             </View>
 
             <View style={styles.readingsList}>
@@ -852,7 +841,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                             onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'opening', val)}
                             keyboardType="numeric"
                           />
-                          <Text style={styles.inputSubHint}>From master totalizer</Text>
+                        
                         </View>
 
                         {/* Closing Reading */}
@@ -861,16 +850,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                             <Text style={[styles.inputLabel, { color: isNozzleDisabled ? '#64748B' : '#007DC6', fontWeight: '700' }]}>
                               Closing Meter (L) {isNozzleDisabled ? '(Locked)' : '*'}
                             </Text>
-                            {!isNozzleDisabled && (
-                              <TouchableOpacity
-                                style={styles.simTriggerBtn}
-                                onPress={() => setSimNozzleId(reading.nozzleId)}
-                                activeOpacity={0.7}
-                              >
-                                <Gauge size={11} color="#3B82F6" />
-                                <Text style={styles.simTriggerText}>Test Meter</Text>
-                              </TouchableOpacity>
-                            )}
+                         
                           </View>
                           <TextInput
                             style={[
@@ -885,13 +865,11 @@ export const ShiftOperationsScreen: React.FC = () => {
                             placeholderTextColor={colors.textMuted}
                             keyboardType="numeric"
                           />
-                          <Text style={styles.inputSubHint}>
-                            {isNozzleDisabled ? 'Deactivated in Masters' : 'Physical dispenser reading'}
-                          </Text>
+                         
                         </View>
 
                         {/* Testing / Calibration */}
-                        <View style={[styles.inputCol, { maxWidth: 110 }]}>
+                        {/* <View style={[styles.inputCol, { maxWidth: 110 }]}>
                           <Text style={styles.inputLabel}>Testing (L)</Text>
                           <TextInput
                             style={[
@@ -904,7 +882,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                             keyboardType="numeric"
                           />
                           <Text style={styles.inputSubHint}>Returned to tank</Text>
-                        </View>
+                        </View> */}
 
                         {/* Calculated Output Box */}
                         <View style={styles.calcOutputCol}>
@@ -1031,29 +1009,29 @@ export const ShiftOperationsScreen: React.FC = () => {
 
             <View style={styles.settlementRows}>
               <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Total Fuel Sales (A):</Text>
+                <Text style={styles.settleLabel}>Total Fuel Sales :</Text>
                 <Text style={styles.settleVal}>{formatCurrency(currentShift.totalSalesAmount)}</Text>
               </View>
 
               <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Less Expenses Paid (B):</Text>
+                <Text style={styles.settleLabel}>Less Expenses Paid :</Text>
                 <Text style={styles.settleVal}>- {formatCurrency(currentShift.expensesDeducted)}</Text>
               </View>
 
               <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Net Expected Settlement (A - B):</Text>
+                <Text style={styles.settleLabel}>Net Expected Settlement :</Text>
                 <Text style={[styles.settleVal, { color: '#007DC6' }]}>
                   {formatCurrency(currentShift.totalSalesAmount - (currentShift.expensesDeducted || 0))}
                 </Text>
               </View>
 
               <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Total Collections Counted (C):</Text>
+                <Text style={styles.settleLabel}>Total Collections Counted :</Text>
                 <Text style={styles.settleVal}>{formatCurrency(currentShift.totalCollected)}</Text>
               </View>
 
               <View style={[styles.settleRow, styles.settleRowHighlight]}>
-                <Text style={styles.settleLabelBold}>VARIANCE / HANDOVER BALANCE (C - (A - B)):</Text>
+                <Text style={styles.settleLabelBold}>HANDOVER BALANCE :</Text>
                 <Text
                   style={[
                     styles.settleValBold,
@@ -1076,7 +1054,7 @@ export const ShiftOperationsScreen: React.FC = () => {
               </View>
             </View>
 
-            <View style={styles.verificationBar}>
+            {/* <View style={styles.verificationBar}>
               <CheckCircle
                 size={16}
                 color={currentShift.shortageOrExcess === 0 ? '#16A34A' : '#D97706'}
@@ -1088,7 +1066,7 @@ export const ShiftOperationsScreen: React.FC = () => {
                   ? `Shift collection has a shortage of ${formatCurrency(Math.abs(currentShift.shortageOrExcess))}`
                   : `Shift collection has an excess of ${formatCurrency(currentShift.shortageOrExcess)}`}
               </Text>
-            </View>
+            </View> */}
           </View>
         </>
       ) : null}
@@ -1098,7 +1076,7 @@ export const ShiftOperationsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Open New Shift Handover</Text>
+              <Text style={styles.modalTitle}>Open New Shift</Text>
               <TouchableOpacity onPress={() => setShowOpenModal(false)}>
                 <X size={20} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -1116,7 +1094,7 @@ export const ShiftOperationsScreen: React.FC = () => {
 
                 {/* Select Pump */}
                 <DropdownPicker
-                  label="Select Pump Dispenser *"
+                  label="Pump Dispenser *"
                   placeholder="Select Pump Dispenser..."
                   options={pumps.map((pump) => ({
                     label: `Pump ${pump.pumpNo}`,
@@ -1168,7 +1146,7 @@ export const ShiftOperationsScreen: React.FC = () => {
 
                 {/* Select Shift Operator */}
                 <DropdownPicker
-                  label="Select Shift Operator *"
+                  label="Shift Operator *"
                   placeholder="Select Shift Operator..."
                   options={operators.map((op) => ({
                     label: op.name,
@@ -1183,7 +1161,7 @@ export const ShiftOperationsScreen: React.FC = () => {
 
                 {/* Relief Operator (Optional) */}
                 <DropdownPicker
-                  label="Relief Operator (Optional)"
+                  label="Reliever Operator"
                   placeholder="Select Relief Operator..."
                   options={[
                     { label: 'None (No Relief)', value: '' },
@@ -1201,7 +1179,7 @@ export const ShiftOperationsScreen: React.FC = () => {
 
                 {/* Opening Cash Float */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Opening Cash Float (₹)</Text>
+                  <Text style={styles.formLabel}>Opening Cash (₹)</Text>
                   <TextInput
                     style={styles.simInput}
                     value={openingCashFloat}
