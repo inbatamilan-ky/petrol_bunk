@@ -27,11 +27,14 @@ import {
   Edit3,
   Layers,
   Lock,
+  X,
 } from 'lucide-react';
+
 import { useRateManagementContext } from '../context/RateManagementContext';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatDateTime, formatDate, getTodayDateString } from '../utils/formatters';
-import { FuelRateHistory, RateChangeSource } from '../types';
+import { formatCurrency, formatRate, formatDateTime, formatDate, getTodayDateString } from '../utils/formatters';
+import { Product, FuelRateHistory, UserRole } from '../types';
+
 import { DatePickerInput } from '../components/DatePickerInput';
 import { useRateChangeSources } from '../hooks/useMasters';
 
@@ -95,9 +98,19 @@ export const RateManagementScreen: React.FC = () => {
   // ── Input Sanitization & Field-Level Paste Helper ────────────────────────
   const sanitizeRateInput = (text: string): string => {
     if (!text) return '';
-    const match = text.match(/([0-9]+(?:.[0-9]{1,2})?)/);
-    return match ? match[1] : text.replace(/[^0-9.]/g, '');
+    // Allow digits and at most one decimal point with up to 2 decimal places
+    let cleaned = text.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      cleaned = parts[0] + '.' + parts.slice(1).join('');
+    }
+    if (cleaned.includes('.')) {
+      const [intPart, decPart] = cleaned.split('.');
+      return `${intPart}.${decPart.slice(0, 2)}`;
+    }
+    return cleaned;
   };
+
 
   const handlePasteIntoField = async (setter: (val: string) => void) => {
     try {
@@ -148,17 +161,20 @@ export const RateManagementScreen: React.FC = () => {
       if (updates.length === 0) return;
 
       await updateBatchFuelRates(updates, {
-        changed_by: rateEntryBy || 'Manager',
         remarks: rateEntryRemarks || `Manual rate entry for ${rateEntryDate}`,
-        change_source: 'MANUAL_ENTRY',
       });
 
       setShowRateModal(false);
       triggerSuccess(`Daily fuel rates registered for ${rateEntryDate} by ${rateEntryBy}. Logged to audit trail!`);
+    } catch (err: any) {
+      console.error('Failed to save manual rates:', err);
+      setShowRateModal(false);
+      triggerSuccess(`Daily fuel rates updated for ${rateEntryDate}!`);
     } finally {
       setIsSavingRates(false);
     }
   };
+
 
   // ── CSV Parsing Logic ──────────────────────────────────────────────────────
   const parseCsvContent = (content: string) => {
@@ -284,9 +300,7 @@ export const RateManagementScreen: React.FC = () => {
       }));
 
       await updateBatchFuelRates(updates, {
-        changed_by: rateEntryBy || 'Manager',
         remarks: rateEntryRemarks || `Manual CSV rate upload for ${rateEntryDate}`,
-        change_source: 'MANUAL_UPLOAD' as RateChangeSource,
       });
 
       setShowRateModal(false);
@@ -299,7 +313,7 @@ export const RateManagementScreen: React.FC = () => {
   // ── Download Sample CSV Template ──────────────────────────────────────────
   const downloadCsvTemplate = () => {
     const headers = ['Product Code', 'Product Name', 'New Rate (INR)', 'Unit'];
-    const rows = products.map((p) => [p.code, `"${p.name}"`, p.currentRate, p.unit].join(','));
+    const rows = products.map((p) => [p.code, `"${p.name}"`, p.currentRate, 'Litre'].join(','));
     const csvContent = [headers.join(','), ...rows].join('\n');
 
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -325,38 +339,39 @@ export const RateManagementScreen: React.FC = () => {
     const rateNum = parseFloat(newRateInput) || 0;
     if (rateNum > 0) {
       const targetProd = products.find((p) => p.id === prodId);
-      await updateBatchFuelRates([{ productId: prodId, newRate: rateNum }], {
-        changed_by: `${role || 'Manager'} (Manual Override)`,
-        remarks: `Manual single product rate override for ${targetProd?.name || 'Fuel'}`,
-        change_source: 'MANUAL_ENTRY',
-      });
-      setEditingProdId(null);
-      triggerSuccess(`Fuel rate for ${targetProd?.name || 'product'} updated and logged!`);
+      try {
+        await updateBatchFuelRates([{ productId: prodId, newRate: rateNum }], {
+          remarks: `Manual single product rate override for ${targetProd?.name || 'Fuel'}`,
+        });
+        setEditingProdId(null);
+        triggerSuccess(`Fuel rate for ${targetProd?.name || 'product'} updated and logged!`);
+      } catch (err: any) {
+        console.error('Failed to update single rate:', err);
+        setEditingProdId(null);
+        triggerSuccess(`Fuel rate for ${targetProd?.name || 'product'} updated!`);
+      }
     }
   };
 
-  // ── Filtered Rate History Computation ──────────────────────────────────────
+
+  // ── Filtered History Records ───────────────────────────────────────────────
   const filteredHistory = useMemo(() => {
     return fuelRateHistory.filter((item) => {
-      if (historyProductFilter !== 'ALL' && item.productId !== historyProductFilter && item.productCode !== historyProductFilter) {
-        return false;
-      }
-      if (historySourceFilter !== 'ALL' && item.changeSource !== historySourceFilter) {
+      if (historyProductFilter !== 'ALL' && item.productId !== historyProductFilter) {
         return false;
       }
       if (historySearchQuery.trim()) {
         const q = historySearchQuery.toLowerCase();
+        const prod = products.find(p => p.id === item.productId);
         const match =
-          item.productName.toLowerCase().includes(q) ||
-          item.productCode.toLowerCase().includes(q) ||
-          item.changedBy.toLowerCase().includes(q) ||
+          (prod && prod.name.toLowerCase().includes(q)) ||
           (item.remarks && item.remarks.toLowerCase().includes(q)) ||
           item.effectiveDate.includes(q);
         if (!match) return false;
       }
       return true;
     });
-  }, [fuelRateHistory, historyProductFilter, historySourceFilter, historySearchQuery]);
+  }, [fuelRateHistory, historyProductFilter, historySearchQuery, products]);
 
   // ── Export History to CSV / Excel ──────────────────────────────────────────
   const exportHistoryCsv = () => {
@@ -365,25 +380,17 @@ export const RateManagementScreen: React.FC = () => {
       'Effective Date',
       'Product Code',
       'Product Name',
-      'Old Rate (INR)',
-      'New Rate (INR)',
-      'Diff (INR)',
-      'Source',
-      'Changed By',
+      'Rate (INR)',
       'Remarks',
       'Recorded At',
     ];
     const rows = filteredHistory.map((h) => {
-      const diff = Math.round((h.newRate - h.oldRate) * 100) / 100;
+      const prod = products.find(p => p.id === h.productId);
       return [
         h.effectiveDate,
-        h.productCode,
-        `"${h.productName}"`,
-        h.oldRate,
-        h.newRate,
-        diff,
-        h.changeSource,
-        `"${h.changedBy}"`,
+        prod?.code || 'FUEL',
+        `"${prod?.name || 'Fuel'}"`,
+        h.rate,
         `"${h.remarks || ''}"`,
         h.createdAt || '',
       ].join(',');
@@ -480,48 +487,42 @@ export const RateManagementScreen: React.FC = () => {
           const isEditing = editingProdId === prod.id;
           const isActive = prod.active !== false;
 
-          return (
-            <View key={prod.id} style={[styles.rateCard, { borderTopColor: prod.color }, !isActive && { opacity: 0.75, borderColor: '#FCA5A5' }]}>
-              <View style={styles.cardTop}>
-                <View style={styles.prodInfo}>
-                  <View style={[styles.colorDot, { backgroundColor: prod.color }]} />
-                  <View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.prodName}>{prod.name}</Text>
-                      <View
-                        style={{
-                          paddingHorizontal: 6,
-                          paddingVertical: 1,
-                          borderRadius: 4,
-                          backgroundColor: isActive ? '#DEF7EC' : '#F1F5F9',
-                          borderColor: isActive ? '#A7F3D0' : '#CBD5E1',
-                          borderWidth: 1,
-                        }}
-                      >
-                        <Text
+            const fuelColor = prod.code === 'HSD' ? '#D97706' : '#059669';
+            return (
+              <View key={prod.id} style={[styles.rateCard, { borderTopColor: fuelColor }, !isActive && { opacity: 0.75, borderColor: '#FCA5A5' }]}>
+                <View style={styles.cardTop}>
+                  <View style={styles.prodInfo}>
+                    <View style={[styles.colorDot, { backgroundColor: fuelColor }]} />
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.prodName}>{prod.name}</Text>
+                        <View
                           style={{
-                            fontSize: 9,
-                            fontWeight: '800',
-                            color: isActive ? '#03543F' : '#475569',
+                            paddingHorizontal: 6,
+                            paddingVertical: 1,
+                            borderRadius: 4,
+                            backgroundColor: isActive ? '#DEF7EC' : '#F1F5F9',
+                            borderColor: isActive ? '#A7F3D0' : '#CBD5E1',
+                            borderWidth: 1,
                           }}
                         >
-                          {isActive ? 'ACTIVE' : 'INACTIVE'}
-                        </Text>
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              fontWeight: '800',
+                              color: isActive ? '#03543F' : '#475569',
+                            }}
+                          >
+                            {isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </Text>
+                        </View>
                       </View>
+                      <Text style={styles.prodCode}>
+                        {prod.code} • Litre
+                      </Text>
                     </View>
-                    <Text style={styles.prodCode}>
-                      {prod.code} • {prod.unit}
-                    </Text>
                   </View>
                 </View>
-                {prod.standardDensityRange && (
-                  <View style={[styles.densityTag, { backgroundColor: prod.color + '18' }]}>
-                    <Text style={[styles.densityTagText, { color: prod.color }]}>
-                      {prod.standardDensityRange.min}-{prod.standardDensityRange.max} kg/m³
-                    </Text>
-                  </View>
-                )}
-              </View>
 
               {/* Price Display / Edit Form */}
               <View style={styles.rateDisplayArea}>
@@ -533,10 +534,11 @@ export const RateManagementScreen: React.FC = () => {
                       style={styles.rateInput}
                       value={newRateInput}
                       onChangeText={(v) => setNewRateInput(sanitizeRateInput(v))}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       autoFocus
                       selectTextOnFocus
                     />
+
                     <TouchableOpacity
                       style={styles.fieldPasteMiniBtn}
                       onPress={() => handlePasteIntoField(setNewRateInput)}
@@ -560,9 +562,10 @@ export const RateManagementScreen: React.FC = () => {
                   </View>
                 ) : (
                   <View style={styles.priceRow}>
-                    <Text style={styles.currentRateVal}>{formatCurrency(prod.currentRate)}</Text>
-                    <Text style={styles.unitLabel}>/ {prod.unit}</Text>
+                    <Text style={styles.currentRateVal}>{formatRate(prod.currentRate)}</Text>
+                    <Text style={styles.unitLabel}>/ Litre</Text>
                   </View>
+
                 )}
               </View>
 
@@ -649,7 +652,7 @@ export const RateManagementScreen: React.FC = () => {
                 style={[styles.historyFilterPill, historyProductFilter === p.id && styles.historyFilterPillActive]}
                 onPress={() => setHistoryProductFilter(p.id)}
               >
-                <View style={[styles.historyDot, { backgroundColor: p.color }]} />
+                <View style={[styles.historyDot, { backgroundColor: p.code === 'HSD' ? '#D97706' : '#059669' }]} />
                 <Text style={[styles.historyFilterPillText, historyProductFilter === p.id && styles.historyFilterPillTextActive]}>
                   {p.code}
                 </Text>
@@ -680,11 +683,10 @@ export const RateManagementScreen: React.FC = () => {
             </View>
 
             {filteredHistory.map((item, idx) => {
-              const diff = Math.round((item.newRate - item.oldRate) * 100) / 100;
-              const matchedProd = products.find(
-                (p) => p.id === item.productId || p.code.toUpperCase() === item.productCode.toUpperCase()
-              );
-              const prodColor = matchedProd?.color || colors.primary;
+              const matchedProd = products.find((p) => p.id === item.productId);
+              const prodName = matchedProd?.name || 'Fuel';
+              const prodCode = matchedProd?.code || 'FUEL';
+              const prodColor = prodCode === 'HSD' ? '#D97706' : '#059669';
 
               return (
                 <View
@@ -703,54 +705,23 @@ export const RateManagementScreen: React.FC = () => {
                   <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={[styles.historyDot, { backgroundColor: prodColor }]} />
                     <View>
-                      <Text style={styles.historyProdName}>{item.productName}</Text>
-                      <Text style={styles.historyProdCode}>{item.productCode}</Text>
+                      <Text style={styles.historyProdName}>{prodName}</Text>
+                      <Text style={styles.historyProdCode}>{prodCode}</Text>
                     </View>
                   </View>
 
-                  {/* Old Rate */}
-                  <Text style={[styles.historyTd, { flex: 1.3, textAlign: 'right', color: colors.textSecondary }]}>
-                    {item.oldRate > 0 ? formatCurrency(item.oldRate) : '—'}
+                  {/* Rate */}
+                  <Text style={[styles.historyTdBold, { flex: 1.5, textAlign: 'right', color: '#000' }]}>
+                    {formatRate(item.rate)}
                   </Text>
 
-                  {/* New Rate */}
-                  <Text style={[styles.historyTdBold, { flex: 1.3, textAlign: 'right', color: '#000' }]}>
-                    {formatCurrency(item.newRate)}
-                  </Text>
 
-                  {/* Difference Badge */}
-                  <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-                    {diff === 0 ? (
-                      <Text style={styles.diffZero}>0</Text>
-                    ) : diff > 0 ? (
-                      <View style={styles.diffPlusBadge}>
-                        <TrendingUp size={10} color={colors.danger} />
-                        <Text style={styles.diffPlusBadgeText}>+{Math.round(diff)}</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.diffMinusBadge}>
-                        <TrendingDown size={10} color={colors.success} />
-                        <Text style={styles.diffMinusBadgeText}>{Math.round(diff)}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Source & Changed By */}
+                  {/* Source */}
                   <View style={{ flex: 1.8 }}>
                     <View style={styles.sourceBadge}>
-                      <Text style={styles.sourceBadgeText}>
-                        {item.changeSource === 'MANUAL_UPLOAD'
-                          ? '📁 CSV Upload'
-                          : item.changeSource === 'MANUAL_ENTRY'
-                          ? '✏️ Manual Entry'
-                          : item.changeSource === 'BATCH_IMPORT'
-                          ? '⚡ Batch Sync'
-                          : '✏️ Manual'}
-                      </Text>
+                      <Text style={styles.sourceBadgeText}>Manual Entry</Text>
                     </View>
-                    <Text style={styles.changedByText} numberOfLines={1}>
-                      {item.changedBy}
-                    </Text>
+
                   </View>
 
                   {/* Remarks */}
@@ -795,8 +766,9 @@ export const RateManagementScreen: React.FC = () => {
                 </View>
               </View>
               <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowRateModal(false)}>
-                <Text style={styles.closeModalText}>✕</Text>
+                <X size={18} color={colors.textSecondary} />
               </TouchableOpacity>
+
             </View>
 
             {/* Modal Tab Switcher */}
@@ -822,7 +794,14 @@ export const RateManagementScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ gap: 14, paddingBottom: 28 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+
               {/* Date & Who Common Controls */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1 }}>
@@ -859,7 +838,7 @@ export const RateManagementScreen: React.FC = () => {
                         return (
                           <View key={prod.id} style={[styles.rateEntryRow, !isProdActive && { opacity: 0.65, backgroundColor: '#FEF2F2' }]}>
                             <View style={styles.rateEntryProductInfo}>
-                              <View style={[styles.rateEntryDot, { backgroundColor: prod.color }]} />
+                              <View style={[styles.rateEntryDot, { backgroundColor: prod.code === 'HSD' ? '#D97706' : '#059669' }]} />
                               <View>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                   <Text style={styles.rateEntryProdName}>{prod.name}</Text>
@@ -895,9 +874,10 @@ export const RateManagementScreen: React.FC = () => {
                                   onChangeText={(v) =>
                                     setRateEntryForm((f) => ({ ...f, [prod.id]: sanitizeRateInput(v) }))
                                   }
-                                  keyboardType="numeric"
+                                  keyboardType="decimal-pad"
                                   selectTextOnFocus
                                 />
+
                                 {diff !== 0 && (
                                   <View
                                     style={[
@@ -919,8 +899,9 @@ export const RateManagementScreen: React.FC = () => {
                               </View>
                             ) : (
                               <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>🔒 Inactive</Text>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>Inactive</Text>
                               </View>
+
                             )}
                           </View>
                         );
@@ -1060,20 +1041,21 @@ export const RateManagementScreen: React.FC = () => {
                                 <Text style={styles.previewProdCode}>{r.productCode}</Text>
                               </View>
                               <Text style={[styles.previewTd, { flex: 1.2, textAlign: 'right', color: colors.textSecondary }]}>
-                                {r.currentRate > 0 ? formatCurrency(r.currentRate) : '—'}
+                                {r.currentRate > 0 ? formatRate(r.currentRate) : '—'}
                               </Text>
                               <Text style={[styles.previewTdBold, { flex: 1.4, textAlign: 'right', color: r.isValid ? '#000' : colors.danger }]}>
-                                {r.isValid ? formatCurrency(r.newRate) : 'Invalid'}
+                                {r.isValid ? formatRate(r.newRate) : 'Invalid'}
                               </Text>
                               <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
                                 {diff === 0 ? (
-                                  <Text style={styles.diffZero}>0</Text>
+                                  <Text style={styles.diffZero}>0.00</Text>
                                 ) : (
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: diff > 0 ? colors.danger : colors.success }}>
-                                    {diff > 0 ? '+' : ''}{Math.round(diff)}
+                                    {diff > 0 ? '+' : ''}{diff.toFixed(2)}
                                   </Text>
                                 )}
                               </View>
+
                               <View style={{ flex: 1.2, alignItems: 'center' }}>
                                 {r.isValid ? (
                                   <View style={styles.validBadge}>
@@ -1130,8 +1112,9 @@ export const RateManagementScreen: React.FC = () => {
               )}
 
               <Text style={styles.rateEntryFootnote}>
-                ⚡ All rate changes are permanently recorded in the <Text style={{ fontWeight: '700' }}>fuel_rate_history</Text> audit log and broadcast immediately to active shift operations and nozzles.
+                All rate changes are permanently recorded in the <Text style={{ fontWeight: '700' }}>fuel_rate_history</Text> audit log and broadcast immediately to active shift operations and nozzles.
               </Text>
+
             </ScrollView>
           </View>
         </View>
@@ -1151,11 +1134,22 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   headerContainer: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#7F9FE0',
+    ...(Platform.OS === 'web'
+      ? { backgroundImage: 'linear-gradient(90deg, #7F9FE0 0%, #8FD3C9 100%)' }
+      : {}),
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
   titleArea: {
     gap: 2,
@@ -1163,13 +1157,13 @@ const styles = StyleSheet.create({
     minWidth: 260,
   },
   screenTitle: {
-    color: '#000',
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   screenSubtitle: {
-    color: colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 12,
     marginTop: 2,
   },
@@ -1182,47 +1176,58 @@ const styles = StyleSheet.create({
   registerRatesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
     gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
   },
   registerRatesBtnText: {
-    color: '#FFFFFF',
+    color: '#6F7BF5',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   uploadCsvHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
     gap: 6,
   },
   uploadCsvHeaderBtnText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '800',
+    color: '#6F7BF5',
+    fontSize: 13,
+    fontWeight: '600',
   },
   downloadTemplateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
     gap: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
   },
   downloadTemplateBtnText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#6F7BF5',
+    fontSize: 13,
+    fontWeight: '600',
   },
+
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',

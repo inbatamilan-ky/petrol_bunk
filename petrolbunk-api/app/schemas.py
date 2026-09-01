@@ -1,21 +1,24 @@
-from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+"""
+Pydantic schemas — FuelPulse v2 (strict Excel scope).
+"""
+
+from datetime import date as dt_date, datetime as dt_datetime, time as dt_time
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
 # AUTH / USERS
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+
 class UserCreate(BaseModel):
     username: str
     password: str
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    dob: Optional[date] = None
-    employment_status: int = Field(default=1, ge=0, le=1)  # 0 = Unemployed, 1 = Employed
-    role: int = Field(default=2, ge=1, le=2)  # 1 = Owner, 2 = Manager
+    role: int = Field(default=2, ge=1, le=3)
 
 
 class PasswordChange(BaseModel):
@@ -32,13 +35,6 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
-class ShiftUpdate(BaseModel):
-    operator_id: Optional[str] = None
-    shift_type: Optional[str] = None
-    shift_date: Optional[date] = None
-    notes: Optional[str] = None
-
-
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,12 +43,10 @@ class UserOut(BaseModel):
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    dob: Optional[date] = None
-    employment_status: int = 1  # 0 = Unemployed, 1 = Employed
     role: int
     is_active: bool
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: Optional[dt_datetime] = None
+    updated_at: Optional[dt_datetime] = None
 
 
 class Token(BaseModel):
@@ -61,41 +55,154 @@ class Token(BaseModel):
     user: UserOut
 
 
-# ---------------------------------------------------------------------
-# PRODUCTS
-# ---------------------------------------------------------------------
-class ProductBase(BaseModel):
+# ──────────────────────────────────────────────────────────────────────
+# BRANCHES
+# ──────────────────────────────────────────────────────────────────────
+
+class BranchCreate(BaseModel):
+    name: str
+    location: Optional[str] = None
+    dealer_code: Optional[str] = None
+    omc_brand: str = "BPCL"
+    is_active: bool = True
+    bunk_name: Optional[str] = None
+    city: Optional[str] = None
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
+    manager_email: Optional[str] = None
+    manager_access: Optional[str] = "ALL"
+    auto_fetch_enabled: Optional[bool] = False
+    auto_apply_enabled: Optional[bool] = False
+    gstin: Optional[str] = None
+    operating_hours: Optional[str] = "24 Hours"
+
+
+class BranchUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    dealer_code: Optional[str] = None
+    omc_brand: Optional[str] = None
+    is_active: Optional[bool] = None
+    bunk_name: Optional[str] = None
+    city: Optional[str] = None
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
+    manager_email: Optional[str] = None
+    manager_access: Optional[str] = None
+    auto_fetch_enabled: Optional[bool] = None
+    auto_apply_enabled: Optional[bool] = None
+    gstin: Optional[str] = None
+    operating_hours: Optional[str] = None
+
+
+class BranchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    location: Optional[str] = None
+    dealer_code: Optional[str] = None
+    omc_brand: str
+    is_active: bool
+    bunk_name: Optional[str] = None
+    city: Optional[str] = None
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
+    manager_email: Optional[str] = None
+    manager_access: Optional[str] = "ALL"
+    auto_fetch_enabled: Optional[bool] = False
+    auto_apply_enabled: Optional[bool] = False
+    gstin: Optional[str] = None
+    operating_hours: Optional[str] = "24 Hours"
+    created_at: Optional[dt_datetime] = None
+
+
+# ──────────────────────────────────────────────────────────────────────
+# MASTER LOOKUPS
+# ──────────────────────────────────────────────────────────────────────
+
+class MasterBankOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
     code: str
     name: str
-    category: str = Field(pattern="^(FUEL|LUBRICANT)$")
-    unit: str
-    color: str
+    sort_order: int
+    is_active: bool
+
+
+class MasterChannelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
+    sort_order: int
+    is_active: bool
+
+
+class MasterPaymentModeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
+    sort_order: int
+    is_active: bool
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PRODUCTS
+# ──────────────────────────────────────────────────────────────────────
+
+class ProductCreate(BaseModel):
+    code: str
+    name: str
     current_rate: float
-    density_min: Optional[float] = None
-    density_max: Optional[float] = None
+    category: str = "FUEL"
     active: bool = True
-
-
-class ProductCreate(ProductBase):
-    pass
+    color: Optional[str] = "#3B82F6"
+    unit: Optional[str] = "Litre"
+    hsn_code: Optional[str] = "2710"
+    gst_rate: Optional[float] = 0
+    tank_capacity: Optional[float] = 20000
+    density_standard_at_15c: Optional[float] = 750
+    density_min: Optional[float] = 720
+    density_max: Optional[float] = 775
+    short_name: Optional[str] = None
 
 
 class ProductUpdate(BaseModel):
-    code: Optional[str] = None
     name: Optional[str] = None
     category: Optional[str] = None
-    unit: Optional[str] = None
-    color: Optional[str] = None
     current_rate: Optional[float] = None
+    active: Optional[bool] = None
+    color: Optional[str] = None
+    unit: Optional[str] = None
+    hsn_code: Optional[str] = None
+    gst_rate: Optional[float] = None
+    tank_capacity: Optional[float] = None
+    density_standard_at_15c: Optional[float] = None
     density_min: Optional[float] = None
     density_max: Optional[float] = None
-    active: Optional[bool] = None
+    short_name: Optional[str] = None
 
 
-class ProductOut(ProductBase):
+class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    created_at: Optional[datetime] = None
+    code: str
+    name: str
+    category: str
+    current_rate: float
+    active: bool
+    color: Optional[str] = "#3B82F6"
+    unit: Optional[str] = "Litre"
+    hsn_code: Optional[str] = "2710"
+    gst_rate: Optional[float] = 0
+    tank_capacity: Optional[float] = 20000
+    density_standard_at_15c: Optional[float] = 750
+    density_min: Optional[float] = 720
+    density_max: Optional[float] = 775
+    short_name: Optional[str] = None
+    created_at: Optional[dt_datetime] = None
 
 
 class BatchRateItem(BaseModel):
@@ -105,192 +212,217 @@ class BatchRateItem(BaseModel):
 
 class BatchRateUpdate(BaseModel):
     rates: List[BatchRateItem]
-    changed_by: Optional[str] = "Manager"
     remarks: Optional[str] = None
-    change_source: Optional[str] = "MANUAL_ENTRY"
 
 
-class SmsParseRequest(BaseModel):
-    sms_text: str
-
-
-class SmsWebhookPayload(BaseModel):
-    sender: str
-    sms_text: str
-    timestamp: Optional[str] = None
-    auto_apply: bool = False
-
-
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
 # FUEL RATE HISTORY
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+
 class FuelRateHistoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     product_id: str
-    product_code: str
-    product_name: str
-    effective_date: date
-    old_rate: float
-    new_rate: float
-    change_source: str
-    changed_by: str
+    effective_date: dt_date
+    rate: float
     remarks: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[dt_datetime] = None
 
 
-# ---------------------------------------------------------------------
-# TANKS
-# ---------------------------------------------------------------------
-class TankBase(BaseModel):
-    name: str
-    product_id: str
-    capacity_litres: float
-    current_stock_litres: float = 0
-    diameter_cm: Optional[float] = None
-    status: str = "NORMAL"
-
-
-class TankCreate(TankBase):
-    pass
-
-
-class TankUpdate(BaseModel):
-    name: Optional[str] = None
-    product_id: Optional[str] = None
-    capacity_litres: Optional[float] = None
-    current_stock_litres: Optional[float] = None
-    diameter_cm: Optional[float] = None
-    status: Optional[str] = None
-
-
-class TankOut(TankBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-
-
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
 # PUMPS & NOZZLES
-# ---------------------------------------------------------------------
-class NozzleBase(BaseModel):
-    pump_id: str
+# ──────────────────────────────────────────────────────────────────────
+
+class NozzleCreate(BaseModel):
+    pump_id: Optional[str] = None
     nozzle_no: int
     product_id: str
     current_meter_reading: float = 0
-
-
-class NozzleCreate(NozzleBase):
-    pass
+    color: Optional[str] = "#3B82F6"
+    fuel_code: Optional[str] = "UNK"
+    status: Optional[str] = "ACTIVE"
 
 
 class NozzleUpdate(BaseModel):
     nozzle_no: Optional[int] = None
     product_id: Optional[str] = None
     current_meter_reading: Optional[float] = None
+    color: Optional[str] = None
+    fuel_code: Optional[str] = None
+    status: Optional[str] = None
 
 
-class NozzleOut(NozzleBase):
+class NozzleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    pump_id: str
+    nozzle_no: int
+    product_id: str
+    current_meter_reading: float
+    color: Optional[str] = "#3B82F6"
+    fuel_code: Optional[str] = "UNK"
+    status: Optional[str] = "ACTIVE"
 
 
-class PumpBase(BaseModel):
+class PumpCreate(BaseModel):
     pump_no: int
     name: str
-    status: str = "ACTIVE"
-
-
-class PumpCreate(PumpBase):
-    pass
+    model: Optional[str] = "Midco MPD Duo Plus"
+    serial_number: Optional[str] = "SN-001"
+    make_model: Optional[str] = "Midco"
+    installation_date: Optional[str] = "2023-01-15"
+    tank_id: Optional[str] = "Tank 1"
+    side: Optional[str] = "Dual Side"
+    status: Optional[str] = "ACTIVE"
+    nozzles: Optional[List[NozzleCreate]] = []
 
 
 class PumpUpdate(BaseModel):
     pump_no: Optional[int] = None
     name: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+    make_model: Optional[str] = None
+    installation_date: Optional[str] = None
+    tank_id: Optional[str] = None
+    side: Optional[str] = None
     status: Optional[str] = None
+    nozzles: Optional[List[NozzleCreate]] = None
 
 
-class PumpOut(PumpBase):
+class PumpOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    pump_no: int
+    name: str
+    model: Optional[str] = "Midco MPD Duo Plus"
+    serial_number: Optional[str] = "SN-001"
+    make_model: Optional[str] = "Midco"
+    installation_date: Optional[str] = "2023-01-15"
+    tank_id: Optional[str] = "Tank 1"
+    side: Optional[str] = "Dual Side"
+    status: Optional[str] = "ACTIVE"
     nozzles: List[NozzleOut] = []
 
 
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
 # OPERATORS
-# ---------------------------------------------------------------------
-class OperatorBase(BaseModel):
+# ──────────────────────────────────────────────────────────────────────
+
+class OperatorCreate(BaseModel):
     name: str
     phone: Optional[str] = None
-    daily_bata: float = 0
     active: bool = True
-
-
-class OperatorCreate(OperatorBase):
-    pass
+    employee_code: Optional[str] = None
+    aadhaar_no: Optional[str] = None
+    monthly_salary: Optional[float] = 18000
+    joining_date: Optional[str] = "2023-06-01"
+    emergency_contact: Optional[str] = None
+    assigned_shift: Optional[str] = "Morning"
+    status: Optional[str] = "ACTIVE"
 
 
 class OperatorUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
-    daily_bata: Optional[float] = None
     active: Optional[bool] = None
+    employee_code: Optional[str] = None
+    aadhaar_no: Optional[str] = None
+    monthly_salary: Optional[float] = None
+    joining_date: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    assigned_shift: Optional[str] = None
+    status: Optional[str] = None
 
 
-class OperatorOut(OperatorBase):
+class OperatorOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-
-
-# ---------------------------------------------------------------------
-# CUSTOMERS
-# ---------------------------------------------------------------------
-class CustomerBase(BaseModel):
-    code: str
     name: str
-    contact_person: Optional[str] = None
     phone: Optional[str] = None
-    vehicle_numbers: List[str] = []
-    credit_limit: float = 500000
-    opening_balance: float = 0
-    status: str = "ACTIVE"
+    active: bool
+    employee_code: Optional[str] = None
+    aadhaar_no: Optional[str] = None
+    monthly_salary: Optional[float] = 18000
+    joining_date: Optional[str] = "2023-06-01"
+    emergency_contact: Optional[str] = None
+    assigned_shift: Optional[str] = "Morning"
+    status: Optional[str] = "ACTIVE"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# CUSTOMERS
+# ──────────────────────────────────────────────────────────────────────
+
+class CustomerCreate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    code: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    credit_limit: Optional[float] = 500000
+    opening_balance: Optional[float] = 0
+    credit_period_days: Optional[int] = 15
+    discount_per_litre: Optional[float] = 0
+    max_vehicles_allowed: Optional[int] = 10
+    vehicle_numbers: Optional[str] = None
     address: Optional[str] = None
-
-
-class CustomerCreate(CustomerBase):
-    pass
+    billing_address: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
 
 
 class CustomerUpdate(BaseModel):
-    code: Optional[str] = None
     name: Optional[str] = None
-    contact_person: Optional[str] = None
     phone: Optional[str] = None
-    vehicle_numbers: Optional[List[str]] = None
+    code: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
     credit_limit: Optional[float] = None
-    status: Optional[str] = None
+    opening_balance: Optional[float] = None
+    credit_period_days: Optional[int] = None
+    discount_per_litre: Optional[float] = None
+    max_vehicles_allowed: Optional[int] = None
+    vehicle_numbers: Optional[str] = None
     address: Optional[str] = None
+    billing_address: Optional[str] = None
+    status: Optional[str] = None
 
 
-class CustomerOut(CustomerBase):
+class CustomerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    outstanding_balance: float
-    created_at: Optional[datetime] = None
-
-
-# ---------------------------------------------------------------------
-# EXPENSE TYPES
-# ---------------------------------------------------------------------
-class ExpenseTypeBase(BaseModel):
     name: str
-    category: str
-    active: bool = True
+    phone: Optional[str] = None
+    outstanding_balance: float = 0
+    code: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    credit_limit: Optional[float] = 500000
+    opening_balance: Optional[float] = 0
+    credit_period_days: Optional[int] = 15
+    discount_per_litre: Optional[float] = 0
+    max_vehicles_allowed: Optional[int] = 10
+    vehicle_numbers: Optional[str] = None
+    address: Optional[str] = None
+    billing_address: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
+    created_at: Optional[dt_datetime] = None
 
 
-class ExpenseTypeCreate(ExpenseTypeBase):
-    pass
+# ──────────────────────────────────────────────────────────────────────
+# EXPENSE TYPES
+# ──────────────────────────────────────────────────────────────────────
+
+class ExpenseTypeCreate(BaseModel):
+    name: str
+    category: Optional[str] = "OPERATIONAL"
+    active: Optional[bool] = True
 
 
 class ExpenseTypeUpdate(BaseModel):
@@ -299,521 +431,443 @@ class ExpenseTypeUpdate(BaseModel):
     active: Optional[bool] = None
 
 
-class ExpenseTypeOut(ExpenseTypeBase):
+class ExpenseTypeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    name: str
+    category: Optional[str] = "OPERATIONAL"
+    active: Optional[bool] = True
+    branch_id: Optional[str] = None
 
 
-# ---------------------------------------------------------------------
-# SHIFTS & METER READINGS
-# ---------------------------------------------------------------------
-class MeterReadingIn(BaseModel):
+# ──────────────────────────────────────────────────────────────────────
+# DAILY NOZZLE METERS
+# ──────────────────────────────────────────────────────────────────────
+
+class NozzleMeterItem(BaseModel):
+    pump_id: str
     nozzle_id: str
-    closing_reading: float
-    testing_litres: float = 0
+    product_id: str
+    opening_meter: float
+    closing_meter: float
+    selling_rate: float
 
 
-class MeterReadingOut(BaseModel):
+class BatchDailyNozzleMeterCreate(BaseModel):
+    reading_date: dt_date
+    readings: List[NozzleMeterItem]
+
+
+class DailyNozzleMeterOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int
-    shift_id: str
+    id: str
+    reading_date: dt_date
+    pump_id: str
     nozzle_id: str
-    nozzle_no: int
-    product_name: str
-    fuel_code: str
-    rate: float
-    opening_reading: float
-    closing_reading: float
-    testing_litres: float
+    product_id: str
+    opening_meter: float
+    closing_meter: float
     litres_sold: float
+    selling_rate: float
     gross_amount: float
 
 
-class ShiftOpen(BaseModel):
-    shift_date: date
-    shift_type: str = "Full Day"
-    pump_id: str
-    operator_id: str
-    notes: Optional[str] = None
+# ──────────────────────────────────────────────────────────────────────
+# CREDIT TRANSACTIONS
+# ──────────────────────────────────────────────────────────────────────
 
-
-class ShiftClose(BaseModel):
-    meter_readings: List[MeterReadingIn]
-    cash_collected: float = 0
-    upi_gpay_collected: float = 0
-    card_collected: float = 0
-    fleet_card_collected: float = 0
-    credit_sales: float = 0
-    cheque_collected: float = 0
-    expenses_deducted: float = 0
-    notes: Optional[str] = None
-
-
-class ShiftOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    shift_no: str
-    shift_date: date
-    shift_type: str
-    pump_id: str
-    pump_no: int
-    operator_id: str
-    operator_name: str
-    opened_at: datetime
-    closed_at: Optional[datetime] = None
-    status: str
-    total_litres_sold: float
-    total_sales_amount: float
-    expenses_deducted: float
-    cash_collected: float
-    upi_gpay_collected: float
-    card_collected: float
-    fleet_card_collected: float
-    credit_sales: float
-    cheque_collected: float
-    total_collected: float
-    shortage_or_excess: float
-    notes: Optional[str] = None
-    meter_readings: List[MeterReadingOut] = []
-
-
-# ---------------------------------------------------------------------
-# CREDIT TRANSACTIONS & PAYMENTS
-# ---------------------------------------------------------------------
 class CreditTransactionCreate(BaseModel):
+    date: Optional[dt_date] = None
+    pump_id: str
     customer_id: str
-    date: Optional[date] = None
-    time: Optional[str] = None
-    pump_id: Optional[str] = None
-    pump_no: Optional[int] = None
     product_id: str
-    vehicle_no: Optional[str] = ""
-    driver_name: Optional[str] = None
     litres: float
-    rate: Optional[float] = None
-    amount: Optional[float] = None
+    rate: Optional[float] = None   # defaults to product's current_rate
     remarks: Optional[str] = None
+    # Session linkage (optional)
+    attribution_id: Optional[str] = None
+    shift_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
 
 
 class CreditTransactionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    slip_no: str
+    date: dt_date
+    pump_id: str
     customer_id: str
-    date: date
-    time: Optional[str] = None
-    pump_id: Optional[str] = None
-    pump_no: Optional[int] = None
     product_id: str
-    vehicle_no: Optional[str] = None
-    driver_name: Optional[str] = None
     litres: float
     rate: float
     amount: float
     remarks: Optional[str] = None
-    created_at: Optional[datetime] = None
+    attribution_id: Optional[str] = None
+    shift_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    created_at: Optional[dt_datetime] = None
+
+
+# ──────────────────────────────────────────────────────────────────────
+# CREDIT PAYMENTS
+# ──────────────────────────────────────────────────────────────────────
+
+CREDIT_PAYMENT_MODES = ['Cash', 'Card', 'FC', 'Paytm', 'Cheque', 'Bank Transfer', 'Gpay']
 
 
 class CreditPaymentCreate(BaseModel):
+    date: Optional[dt_date] = None
     customer_id: str
-    date: Optional[date] = None
     amount: float
-    payment_mode: str = Field(pattern="^(Cash|Cheque|Bank Transfer|NEFT|UPI)$")
-    reference_no: Optional[str] = None
-    notes: Optional[str] = None
-    received_by: Optional[str] = None
+    payment_mode: str = Field(pattern="^(Cash|Card|FC|Paytm|Cheque|Bank Transfer|Gpay)$")
 
 
 class CreditPaymentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    receipt_no: str
+    date: dt_date
     customer_id: str
-    date: date
     amount: float
     payment_mode: str
-    reference_no: Optional[str] = None
-    notes: Optional[str] = None
-    received_by: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[dt_datetime] = None
 
 
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+# SETTLEMENTS (Block F)
+# ──────────────────────────────────────────────────────────────────────
+
+class SettlementItem(BaseModel):
+    bank_code: str    # ICICI | SBI | HDFC | Paytm
+    channel_code: str  # Gpay | Paytm | Swiping Machine | Fleet Card | Phone Pay
+    amount: float
+
+
+class BatchSettlementCreate(BaseModel):
+    settlement_date: dt_date
+    items: List[SettlementItem]
+
+
+class SettlementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    settlement_date: dt_date
+    bank_code: str
+    channel_code: str
+    amount: float
+    created_at: Optional[dt_datetime] = None
+
+
+# ──────────────────────────────────────────────────────────────────────
 # EXPENSES
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+
 class ExpenseCreate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[dt_date] = None
     expense_type_id: str
     amount: float
-    paid_to: Optional[str] = None
-    paid_by: Optional[str] = None
-    pump_id: Optional[str] = None
-    is_credit_note: bool = False
     remarks: Optional[str] = None
 
 
 class ExpenseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    voucher_no: str
-    date: date
+    date: dt_date
     expense_type_id: str
     expense_type_name: str
     amount: float
-    paid_to: Optional[str] = None
-    paid_by: Optional[str] = None
-    pump_id: Optional[str] = None
-    is_credit_note: bool
     remarks: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[dt_datetime] = None
 
 
-# ---------------------------------------------------------------------
-# BANK DEPOSITS
-# ---------------------------------------------------------------------
-class BankDepositCreate(BaseModel):
-    deposit_date: Optional[date] = None
-    bank_name: str
-    account_no: str
-    amount: Optional[float] = None
-    note_2000: int = 0
-    note_500: int = 0
-    note_200: int = 0
-    note_100: int = 0
-    note_50: int = 0
-    note_20: int = 0
-    note_10: int = 0
-    coins: float = 0
-    deposited_by: Optional[str] = None
-    reference_no: Optional[str] = None
+# ──────────────────────────────────────────────────────────────────────
+# PUMP DAY ATTRIBUTION (Block H)
+# ──────────────────────────────────────────────────────────────────────
+
+class PumpDayAttributionCreate(BaseModel):
+    attribution_date: dt_date
+    pump_id: str
+    operator_id: str
+    time_in: Optional[str] = None    # "HH:MM" 24h
+    time_out: Optional[str] = None   # "HH:MM" 24h
+    shift_type: Optional[str] = None          # MORNING | EVENING | NIGHT
+    # Type A — manually entered
+    cash_collected: float = 0
+    card_collected: float = 0        # Swiping Machine
+    gpay_collected: float = 0        # GPay
+    phone_pay_collected: float = 0   # PhonePe
+    paytm_collected: float = 0       # Paytm
+    fleet_card_collected: float = 0  # Fleet Card
+    advance_amount: float = 0        # Advance given this session
+    actual_cash_handover: Optional[float] = None
+    # Type B — auto-fetched, but can be overridden
+    credit_sales: float = 0
+    credit_acc: float = 0            # Legacy
+    # Misc
     notes: Optional[str] = None
+    # Legacy backward-compat
+    upi_gpay_collected: float = 0
+    total_amount: float = 0
+    net_payment: float = 0
+
+
+class PumpDayAttributionUpdate(BaseModel):
+    time_in: Optional[str] = None
+    time_out: Optional[str] = None
+    shift_type: Optional[str] = None
+    cash_collected: Optional[float] = None
+    card_collected: Optional[float] = None
+    gpay_collected: Optional[float] = None
+    phone_pay_collected: Optional[float] = None
+    paytm_collected: Optional[float] = None
+    fleet_card_collected: Optional[float] = None
+    advance_amount: Optional[float] = None
+    actual_cash_handover: Optional[float] = None
+    credit_sales: Optional[float] = None
+    credit_acc: Optional[float] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+    # Legacy
+    upi_gpay_collected: Optional[float] = None
+    total_amount: Optional[float] = None
+    net_payment: Optional[float] = None
+
+
+class PumpDayAttributionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    attribution_date: dt_date
+    pump_id: str
+    pump_no: int
+    operator_id: str
+    operator_name: str
+    time_in: Optional[dt_time] = None
+    time_out: Optional[dt_time] = None
+    shift_type: Optional[str] = None
+    # Type A
+    cash_collected: float = 0
+    card_collected: float = 0
+    gpay_collected: float = 0
+    phone_pay_collected: float = 0
+    paytm_collected: float = 0
+    fleet_card_collected: float = 0
+    advance_amount: float = 0
+    actual_cash_handover: Optional[float] = None
+    # Type B
+    credit_sales: float = 0
+    meter_sales_amount: Optional[float] = None
+    # Type C — computed
+    upi_gpay_collected: float = 0
+    total_amount: float = 0
+    expected_cash_handover: Optional[float] = None
+    cash_variance: Optional[float] = None
+    meter_variance: Optional[float] = None
+    # Status
+    status: str = 'DRAFT'
+    notes: Optional[str] = None
+    # Legacy
+    credit_acc: float = 0
+    advance_payment: float = 0
+    net_payment: float = 0
+    created_at: Optional[dt_datetime] = None
+    updated_at: Optional[dt_datetime] = None
+
+
+
+
+# ──────────────────────────────────────────────────────────────────────
+# DAILY CASH RECONCILIATION (Block I)
+# ──────────────────────────────────────────────────────────────────────
+
+class DailyCashReconciliationCreate(BaseModel):
+    recon_date: dt_date
+    opening_balance: float = 0
+    morning_collection: float = 0
+    oil_dw: float = 0
+    total_cash: float = 0
+    cash_for_card_swipe: float = 0
+    cash_deposit_in_bank: float = 0
+    bunk_expenses: float = 0
+    bata: float = 0
+    system_total_in_sheet: float = 0
+    physically_counted_note: float = 0
+    net_cash_for_the_day: float = 0
+
+
+class DailyCashReconciliationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    recon_date: dt_date
+    opening_balance: float
+    morning_collection: float
+    oil_dw: float
+    total_cash: float
+    cash_for_card_swipe: float
+    cash_deposit_in_bank: float
+    bunk_expenses: float = 0
+    bata: float = 0
+    system_total_in_sheet: float
+    physically_counted_note: float
+    difference: float = 0   # computed in serializer: system_total - physically_counted
+    net_cash_for_the_day: float
+    created_at: Optional[dt_datetime] = None
+
+
+# ──────────────────────────────────────────────────────────────────────
+# BANK DEPOSITS
+# ──────────────────────────────────────────────────────────────────────
+
+class BankDepositCreate(BaseModel):
+    deposit_date: Optional[dt_date] = None
+    amount: float
 
 
 class BankDepositOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    deposit_date: date
-    bank_name: str
-    account_no: str
+    deposit_date: dt_date
     amount: float
-    note_2000: int
-    note_500: int
-    note_200: int
-    note_100: int
-    note_50: int
-    note_20: int
-    note_10: int
-    coins: float
-    deposited_by: Optional[str] = None
-    reference_no: Optional[str] = None
-    notes: Optional[str] = None
-    created_at: Optional[datetime] = None
 
 
-# ---------------------------------------------------------------------
-# DASHBOARD
-# ---------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+# DASHBOARD SUMMARY
+# ──────────────────────────────────────────────────────────────────────
+
 class DashboardSummary(BaseModel):
-    total_sales_amount: float
-    total_litres_sold: float
-    total_cash_collected: float
-    total_expenses: float
-    net_cash_on_hand: float
-    total_credit_outstanding: float
-    total_bank_deposited: float
-    active_customers: int
-    customers_near_limit: int
-    open_shifts: int
-    closed_shifts: int
+    total_sales_amount: float = 0
+    total_litres_sold: float = 0
+    total_cash_collected: float = 0
+    total_expenses: float = 0
+    net_cash_on_hand: float = 0
+    total_credit_outstanding: float = 0
+    total_bank_deposited: float = 0
+    active_customers: int = 0
+    total_pumps: int = 0
+    total_operators: int = 0
 
 
-# ---------------------------------------------------------------------
-# TANK DIPS
-# ---------------------------------------------------------------------
-class TankDipCreate(BaseModel):
-    tank_id: str
-    tank_name: str
-    product_name: str
-    dip_date: Optional[date] = None
-    dip_type: str  # Morning, Evening, After Decantation
-    fuel_dip_cm: float
-    fuel_dip_litres: float
-    water_dip_cm: float = 0
-    observed_density: float = 0
-    observed_temp: float = 0
-    converted_density: float = 0
-    book_stock_litres: float = 0
+# ──────────────────────────────────────────────────────────────────────
+# TALLY — Live aggregation schemas
+# ──────────────────────────────────────────────────────────────────────
+
+class TallyTotals(BaseModel):
+    """Aggregated payment totals — reused at daily, shift, and pump levels."""
+    cash: float = 0
+    card: float = 0
+    gpay: float = 0
+    phonepe: float = 0
+    paytm: float = 0
+    fleet: float = 0
+    credit: float = 0
+    grand_total: float = 0
+    meter_total: float = 0
+    meter_variance: float = 0
+    expected_cash: float = 0
+    actual_cash: float = 0
+    cash_variance: float = 0
+
+
+class OperatorSessionRow(BaseModel):
+    """One row in the detailed operator tally table."""
+    session_id: str
+    operator_name: str
+    pump_no: int
+    pump_name: Optional[str] = None
+    shift_type: Optional[str] = None
+    time_in: Optional[str] = None
+    time_out: Optional[str] = None
+    cash: float = 0
+    card: float = 0
+    gpay: float = 0
+    phonepe: float = 0
+    paytm: float = 0
+    fleet: float = 0
+    credit: float = 0
+    total_sales: float = 0
+    meter_sales: Optional[float] = None
+    meter_variance: Optional[float] = None
+    advance_amount: float = 0
+    expected_cash: Optional[float] = None
+    actual_cash: Optional[float] = None
+    cash_variance: Optional[float] = None
+    status: str = 'DRAFT'
+
+
+class ShiftTally(BaseModel):
+    shift_type: str
+    sessions: List[OperatorSessionRow]
+    subtotals: TallyTotals
+
+
+class PumpTally(BaseModel):
+    pump_id: str
+    pump_no: int
+    pump_name: str
+    sessions: List[OperatorSessionRow]
+    subtotals: TallyTotals
+
+
+class DailyTallyOut(BaseModel):
+    business_date: dt_date
+    totals: TallyTotals
+    by_shift: List[ShiftTally]
+    by_pump: List[PumpTally]
+    sessions: List[OperatorSessionRow]
+
+
+class CustomerCreditRow(BaseModel):
+    customer_id: str
+    customer_name: str
+    new_credit: float = 0
+    payments: float = 0
+    closing_balance: float = 0
+
+
+class CreditLedgerDayOut(BaseModel):
+    business_date: dt_date
+    opening_outstanding: float = 0
+    new_credit_sales: float = 0
+    credit_payments: float = 0
+    closing_outstanding: float = 0
+    customer_breakdown: List[CustomerCreditRow]
+
+
+class MeterSectionOut(BaseModel):
+    total_sales: float = 0
     variance: float = 0
-    tested_by: str
-    remarks: Optional[str] = None
 
 
-class TankDipOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    tank_id: str
-    tank_name: str
-    product_name: str
-    dip_date: date
-    dip_type: str
-    fuel_dip_cm: float
-    fuel_dip_litres: float
-    water_dip_cm: float
-    observed_density: float
-    observed_temp: float
-    converted_density: float
-    book_stock_litres: float
-    variance: float
-    tested_by: str
-    remarks: Optional[str] = None
-    created_at: Optional[datetime] = None
+class CashSectionOut(BaseModel):
+    expected: float = 0
+    actual: float = 0
+    variance: float = 0
 
 
-# ---------------------------------------------------------------------
-# SHIFT DRAFT (partial update without closing)
-# ---------------------------------------------------------------------
-class ShiftDraft(BaseModel):
-    """Partial update to an open shift — saves meter readings and collections in-progress."""
-    meter_readings: Optional[List[MeterReadingIn]] = None
-    cash_collected: Optional[float] = None
-    upi_gpay_collected: Optional[float] = None
-    card_collected: Optional[float] = None
-    fleet_card_collected: Optional[float] = None
-    credit_sales: Optional[float] = None
-    cheque_collected: Optional[float] = None
-    expenses_deducted: Optional[float] = None
-    notes: Optional[str] = None
+class BankSectionOut(BaseModel):
+    expected: float = 0
+    actual: float = 0
+    variance: float = 0
 
 
-# ---------------------------------------------------------------------
-# BUNK OMC PROFILE
-# ---------------------------------------------------------------------
-
-class BranchBase(BaseModel):
-    name: str
-    location: Optional[str] = None
-    dealer_code: Optional[str] = None
-    omc_brand: str = 'BPCL'
-    is_active: bool = True
-
-class BranchCreate(BranchBase):
-    pass
-
-class BranchUpdate(BaseModel):
-    name: Optional[str] = None
-    location: Optional[str] = None
-    dealer_code: Optional[str] = None
-    omc_brand: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class BranchOut(BranchBase):
-    id: str
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class BunkProfileBase(BaseModel):
-    bunk_name: str = "KY Petrol Bunk"
-    omc_brand: str = "IOCL"
-    dealer_code: str = "184920"
-    state: str = "Karnataka"
-    city: str = "Bengaluru (Karnataka)"
-    registered_phone: Optional[str] = None
-    auto_fetch_enabled: bool = True
-    auto_apply_enabled: bool = True
+class ExpensesSectionOut(BaseModel):
+    total: float = 0
 
 
-class BunkProfileUpdate(BaseModel):
-    bunk_name: Optional[str] = None
-    omc_brand: Optional[str] = None
-    dealer_code: Optional[str] = None
-    state: Optional[str] = None
-    city: Optional[str] = None
-    registered_phone: Optional[str] = None
-    auto_fetch_enabled: Optional[bool] = None
-    auto_apply_enabled: Optional[bool] = None
+class ReconciliationOut(BaseModel):
+    business_date: dt_date
+    sales: TallyTotals
+    meter: MeterSectionOut
+    cash: CashSectionOut
+    bank: BankSectionOut
+    credit: CreditLedgerDayOut
+    expenses: ExpensesSectionOut
+    overall_status: str  # RECONCILED | NEEDS_REVIEW | MISMATCH
 
 
-class BunkProfileOut(BunkProfileBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    last_sync_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+class SessionHandoverIn(BaseModel):
+    actual_cash_handover: float
 
 
-# ---------------------------------------------------------------------
-# DAILY NOZZLE METERS
-# ---------------------------------------------------------------------
-class DailyNozzleMeterIn(BaseModel):
-    nozzle_id: str
-    pump_id: str
-    product_id: str
-    opening_meter: float
-    closing_meter: float
-    testing_litres: float = 0.0
-    selling_rate: float
-    recorded_by: Optional[str] = "Manager"
-
-
-class BatchDailyNozzleMeterCreate(BaseModel):
-    reading_date: date
-    readings: List[DailyNozzleMeterIn]
-    recorded_by: Optional[str] = "Manager"
-
-
-class DailyNozzleMeterOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    reading_date: date
-    pump_id: str
-    nozzle_id: str
-    product_id: str
-    opening_meter: float
-    closing_meter: float
-    testing_litres: float
-    litres_sold: float
-    selling_rate: float
-    gross_amount: float
-    recorded_by: Optional[str] = "Manager"
-    created_at: Optional[datetime] = None
-
-
-# ---------------------------------------------------------------------
-# SMS RATE LOGS
-# ---------------------------------------------------------------------
-class SmsRateLogCreate(BaseModel):
-    sender: str
-    raw_text: str
-    omc: str
-    effective_datetime: Optional[str] = None
-    parsed_rates: List[Dict[str, Any]]
-    status: Optional[str] = "PENDING_REVIEW"
-    applied_by: Optional[str] = None
-
-
-class SmsRateLogStatusUpdate(BaseModel):
-    status: str
-    applied_by: Optional[str] = None
-
-
-class SmsRateLogOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    sender: str
-    received_at: datetime
-    raw_text: str
-    omc: str
-    effective_datetime: Optional[str] = None
-    parsed_rates: Any
-    status: str
-    applied_at: Optional[datetime] = None
-    applied_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-
-
-# ---------------------------------------------------------------------
-# BANK ACCOUNTS
-# ---------------------------------------------------------------------
-class BankAccountBase(BaseModel):
-    bank_name: str
-    account_number: str
-    account_type: str = "Current"
-    branch_name: Optional[str] = None
-    ifsc_code: Optional[str] = None
-    opening_balance: float = 0.0
-    current_balance: float = 0.0
-    is_primary: bool = False
-    is_active: bool = True
-
-
-class BankAccountCreate(BankAccountBase):
-    pass
-
-
-class BankAccountUpdate(BaseModel):
-    bank_name: Optional[str] = None
-    account_number: Optional[str] = None
-    account_type: Optional[str] = None
-    branch_name: Optional[str] = None
-    ifsc_code: Optional[str] = None
-    opening_balance: Optional[float] = None
-    current_balance: Optional[float] = None
-    is_primary: Optional[bool] = None
-    is_active: Optional[bool] = None
-
-
-class BankAccountOut(BankAccountBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    created_at: Optional[datetime] = None
-
-
-# ---------------------------------------------------------------------
-# POS / DIGITAL SETTLEMENTS
-# ---------------------------------------------------------------------
-class PosSettlementCreate(BaseModel):
-    settlement_date: date
-    channel_type: str
-    terminal_id: Optional[str] = None
-    batch_no: Optional[str] = None
-    gross_amount: float
-    mdr_fee: float = 0.0
-    net_settled_amount: float
-    bank_account_id: Optional[str] = None
-    status: Optional[str] = "SETTLED"
-
-
-class PosSettlementOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    settlement_date: date
-    channel_type: str
-    terminal_id: Optional[str] = None
-    batch_no: Optional[str] = None
-    gross_amount: float
-    mdr_fee: float
-    net_settled_amount: float
-    bank_account_id: Optional[str] = None
-    status: str
-    created_at: Optional[datetime] = None
-
-
-# ---------------------------------------------------------------------
-# CASH SAFE DAY BOOK / LEDGER
-# ---------------------------------------------------------------------
-class CashSafeLedgerCreate(BaseModel):
-    ledger_date: date
-    opening_safe_cash: float = 0.0
-    shift_cash_inflow: float = 0.0
-    credit_cash_recovered: float = 0.0
-    petty_cash_expenses: float = 0.0
-    bank_deposits_dropped: float = 0.0
-    expected_safe_cash: float
-    physical_counted_cash: float
-    cash_variance: float = 0.0
-    denominations: Dict[str, Any]
-    audited_by: str = "Manager"
-    notes: Optional[str] = None
-
-
-class CashSafeLedgerOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    ledger_date: date
-    opening_safe_cash: float
-    shift_cash_inflow: float
-    credit_cash_recovered: float
-    petty_cash_expenses: float
-    bank_deposits_dropped: float
-    expected_safe_cash: float
-    physical_counted_cash: float
-    cash_variance: float
-    denominations: Any
-    audited_by: str
-    notes: Optional[str] = None
-    created_at: Optional[datetime] = None
-
-
-
+class CreditDailySummary(BaseModel):
+    business_date: dt_date
+    new_credit_sales: float = 0
+    credit_payments: float = 0
+    net_change: float = 0

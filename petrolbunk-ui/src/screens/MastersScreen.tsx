@@ -43,8 +43,9 @@ import {
 } from 'lucide-react';
 import { useMastersContext } from '../context/MastersContext';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatRate } from '../utils/formatters';
 import { ExpenseType, Product, Pump, Operator, CreditCustomer, Branch } from '../types';
+
 import { DropdownPicker } from '../components/DropdownPicker';
 import { StatusDropdownBadge } from '../components/StatusDropdownBadge';
 import {
@@ -171,7 +172,6 @@ export const MastersScreen: React.FC = () => {
     dealer_code: string;
     omc_brand: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE';
     gstin?: string;
-    peso_license_no?: string;
     operating_hours?: string;
     contact_email?: string;
     address_street?: string;
@@ -186,7 +186,6 @@ export const MastersScreen: React.FC = () => {
     dealer_code: '',
     omc_brand: 'BPCL',
     gstin: '',
-    peso_license_no: '',
     operating_hours: '',
     contact_email: '',
     address_street: '',
@@ -205,7 +204,6 @@ export const MastersScreen: React.FC = () => {
       dealer_code: '',
       omc_brand: 'BPCL',
       gstin: '',
-      peso_license_no: '',
       operating_hours: '',
       contact_email: '',
       address_street: '',
@@ -226,7 +224,6 @@ export const MastersScreen: React.FC = () => {
       dealer_code: b.dealer_code || '',
       omc_brand: b.omc_brand || 'BPCL',
       gstin: b.gstin || '',
-      peso_license_no: b.peso_license_no || '',
       operating_hours: b.operating_hours || '',
       contact_email: b.contact_email || '',
       address_street: b.address_street || '',
@@ -294,7 +291,7 @@ export const MastersScreen: React.FC = () => {
     setProdName(prod.name);
     setProdCode(prod.code);
     setProdUnit((prod.unit as any) || 'Litre');
-    setProdCategory(prod.category);
+    setProdCategory((prod.category as any) || 'FUEL');
     setProdRate(String(prod.currentRate || ''));
     setProdHsnCode(prod.hsnCode || '2710');
     setProdGstRate(String(prod.gstRate ?? 0));
@@ -351,7 +348,6 @@ export const MastersScreen: React.FC = () => {
   const [pumpModel, setPumpModel] = useState('Midco MPD Duo Plus');
   const [pumpSerialNo, setPumpSerialNo] = useState('');
   const [pumpMake, setPumpMake] = useState('Midco');
-  const [pumpPesoSeal, setPumpPesoSeal] = useState('');
   const [pumpInstallDate, setPumpInstallDate] = useState('2023-01-15');
   const [pumpTankLink, setPumpTankLink] = useState('Tank 1 (HSD) / Tank 2 (MS)');
   const [pumpSide, setPumpSide] = useState('Dual Side');
@@ -367,7 +363,6 @@ export const MastersScreen: React.FC = () => {
     setPumpModel('Midco MPD Duo Plus');
     setPumpSerialNo(`SN-MDC-${Date.now().toString().slice(-4)}`);
     setPumpMake('Midco');
-    setPumpPesoSeal(`PESO-WM-TN-${Math.floor(10000 + Math.random() * 90000)}`);
     setPumpInstallDate('2023-01-15');
     setPumpTankLink('Tank 1 (HSD) / Tank 2 (MS)');
     setPumpSide('Dual Side');
@@ -383,11 +378,10 @@ export const MastersScreen: React.FC = () => {
     setPumpModel(pump.model || 'Midco MPD Duo Plus');
     setPumpSerialNo(pump.serialNumber || '');
     setPumpMake(pump.makeModel || 'Midco');
-    setPumpPesoSeal(pump.pesoSealNo || '');
     setPumpInstallDate(pump.installationDate || '2023-01-15');
     setPumpTankLink(pump.tankId || 'Tank 1');
     setPumpSide(pump.side || 'Dual Side');
-    setPumpStatus(pump.status);
+    setPumpStatus((pump.status as any) || 'ACTIVE');
     setPumpNozzles(
       pump.nozzles.map((n) => ({
         id: n.id,
@@ -430,11 +424,10 @@ export const MastersScreen: React.FC = () => {
       model: pumpModel.trim(),
       serialNumber: pumpSerialNo.trim(),
       makeModel: pumpMake.trim(),
-      pesoSealNo: pumpPesoSeal.trim(),
       installationDate: pumpInstallDate,
       tankId: pumpTankLink.trim(),
       side: pumpSide.trim(),
-      status: pumpStatus,
+      status: pumpStatus as any,
       nozzles: mappedNozzles,
     };
 
@@ -476,7 +469,7 @@ export const MastersScreen: React.FC = () => {
   const openEditOperator = (op: Operator) => {
     setEditingOperator(op);
     setOpName(op.name);
-    setOpPhone(op.phone);
+    setOpPhone(op.phone || '');
     setOpCode(op.employeeCode || `EMP-${op.id.slice(-3)}`);
     setOpAadhaar(op.aadhaarNo || '');
     setOpSalary(String(op.monthlySalary || 18000));
@@ -602,7 +595,7 @@ export const MastersScreen: React.FC = () => {
 
   const openEditCustomer = (cust: CreditCustomer) => {
     setEditingCustomer(cust);
-    setCustCode(cust.code);
+    setCustCode(cust.code || '');
     setCustName(cust.name);
     setCustPerson(cust.contactPerson || cust.name);
     setCustPhone(cust.phone || '');
@@ -614,10 +607,10 @@ export const MastersScreen: React.FC = () => {
     setCustPeriodDays(String(cust.creditPeriodDays || 15));
     setCustDiscount(String(cust.discountPerLitre || 0));
     setCustMaxVehicles(String(cust.maxVehiclesAllowed || 10));
-    setCustVehicles(cust.vehicleNumbers.join(', '));
+    setCustVehicles((cust.vehicleNumbers || []).join(', '));
     setCustAddress(cust.address || '');
     setCustBillingAddress(cust.billingAddress || cust.address || '');
-    setCustStatus(cust.status);
+    setCustStatus((cust.status as any) || 'ACTIVE');
     setShowCustModal(true);
   };
 
@@ -665,8 +658,8 @@ export const MastersScreen: React.FC = () => {
     return branches.filter(
       (b) =>
         b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.dealer_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.dealer_code && b.dealer_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (b.location && b.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (b.manager_name && b.manager_name.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [branches, searchQuery]);
@@ -694,7 +687,7 @@ export const MastersScreen: React.FC = () => {
     return operators.filter(
       (op) =>
         op.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        op.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (op.phone && op.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (op.employeeCode && op.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [operators, searchQuery]);
@@ -703,7 +696,7 @@ export const MastersScreen: React.FC = () => {
     return expenseTypes.filter(
       (et) =>
         et.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        et.category.toLowerCase().includes(searchQuery.toLowerCase())
+        (et.category && et.category.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [expenseTypes, searchQuery]);
 
@@ -711,7 +704,7 @@ export const MastersScreen: React.FC = () => {
     return customers.filter(
       (c) =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.code && c.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.phone && c.phone.includes(searchQuery)) ||
         (c.gstin && c.gstin.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -884,10 +877,6 @@ export const MastersScreen: React.FC = () => {
                       <Text style={styles.metaValue}>{b.gstin || '33AAAAA0000A1Z5'}</Text>
                     </View>
                     <View style={styles.metaCol}>
-                      <Text style={styles.metaLabel}>PESO License</Text>
-                      <Text style={styles.metaValue}>{b.peso_license_no || 'PESO-CALIB-2024'}</Text>
-                    </View>
-                    <View style={styles.metaCol}>
                       <Text style={styles.metaLabel}>Operating Hours</Text>
                       <Text style={styles.metaValue}>{b.operating_hours || '24 Hours'}</Text>
                     </View>
@@ -979,8 +968,9 @@ export const MastersScreen: React.FC = () => {
                     <View style={styles.prodMetricsRow}>
                       <View style={styles.prodMetricBox}>
                         <Text style={styles.prodMetricLbl}>SELLING RSP</Text>
-                        <Text style={styles.prodMetricVal}>{formatCurrency(prod.currentRate)}/{prod.unit}</Text>
+                        <Text style={styles.prodMetricVal}>{formatRate(prod.currentRate)}/{prod.unit}</Text>
                       </View>
+
                       <View style={styles.prodMetricBox}>
                         <Text style={styles.prodMetricLbl}>STORAGE CAP</Text>
                         <Text style={styles.prodMetricVal}>{prod.tankCapacity ? `${prod.tankCapacity.toLocaleString()} L` : '—'}</Text>
@@ -1035,7 +1025,7 @@ export const MastersScreen: React.FC = () => {
 
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <StatusDropdownBadge
-                          currentStatus={pump.status}
+                          currentStatus={pump.status || 'ACTIVE'}
                           options={pumpStatusOptions}
                           onSelect={(newStatus) => {
                             updatePump({ ...pump, status: newStatus as any });
@@ -1067,8 +1057,8 @@ export const MastersScreen: React.FC = () => {
                         <Text style={styles.specVal}>{pump.makeModel || 'Midco'}</Text>
                       </View>
                       <View style={styles.specItem}>
-                        <Text style={styles.specLbl}>PESO Stamping</Text>
-                        <Text style={styles.specVal}>{pump.pesoSealNo || 'PESO-CALIB-2024'}</Text>
+                        <Text style={styles.specLbl}>Installation Date</Text>
+                        <Text style={styles.specVal}>{pump.installationDate || '2023-01-15'}</Text>
                       </View>
                       <View style={styles.specItem}>
                         <Text style={styles.specLbl}>Assigned Tank</Text>
@@ -1137,7 +1127,7 @@ export const MastersScreen: React.FC = () => {
                       <Text style={[styles.cellText, { width: 100, textAlign: 'center' }]}>{op.assignedShift || 'Morning'}</Text>
                       <View style={{ width: 190, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                         <StatusDropdownBadge
-                          currentStatus={op.status || (isActive ? 'ACTIVE' : 'INACTIVE')}
+                          currentStatus={(op.status as any) || (isActive ? 'ACTIVE' : 'INACTIVE')}
                           options={staffStatusOptions}
                           onSelect={(newStatus) => {
                             updateOperator({ ...op, status: newStatus as any, active: newStatus === 'ACTIVE' });
@@ -1177,13 +1167,13 @@ export const MastersScreen: React.FC = () => {
                 FINANCIAL: colors.cashGreen,
                 MAINTENANCE: colors.warning,
               };
-              const col = catColors[et.category] || colors.textMuted;
+              const col = (et.category && catColors[et.category]) ? catColors[et.category] : colors.textMuted;
               return (
                 <View key={et.id} style={[styles.expenseCard, { borderLeftColor: col }, !isActive && { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1', opacity: 0.85 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.expenseName}>{et.name}</Text>
                     <View style={[styles.catPill, { backgroundColor: col + '15' }]}>
-                      <Text style={[styles.catPillText, { color: col }]}>{et.category}</Text>
+                      <Text style={[styles.catPillText, { color: col }]}>{et.category || 'General'}</Text>
                     </View>
                   </View>
 
@@ -1239,7 +1229,7 @@ export const MastersScreen: React.FC = () => {
               ) : (
                 filteredCustomers.map((c, idx) => (
                   <View key={c.id} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt, c.status === 'INACTIVE' && { opacity: 0.8 }]}>
-                    <Text style={[styles.cellTextMono, { width: 90 }]}>{c.code}</Text>
+                    <Text style={[styles.cellTextMono, { width: 90 }]}>{c.code || `CUST-${idx + 1}`}</Text>
                     <View style={{ width: 200 }}>
                       <Text style={styles.cellBoldText} numberOfLines={1}>{c.name}</Text>
                       <Text style={styles.cellSubText} numberOfLines={1}>{c.phone || 'No phone'}</Text>
@@ -1249,14 +1239,14 @@ export const MastersScreen: React.FC = () => {
                       <Text style={styles.cellSubText}>{c.panNumber || 'AAAAA0000A'}</Text>
                     </View>
                     <Text style={[styles.cellText, { width: 130 }]} numberOfLines={1}>{c.contactPerson || c.name}</Text>
-                    <Text style={[styles.cellTextMono, { width: 120, textAlign: 'right' }]}>{formatCurrency(c.creditLimit)}</Text>
+                    <Text style={[styles.cellTextMono, { width: 120, textAlign: 'right' }]}>{formatCurrency(c.creditLimit || 500000)}</Text>
                     <Text style={[styles.cellTextMono, { width: 120, textAlign: 'right', color: c.outstandingBalance > 0 ? colors.danger : colors.textPrimary }]}>
                       {formatCurrency(c.outstandingBalance)}
                     </Text>
                     <Text style={[styles.cellText, { width: 80, textAlign: 'center' }]}>{c.creditPeriodDays || 15}d</Text>
                     <View style={{ width: 190, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                       <StatusDropdownBadge
-                        currentStatus={c.status}
+                        currentStatus={c.status || 'ACTIVE'}
                         options={customerStatusOptions}
                         onSelect={(newStatus) => {
                           updateCustomer({ ...c, status: newStatus as any });
@@ -1293,8 +1283,15 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <Text style={styles.formSectionHeading}>1. STATION DETAILS</Text>
                 
                 <View style={styles.formGroup}>
@@ -1368,36 +1365,24 @@ export const MastersScreen: React.FC = () => {
                     />
                   </View>
                   <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>PESO Explosives License No</Text>
-                    <TextInput
-                      style={styles.fieldInput}
-                      value={branchForm.peso_license_no}
-                      onChangeText={(t) => setBranchForm({ ...branchForm, peso_license_no: t })}
-                   
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.formGrid2}>
-                  <View style={styles.formGroup}>
                     <Text style={styles.fieldLabel}>Operating Timings</Text>
                     <TextInput
                       style={styles.fieldInput}
                       value={branchForm.operating_hours}
                       onChangeText={(t) => setBranchForm({ ...branchForm, operating_hours: t })}
-                   
                     />
                   </View>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>Station Official Email</Text>
-                    <TextInput
-                      style={styles.fieldInput}
-                      value={branchForm.contact_email}
-                      onChangeText={(t) => setBranchForm({ ...branchForm, contact_email: t })}
-                      placeholder="email"
-                      keyboardType="email-address"
-                    />
-                  </View>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.fieldLabel}>Station Official Email</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={branchForm.contact_email}
+                    onChangeText={(t) => setBranchForm({ ...branchForm, contact_email: t })}
+                    placeholder="email"
+                    keyboardType="email-address"
+                  />
                 </View>
 
                 <Text style={styles.formSectionHeading}>3. ASSIGNED MANAGER ACCESS</Text>
@@ -1462,8 +1447,15 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <Text style={styles.formSectionHeading}>1. PRODUCT IDENTIFICATION</Text>
                 
                 <View style={styles.formGrid2}>
@@ -1626,8 +1618,15 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 30 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <Text style={styles.formSectionHeading}>1. DISPENSER DETAILS</Text>
 
                 <View style={styles.formGrid2}>
@@ -1684,12 +1683,12 @@ export const MastersScreen: React.FC = () => {
                     />
                   </View>
                   <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>PESO Stamping Seal No</Text>
+                    <Text style={styles.fieldLabel}>Installation Date</Text>
                     <TextInput
                       style={styles.fieldInput}
-                      value={pumpPesoSeal}
-                      onChangeText={setPumpPesoSeal}
-                      placeholder="e.g. PESO-WM-TN-88219"
+                      value={pumpInstallDate}
+                      onChangeText={setPumpInstallDate}
+                      placeholder="YYYY-MM-DD"
                     />
                   </View>
                 </View>
@@ -1788,8 +1787,15 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <Text style={styles.formSectionHeading}>1. PERSONAL & CONTACT DETAILS</Text>
 
                 <View style={styles.formGrid2}>
@@ -1903,32 +1909,41 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Expense Head Name *</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={etName}
-                  onChangeText={setEtName}
-                  placeholder=" "
-                />
-              </View>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.modalBody}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.fieldLabel}>Expense Head Name *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={etName}
+                    onChangeText={setEtName}
+                    placeholder=" "
+                  />
+                </View>
 
-              <View style={styles.formGroup}>
-                <DropdownPicker
-                  label="Category"
-                  placeholder="Select Category..."
-                  options={expenseCategoryOptions.length > 0 ? expenseCategoryOptions : [
-                    { label: 'Operational', value: 'OPERATIONAL' },
-                    { label: 'Staff', value: 'STAFF' },
-                    { label: 'Financial', value: 'FINANCIAL' },
-                    { label: 'Maintenance', value: 'MAINTENANCE' },
-                  ]}
-                  value={etCategory}
-                  onChange={(v) => setEtCategory(v as ExpenseType['category'])}
-                />
+                <View style={styles.formGroup}>
+                  <DropdownPicker
+                    label="Category"
+                    placeholder="Select Category..."
+                    options={expenseCategoryOptions.length > 0 ? expenseCategoryOptions : [
+                      { label: 'Operational', value: 'OPERATIONAL' },
+                      { label: 'Staff', value: 'STAFF' },
+                      { label: 'Financial', value: 'FINANCIAL' },
+                      { label: 'Maintenance', value: 'MAINTENANCE' },
+                    ]}
+                    value={etCategory || 'OPERATIONAL'}
+                    onChange={(v) => setEtCategory(v as any)}
+                  />
+                </View>
               </View>
-            </View>
+            </ScrollView>
+
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEtModal(false)}>
@@ -1957,8 +1972,15 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 540 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <Text style={styles.formSectionHeading}>1. PARTY IDENTIFICATION</Text>
 
                 <View style={styles.formGrid2}>
@@ -2106,8 +2128,8 @@ export const MastersScreen: React.FC = () => {
                       { label: 'Blocked', value: 'BLOCKED' },
                       { label: 'Inactive', value: 'INACTIVE' },
                     ]}
-                    value={custStatus}
-                    onChange={(v) => setCustStatus(v as CreditCustomer['status'])}
+                    value={custStatus || 'ACTIVE'}
+                    onChange={(v) => setCustStatus(v as any)}
                   />
                 </View>
               </View>
@@ -2197,69 +2219,86 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryActionBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#6F7BF5',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
   },
   primaryActionBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   tabContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
     padding: 4,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
   },
   tabBarScroll: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   tabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   tabBtnActive: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: '#6F7BF5',
+    shadowColor: '#6F7BF5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#4B5563',
   },
   tabTextActive: {
-    color: colors.primary,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   countBadge: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 10,
   },
   countBadgeActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFFFFF',
   },
   countText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#64748B',
   },
   countTextActive: {
-    color: '#FFFFFF',
+    color: '#6F7BF5',
   },
 
   // ── Search Bar ────────────────────────────────────────────────────────────
@@ -2271,28 +2310,35 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderColor: '#D6DCE6',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    height: 36,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: colors.textPrimary,
+    color: '#1F2937',
   },
 
   // ── Section Cards & Grids ─────────────────────────────────────────────────
   sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
     padding: 16,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
+
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2754,7 +2800,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     width: '100%',
     maxWidth: 460,
+    maxHeight: '90%',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
   modalCardWide: {
     backgroundColor: colors.surface,
@@ -2763,8 +2812,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     width: '100%',
     maxWidth: 640,
+    maxHeight: '90%',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
+
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2894,30 +2947,34 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 40,
+    borderWidth: 0,
+    backgroundColor: '#6C757D',
   },
   cancelBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#FFFFFF',
   },
   saveBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#0D63B8',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    borderRadius: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   saveBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '500',
     color: '#FFFFFF',
   },
 
@@ -2926,7 +2983,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#F1E4E4',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -2943,14 +3000,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   deleteConfirmBtn: {
-    backgroundColor: colors.danger,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 40,
   },
   deleteConfirmBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
-});
+});

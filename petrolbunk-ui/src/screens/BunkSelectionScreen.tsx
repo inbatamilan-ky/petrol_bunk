@@ -66,11 +66,8 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
       const matchQuery =
         !q ||
         b.name.toLowerCase().includes(q) ||
-        (b.bunk_name && b.bunk_name.toLowerCase().includes(q)) ||
-        b.location.toLowerCase().includes(q) ||
-        (b.city && b.city.toLowerCase().includes(q)) ||
-        (b.dealer_code && b.dealer_code.toLowerCase().includes(q)) ||
-        (b.manager_name && b.manager_name.toLowerCase().includes(q));
+        (b.location && b.location.toLowerCase().includes(q)) ||
+        (b.dealer_code && b.dealer_code.toLowerCase().includes(q));
 
       const matchBrand = selectedBrand === 'ALL' || b.omc_brand === selectedBrand;
       return matchQuery && matchBrand;
@@ -96,16 +93,10 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
     try {
       await addBranch({
         name: formName.trim(),
-        bunk_name: formName.trim(),
         location: formLocation.trim() || 'Tamil Nadu',
-        city: formLocation.trim() || 'Tamil Nadu',
         dealer_code: formDealerCode.trim(),
         omc_brand: formBrand,
         is_active: true,
-        manager_name: formManagerName.trim() || 'Station Manager',
-        manager_phone: formManagerPhone.trim(),
-        manager_email: formManagerEmail.trim(),
-        manager_access: formManagerAccess,
       });
 
       setShowAddModal(false);
@@ -240,17 +231,16 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
                     </View>
                   </View>
 
-                  {/* Manager Meta */}
+                  {/* Branch Meta */}
                   <View style={styles.managerMetaBox}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                      <User size={13} color={colors.primary} />
+                      <Building2 size={13} color={colors.primary} />
                       <Text style={styles.managerName} numberOfLines={1}>
-                        {branch.manager_name || 'Station Manager'}
-                        {branch.manager_phone ? ` · ${branch.manager_phone}` : ''}
+                        {branch.location || 'Branch Outlet'}
                       </Text>
                     </View>
                     <Text style={styles.managerAccessText}>
-                      {branch.manager_access || 'Full Access'}
+                      {branch.omc_brand}
                     </Text>
                   </View>
 
@@ -295,8 +285,15 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 520 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
+
                 <View style={styles.formGroup}>
                   <Text style={styles.fieldLabel}>Station / Bunk Name *</Text>
                   <TextInput
@@ -707,8 +704,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     width: '100%',
     maxWidth: 500,
+    maxHeight: '90%',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
+
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

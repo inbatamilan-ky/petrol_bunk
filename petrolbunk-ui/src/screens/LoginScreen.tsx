@@ -9,7 +9,8 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Fuel, Lock, User, Eye, EyeOff, KeyRound, X, CheckCircle2, Shield } from 'lucide-react';
+import { Fuel, Lock, User, Eye, EyeOff, KeyRound, X, CheckCircle2, Shield, Check } from 'lucide-react';
+
 import { colors, typography } from '../theme/colors';
 import { login, forgotPassword, resetPassword, AuthUser } from '../api/auth';
 
@@ -196,8 +197,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 activeOpacity={0.7}
               >
                 <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                  {rememberMe && <Check size={11} color="#FFFFFF" strokeWidth={3} />}
                 </View>
+
                 <Text style={styles.rememberMeText}>Remember me</Text>
               </TouchableOpacity>
 
@@ -249,131 +251,140 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </TouchableOpacity>
             </View>
 
-            {forgotStep === 'request' && (
-              <View style={styles.modalBody}>
-                <Text style={styles.modalSubtitle}>Enter your registered mobile number to request a reset token.</Text>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Mobile Number</Text>
-                  <View style={styles.inputWrapper}>
-                    <User size={16} color={colors.textSecondary} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={forgotUsername}
-                      onChangeText={setForgotUsername}
-                      placeholder="Enter mobile number"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="phone-pad"
-                      autoCapitalize="none"
-                    />
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 480 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {forgotStep === 'request' && (
+                <View style={styles.modalBody}>
+                  <Text style={styles.modalSubtitle}>Enter your registered mobile number to request a reset token.</Text>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>Mobile Number</Text>
+                    <View style={styles.inputWrapper}>
+                      <User size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        value={forgotUsername}
+                        onChangeText={setForgotUsername}
+                        placeholder="Enter mobile number"
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="phone-pad"
+                        autoCapitalize="none"
+                      />
+                    </View>
                   </View>
-                </View>
 
-                {forgotError && (
-                  <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>{forgotError}</Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.loginBtn, forgotLoading && styles.loginBtnDisabled]}
-                  onPress={handleForgotRequest}
-                  disabled={forgotLoading}
-                  activeOpacity={0.85}
-                >
-                  {forgotLoading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.loginBtnText}>Generate Reset Token</Text>
+                  {forgotError && (
+                    <View style={styles.errorBox}>
+                      <Text style={styles.errorText}>{forgotError}</Text>
+                    </View>
                   )}
-                </TouchableOpacity>
-              </View>
-            )}
 
-            {forgotStep === 'reset' && (
-              <View style={styles.modalBody}>
-                {forgotSuccess && (
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>{forgotSuccess}</Text>
-                  </View>
-                )}
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Reset Token</Text>
-                  <View style={styles.inputWrapper}>
-                    <KeyRound size={16} color={colors.textSecondary} style={styles.inputIcon} />
-                    <TextInput
-                      style={[styles.input, { fontFamily: typography.monoFont }]}
-                      value={resetToken}
-                      onChangeText={setResetToken}
-                      placeholder="Token"
-                      placeholderTextColor={colors.textMuted}
-                    />
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.loginBtn, forgotLoading && styles.loginBtnDisabled]}
+                    onPress={handleForgotRequest}
+                    disabled={forgotLoading}
+                    activeOpacity={0.85}
+                  >
+                    {forgotLoading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>Generate Reset Token</Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
+              )}
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>New Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      placeholder="Minimum 4 characters"
-                      placeholderTextColor={colors.textMuted}
-                      secureTextEntry={!showNewPwd}
-                    />
-                    <TouchableOpacity onPress={() => setShowNewPwd((p) => !p)} activeOpacity={0.7} style={styles.eyeBtn}>
-                      {showNewPwd ? <EyeOff size={16} color={colors.textSecondary} /> : <Eye size={16} color={colors.textSecondary} />}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Confirm New Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      placeholder="Re-enter new password"
-                      placeholderTextColor={colors.textMuted}
-                      secureTextEntry={!showNewPwd}
-                    />
-                  </View>
-                </View>
-
-                {forgotError && (
-                  <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>{forgotError}</Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.loginBtn, forgotLoading && styles.loginBtnDisabled]}
-                  onPress={handleResetPassword}
-                  disabled={forgotLoading}
-                  activeOpacity={0.85}
-                >
-                  {forgotLoading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.loginBtnText}>Set New Password</Text>
+              {forgotStep === 'reset' && (
+                <View style={styles.modalBody}>
+                  {forgotSuccess && (
+                    <View style={styles.infoBox}>
+                      <Text style={styles.infoText}>{forgotSuccess}</Text>
+                    </View>
                   )}
-                </TouchableOpacity>
-              </View>
-            )}
 
-            {forgotStep === 'done' && (
-              <View style={[styles.modalBody, { alignItems: 'center', gap: 12, paddingVertical: 20 }]}>
-                <CheckCircle2 size={40} color={colors.success} />
-                <Text style={styles.doneText}>Password updated successfully. You can now sign in.</Text>
-                <TouchableOpacity style={styles.loginBtn} onPress={closeForgotModal} activeOpacity={0.85}>
-                  <Text style={styles.loginBtnText}>Return to Sign In</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>Reset Token</Text>
+                    <View style={styles.inputWrapper}>
+                      <KeyRound size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { fontFamily: typography.monoFont }]}
+                        value={resetToken}
+                        onChangeText={setResetToken}
+                        placeholder="Token"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>New Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="Minimum 4 characters"
+                        placeholderTextColor={colors.textMuted}
+                        secureTextEntry={!showNewPwd}
+                      />
+                      <TouchableOpacity onPress={() => setShowNewPwd((p) => !p)} activeOpacity={0.7} style={styles.eyeBtn}>
+                        {showNewPwd ? <EyeOff size={16} color={colors.textSecondary} /> : <Eye size={16} color={colors.textSecondary} />}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>Confirm New Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <Lock size={16} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Re-enter new password"
+                        placeholderTextColor={colors.textMuted}
+                        secureTextEntry={!showNewPwd}
+                      />
+                    </View>
+                  </View>
+
+                  {forgotError && (
+                    <View style={styles.errorBox}>
+                      <Text style={styles.errorText}>{forgotError}</Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.loginBtn, forgotLoading && styles.loginBtnDisabled]}
+                    onPress={handleResetPassword}
+                    disabled={forgotLoading}
+                    activeOpacity={0.85}
+                  >
+                    {forgotLoading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>Set New Password</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {forgotStep === 'done' && (
+                <View style={[styles.modalBody, { alignItems: 'center', gap: 12, paddingVertical: 20 }]}>
+                  <CheckCircle2 size={40} color={colors.success} />
+                  <Text style={styles.doneText}>Password updated successfully. You can now sign in.</Text>
+                  <TouchableOpacity style={styles.loginBtn} onPress={closeForgotModal} activeOpacity={0.85}>
+                    <Text style={styles.loginBtnText}>Return to Sign In</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+
           </View>
         </View>
       </Modal>
@@ -584,8 +595,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     width: '100%',
     maxWidth: 420,
+    maxHeight: '90%',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
+
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

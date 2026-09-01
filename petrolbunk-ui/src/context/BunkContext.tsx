@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { AuthProvider, useAuthContext } from './AuthContext';
-import { MastersProvider, useMastersContext } from './MastersContext';
+import { MastersProvider, useMasters } from './MastersContext';
 import { ShiftOperationsProvider, useShiftOperationsContext } from './ShiftOperationsContext';
 import { TankDipProvider, useTankDipContext } from './TankDipContext';
 import { CreditLedgerProvider, useCreditLedgerContext } from './CreditLedgerContext';
@@ -9,37 +9,38 @@ import { RateManagementProvider, useRateManagementContext } from './RateManageme
 import { CashBankProvider, useCashBankContext } from './CashBankContext';
 import { DashboardProvider, useDashboardContext } from './DashboardContext';
 import { ReportsProvider, useReportsContext } from './ReportsContext';
-import { DEFAULT_PRODUCTS, DEFAULT_PUMPS } from './mappers';
-
-export { DEFAULT_PRODUCTS, DEFAULT_PUMPS };
+import { PermissionsProvider, usePermissions } from './PermissionsContext';
 
 export const BunkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <AuthProvider>
-      <MastersProvider>
-        <ShiftOperationsProvider>
-          <TankDipProvider>
-            <CreditLedgerProvider>
-              <ExpensesProvider>
-                <RateManagementProvider>
-                  <CashBankProvider>
-                    <DashboardProvider>
-                      <ReportsProvider>{children}</ReportsProvider>
-                    </DashboardProvider>
-                  </CashBankProvider>
-                </RateManagementProvider>
-              </ExpensesProvider>
-            </CreditLedgerProvider>
-          </TankDipProvider>
-        </ShiftOperationsProvider>
-      </MastersProvider>
+      <PermissionsProvider>
+        <MastersProvider>
+          <ShiftOperationsProvider>
+            <TankDipProvider>
+              <CreditLedgerProvider>
+                <ExpensesProvider>
+                  <RateManagementProvider>
+                    <CashBankProvider>
+                      <DashboardProvider>
+                        <ReportsProvider>{children}</ReportsProvider>
+                      </DashboardProvider>
+                    </CashBankProvider>
+                  </RateManagementProvider>
+                </ExpensesProvider>
+              </CreditLedgerProvider>
+            </TankDipProvider>
+          </ShiftOperationsProvider>
+        </MastersProvider>
+      </PermissionsProvider>
     </AuthProvider>
   );
 };
 
+
 export const useBunk = () => {
   const auth = useAuthContext();
-  const masters = useMastersContext();
+  const masters = useMasters();
   const shiftOps = useShiftOperationsContext();
   const tankDip = useTankDipContext();
   const credit = useCreditLedgerContext();
@@ -48,6 +49,8 @@ export const useBunk = () => {
   const cashBank = useCashBankContext();
   const dashboard = useDashboardContext();
   const reports = useReportsContext();
+  const perms = usePermissions();
+
 
   const syncWithBackend = useCallback(async () => {
     auth.setLoading(true);
@@ -55,8 +58,8 @@ export const useBunk = () => {
     try {
       await Promise.all([
         masters.syncMasters(),
-        shiftOps.syncShifts(),
-        tankDip.syncTankDips(),
+        shiftOps.syncOperationsData(),
+        tankDip.syncDailyNozzleMeters(),
         credit.syncCredit(),
         exp.syncExpenses(),
         rates.syncRatesAndLogs(),
@@ -99,10 +102,15 @@ export const useBunk = () => {
 
     // Masters
     products: masters.products,
+    setProducts: masters.setProducts,
     pumps: masters.pumps,
+    setPumps: masters.setPumps,
     operators: masters.operators,
+    setOperators: masters.setOperators,
     customers: masters.customers,
+    setCustomers: masters.setCustomers,
     expenseTypes: masters.expenseTypes,
+    setExpenseTypes: masters.setExpenseTypes,
     addProduct: masters.addProduct,
     updateProduct: masters.updateProduct,
     deleteProduct: masters.deleteProduct,
@@ -119,56 +127,45 @@ export const useBunk = () => {
     updateExpenseType: masters.updateExpenseType,
     deleteExpenseType: masters.deleteExpenseType,
 
-    // Shifts
-    shifts: shiftOps.shifts,
-    activeShift: shiftOps.activeShift,
-    openNewShift: shiftOps.openNewShift,
-    saveShiftDraft: shiftOps.saveShiftDraft,
-    closeShift: shiftOps.closeShift,
-    updateShift: shiftOps.updateShift,
-    deleteShift: shiftOps.deleteShift,
+    // Shift / Pump Attribution Operations
+    attributions: shiftOps.attributions,
+    saveAttribution: shiftOps.saveAttribution,
+    deleteAttribution: shiftOps.deleteAttribution,
+    saveNozzleMetersBatch: shiftOps.saveNozzleMetersBatch,
+    shifts: shiftOps.attributions,
+    activeShift: shiftOps.attributions[0] || null,
 
-    // Tanks & Dips & Meters
-    tanks: tankDip.tanks,
-    dips: tankDip.dips,
+    // Nozzle Meters
     dailyNozzleMeters: tankDip.dailyNozzleMeters,
     saveBatchNozzleMeters: tankDip.saveBatchNozzleMeters,
-    recordTankDip: tankDip.recordTankDip,
 
     // Credit Ledger
     creditTransactions: credit.creditTransactions,
+    setCreditTransactions: credit.setCreditTransactions,
     creditPayments: credit.creditPayments,
+    setCreditPayments: credit.setCreditPayments,
     addCreditSale: credit.addCreditSale,
     recordCreditRepayment: credit.recordCreditRepayment,
 
     // Expenses
     expenses: exp.expenses,
+    setExpenses: exp.setExpenses,
     addExpense: exp.addExpense,
 
-    // Rates & SMS Logs
+    // Rates
     fuelRateHistory: rates.fuelRateHistory,
-    smsLogs: rates.smsLogs,
-    autoListenEnabled: rates.autoListenEnabled,
-    setAutoListenEnabled: rates.setAutoListenEnabled,
-    autoApplySms: rates.autoApplySms,
-    setAutoApplySms: rates.setAutoApplySms,
     updateFuelRate: rates.updateFuelRate,
     updateBatchFuelRates: rates.updateBatchFuelRates,
-    addSmsLog: rates.addSmsLog,
-    updateSmsLogStatus: rates.updateSmsLogStatus,
-    clearSmsLogs: rates.clearSmsLogs,
-    triggerDailyCronSync: rates.triggerDailyCronSync,
 
     // Cash & Bank
     bankDeposits: cashBank.bankDeposits,
-    bankAccounts: cashBank.bankAccounts,
+    settlements: cashBank.settlements,
+    dailyReconciliation: cashBank.dailyReconciliation,
     recordBankDeposit: cashBank.recordBankDeposit,
-    addBankAccount: cashBank.addBankAccount,
-    updateBankAccount: cashBank.updateBankAccount,
-    deleteBankAccount: cashBank.deleteBankAccount,
-    saveCashSafeLedger: cashBank.saveCashSafeLedger,
+    saveReconciliation: cashBank.saveReconciliation,
+    saveSettlementsBatch: cashBank.saveSettlementsBatch,
 
-    // Dashboard Aggregates
+    // Dashboard
     totalSalesToday: dashboard.totalSalesToday,
     totalLitresToday: dashboard.totalLitresToday,
     totalCashCollected: dashboard.totalCashCollected,
@@ -176,9 +173,19 @@ export const useBunk = () => {
     totalCreditOutstanding: dashboard.totalCreditOutstanding,
     netCashOnHand: dashboard.netCashOnHand,
 
-    // Backend sync
+    // Reports
+    generateReport: reports.generateReport,
+
+    // Page-Wise Permissions
+    isPageVisible: perms.isPageVisible,
+    getAllowedPages: perms.getAllowedPages,
+    getPagePermissionsForTarget: perms.getPagePermissionsForTarget,
+    savePagePermissions: perms.savePagePermissions,
+    resetPagePermissions: perms.resetPagePermissions,
+    isPermissionsLoaded: perms.isLoaded,
+
+    // Sync
     syncWithBackend,
   };
 };
 
-export default BunkProvider;

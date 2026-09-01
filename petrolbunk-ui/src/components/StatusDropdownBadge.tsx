@@ -4,10 +4,11 @@ import {
   Text,
   TouchableOpacity,
   Modal,
-  TouchableWithoutFeedback,
+  Pressable,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+
 import { Check, ChevronDown } from 'lucide-react';
 import { DropdownOption } from '../components/DropdownPicker';
 import { colors } from '../theme/colors';
@@ -180,68 +181,66 @@ export const StatusDropdownBadge: React.FC<StatusDropdownBadgeProps> = ({
         animationType="fade"
         onRequestClose={() => setIsOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setIsOpen(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View
-                style={[
-                  styles.dropdownMenu,
-                  dropdownPos.top > 0
-                    ? {
-                        position: 'absolute',
-                        top: dropdownPos.top,
-                        left: dropdownPos.left,
-                        width: dropdownPos.width,
-                      }
-                    : styles.centeredMenu,
-                ]}
-              >
-                <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
-                  {activeOptions.map((opt) => {
-                    const isSelected =
-                      opt.value.toLowerCase() === (currentStatus || '').toLowerCase();
-                    const optStyle = getStatusStyle(opt.value, opt.color);
+        <Pressable style={styles.modalOverlay} onPress={() => setIsOpen(false)}>
+          <Pressable
+            style={[
+              styles.dropdownMenu,
+              dropdownPos.top > 0
+                ? {
+                    position: 'absolute',
+                    top: dropdownPos.top,
+                    left: dropdownPos.left,
+                    width: dropdownPos.width,
+                  }
+                : styles.centeredMenu,
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+              {activeOptions.map((opt) => {
+                const isSelected =
+                  opt.value.toLowerCase() === (currentStatus || '').toLowerCase();
+                const optStyle = getStatusStyle(opt.value, opt.color);
 
-                    return (
-                      <TouchableOpacity
-                        key={opt.value}
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.menuItem,
+                      isSelected && styles.menuItemSelected,
+                    ]}
+                    onPress={() => {
+                      onSelect(opt.value);
+                      setIsOpen(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.menuItemLeft}>
+                      <View
                         style={[
-                          styles.menuItem,
-                          isSelected && styles.menuItemSelected,
+                          styles.itemDot,
+                          { backgroundColor: optStyle.dot },
                         ]}
-                        onPress={() => {
-                          onSelect(opt.value);
-                          setIsOpen(false);
-                        }}
-                        activeOpacity={0.7}
+                      />
+                      <Text
+                        style={[
+                          styles.menuItemLabel,
+                          isSelected && styles.menuItemLabelSelected,
+                        ]}
                       >
-                        <View style={styles.menuItemLeft}>
-                          <View
-                            style={[
-                              styles.itemDot,
-                              { backgroundColor: optStyle.dot },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.menuItemLabel,
-                              isSelected && styles.menuItemLabelSelected,
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </View>
-                        {isSelected && (
-                          <Check size={14} color={colors.primary} style={{ marginLeft: 6 }} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+                        {opt.label}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Check size={14} color={colors.primary} style={{ marginLeft: 6 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+
       </Modal>
     </View>
   );

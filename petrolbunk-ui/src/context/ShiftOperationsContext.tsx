@@ -1,242 +1,240 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { Shift, UserRole, Pump, Operator, Product } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  PumpDayAttribution,
+  DailyNozzleMeter,
+  UserRole,
+  Pump,
+  Operator,
+  Product,
+} from '../types';
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
-import { useMastersContext } from './MastersContext';
-import { mapShift } from './mappers';
+import { useMasters } from './MastersContext';
+import { mapPumpDayAttribution, mapDailyNozzleMeter } from './mappers';
 
 export interface ShiftOperationsContextType {
-  shifts: Shift[];
-  setShifts: React.Dispatch<React.SetStateAction<Shift[]>>;
-  activeShift: Shift | null;
+  attributions: PumpDayAttribution[];
+  setAttributions: React.Dispatch<React.SetStateAction<PumpDayAttribution[]>>;
+  nozzleMeters: DailyNozzleMeter[];
+  setNozzleMeters: React.Dispatch<React.SetStateAction<DailyNozzleMeter[]>>;
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
   pumps: Pump[];
   operators: Operator[];
   products: Product[];
   role: UserRole;
 
-  openNewShift: (params: {
+  // Pump-day attribution operations (Block H)
+  saveAttribution: (params: {
+    id?: string;
+    attributionDate: string;
     pumpId: string;
     operatorId: string;
-    shiftType: Shift['shiftType'];
-    shiftDate: string;
-  }) => Promise<Shift>;
-  saveShiftDraft: (shift: Shift) => Promise<Shift>;
-  closeShift: (shiftId: string, shift: Shift, notes?: string) => Promise<Shift>;
-  updateShift: (
-    shiftId: string,
-    updates: { operatorId?: string; shiftType?: Shift['shiftType']; shiftDate?: string; notes?: string; status?: Shift['status'] }
-  ) => Promise<void>;
-  deleteShift: (shiftId: string) => Promise<void>;
-  syncShifts: () => Promise<void>;
+    timeIn?: string | null;
+    timeOut?: string | null;
+    advancePayment?: number;
+    creditAcc?: number;
+    cashCollected?: number;
+    cardCollected?: number;
+    fleetCardCollected?: number;
+    creditSales?: number;
+    gpayCollected?: number;
+    phonePayCollected?: number;
+    paytmCollected?: number;
+    upiGpayCollected?: number;
+    totalAmount?: number;
+    netPayment?: number;
+  }) => Promise<PumpDayAttribution>;
+  deleteAttribution: (id: string) => Promise<void>;
+
+  // Daily nozzle meter readings operations (Block B)
+  saveNozzleMetersBatch: (
+    readingDate: string,
+    readings: {
+      pumpId: string;
+      nozzleId: string;
+      productId: string;
+      openingMeter: number;
+      closingMeter: number;
+      sellingRate: number;
+    }[]
+  ) => Promise<DailyNozzleMeter[]>;
+
+  syncOperationsData: (date?: string) => Promise<void>;
+
+  // Backwards-compatible aliases
+  shifts: any[];
+  activeShift: any;
 }
 
 const ShiftOperationsContext = createContext<ShiftOperationsContextType | undefined>(undefined);
 
 export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, role, activeBranchId } = useAuthContext();
-  const { pumps, operators, products, syncMasters } = useMastersContext();
+  const { pumps, operators, products } = useMasters();
 
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [attributions, setAttributions] = useState<PumpDayAttribution[]>([]);
+  const [nozzleMeters, setNozzleMeters] = useState<DailyNozzleMeter[]>([]);
 
-  const syncShifts = useCallback(async () => {
+  const syncOperationsData = useCallback(async (date?: string) => {
+    const targetDate = date || selectedDate;
     try {
-      const shiftData = await apiFetch('/api/shifts').catch(() => []);
-      if (Array.isArray(shiftData)) {
-        setShifts(shiftData.map(mapShift));
-      }
+      const [attrData, meterData] = await Promise.all([
+        apiFetch(`/api/pump-attribution?attribution_date=${targetDate}`).catch(() => []),
+        apiFetch(`/api/nozzle-meters?reading_date=${targetDate}`).catch(() => []),
+      ]);
+
+      setAttributions(Array.isArray(attrData) ? attrData.map(mapPumpDayAttribution) : []);
+      setNozzleMeters(Array.isArray(meterData) ? meterData.map(mapDailyNozzleMeter) : []);
     } catch (e) {
-      console.error('syncShifts error:', e);
+      console.error('syncOperationsData error:', e);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     if (isLoggedIn) {
-      syncShifts();
+      syncOperationsData(selectedDate);
     } else {
-      setShifts([]);
+      setAttributions([]);
+      setNozzleMeters([]);
     }
-  }, [isLoggedIn, activeBranchId, syncShifts]);
+  }, [isLoggedIn, activeBranchId, selectedDate, syncOperationsData]);
 
-  const activeShift = useMemo(() => {
-    return shifts.find((s) => s.status === 'IN_PROGRESS' || s.status === 'OPEN') || null;
-  }, [shifts]);
+  const saveAttribution = async (params: {
+    id?: string;
+    attributionDate: string;
+    pumpId: string;
+    operatorId: string;
+    timeIn?: string | null;
+    timeOut?: string | null;
+    advancePayment?: number;
+    creditAcc?: number;
+    cashCollected?: number;
+    cardCollected?: number;
+    fleetCardCollected?: number;
+    creditSales?: number;
+    gpayCollected?: number;
+    phonePayCollected?: number;
+    paytmCollected?: number;
+    upiGpayCollected?: number;
+    totalAmount?: number;
+    netPayment?: number;
+  }): Promise<PumpDayAttribution> => {
+    const gpay = params.gpayCollected ?? 0;
+    const phonePay = params.phonePayCollected ?? 0;
+    const paytm = params.paytmCollected ?? 0;
+    const upiLegacy = params.upiGpayCollected ?? (gpay + phonePay + paytm);
 
-  const openNewShift = useCallback(
-    async ({
-      pumpId,
-      operatorId,
-      shiftType,
-      shiftDate,
-    }: {
+    if (params.id) {
+      const updated = await apiFetch(`/api/pump-attribution/${params.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          time_in: params.timeIn,
+          time_out: params.timeOut,
+          advance_payment: params.advancePayment,
+          credit_acc: params.creditAcc,
+          cash_collected: params.cashCollected,
+          card_collected: params.cardCollected,
+          fleet_card_collected: params.fleetCardCollected,
+          credit_sales: params.creditSales,
+          gpay_collected: gpay,
+          phone_pay_collected: phonePay,
+          paytm_collected: paytm,
+          upi_gpay_collected: upiLegacy,
+          total_amount: params.totalAmount,
+          net_payment: params.netPayment,
+        }),
+      });
+      const mapped = mapPumpDayAttribution(updated);
+      setAttributions(prev => prev.map(a => (a.id === mapped.id ? mapped : a)));
+      return mapped;
+    } else {
+      const created = await apiFetch('/api/pump-attribution', {
+        method: 'POST',
+        body: JSON.stringify({
+          attribution_date: params.attributionDate,
+          pump_id: params.pumpId,
+          operator_id: params.operatorId,
+          time_in: params.timeIn,
+          time_out: params.timeOut,
+          advance_payment: params.advancePayment || 0,
+          credit_acc: params.creditAcc || 0,
+          cash_collected: params.cashCollected || 0,
+          card_collected: params.cardCollected || 0,
+          fleet_card_collected: params.fleetCardCollected || 0,
+          credit_sales: params.creditSales || 0,
+          gpay_collected: gpay,
+          phone_pay_collected: phonePay,
+          paytm_collected: paytm,
+          upi_gpay_collected: upiLegacy,
+          total_amount: params.totalAmount || 0,
+          net_payment: params.netPayment || 0,
+        }),
+      });
+      const mapped = mapPumpDayAttribution(created);
+      setAttributions(prev => [...prev, mapped]);
+      return mapped;
+    }
+  };
+
+  const deleteAttribution = async (id: string) => {
+    await apiFetch(`/api/pump-attribution/${id}`, { method: 'DELETE' });
+    setAttributions(prev => prev.filter(a => a.id !== id));
+  };
+
+  const saveNozzleMetersBatch = async (
+    readingDate: string,
+    readings: {
       pumpId: string;
-      operatorId: string;
-      shiftType: Shift['shiftType'];
-      shiftDate: string;
-    }): Promise<Shift> => {
-      const pump = pumps.find((p) => p.id === pumpId);
-      const operator = operators.find((o) => o.id === operatorId);
-      const nowIso = new Date().toISOString();
-
-      let newShift: Shift;
-      try {
-        const payload = {
-          shift_date: shiftDate,
-          shift_type: shiftType,
-          pump_id: pumpId,
-          operator_id: operatorId,
-        };
-        const created = await apiFetch('/api/shifts', { method: 'POST', body: JSON.stringify(payload) });
-        newShift = mapShift(created);
-      } catch {
-        newShift = {
-          id: `shift-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          shiftNo: `SH-${shiftDate.replace(/-/g, '')}-P${pump?.pumpNo || 1}-${shiftType.toUpperCase()}`,
-          shiftDate,
-          shiftType,
-          pumpId,
-          pumpNo: pump?.pumpNo || 1,
-          operatorId,
-          operatorName: operator?.name || 'Operator',
-          openedAt: nowIso,
-          status: 'IN_PROGRESS',
-          meterReadings: [],
-          totalLitresSold: 0,
-          totalSalesAmount: 0,
-          expensesDeducted: 0,
-          collections: { cash: 0, upiGpay: 0, card: 0, fleetCard: 0, creditSales: 0, cheque: 0 },
-          totalCollected: 0,
-          shortageOrExcess: 0,
-          notes: '',
-        };
-      }
-
-      if (!newShift.openedAt) {
-        newShift.openedAt = nowIso;
-      }
-
-      if (newShift.meterReadings.length === 0 && pump && pump.nozzles.length > 0) {
-        newShift.meterReadings = pump.nozzles.map((noz) => {
-          const prod = products.find((p) => p.id === noz.productId);
-          return {
-            nozzleId: noz.id,
-            nozzleNo: noz.nozzleNo,
-            productName: noz.productName || prod?.name || 'Fuel',
-            fuelCode: noz.fuelCode || prod?.code || 'HSD',
-            rate: prod?.currentRate || 94.5,
-            openingReading: noz.currentMeterReading || 0,
-            closingReading: noz.currentMeterReading || 0,
-            testingLitres: 0,
-            litresSold: 0,
-            grossAmount: 0,
-          };
-        });
-      }
-
-      setShifts((prev) => [newShift, ...prev]);
-      return newShift;
-    },
-    [pumps, operators, products]
-  );
-
-  const saveShiftDraft = useCallback(async (shift: Shift) => {
-    const collections = shift.collections;
-    const payload: any = {
-      cash_collected: collections.cash,
-      upi_gpay_collected: collections.upiGpay,
-      card_collected: collections.card,
-      fleet_card_collected: collections.fleetCard,
-      credit_sales: collections.creditSales,
-      cheque_collected: collections.cheque,
-      expenses_deducted: shift.expensesDeducted,
-      notes: shift.notes,
-    };
-
-    if (shift.meterReadings && shift.meterReadings.length > 0) {
-      payload.meter_readings = shift.meterReadings.map((r) => ({
+      nozzleId: string;
+      productId: string;
+      openingMeter: number;
+      closingMeter: number;
+      sellingRate: number;
+    }[]
+  ): Promise<DailyNozzleMeter[]> => {
+    const payload = {
+      reading_date: readingDate,
+      readings: readings.map(r => ({
+        pump_id: r.pumpId,
         nozzle_id: r.nozzleId,
-        closing_reading: r.closingReading ?? r.openingReading,
-        testing_litres: r.testingLitres || 0,
-      }));
-    }
-
-    const updated = await apiFetch(`/api/shifts/${shift.id}/draft`, {
-      method: 'PUT',
+        product_id: r.productId,
+        opening_meter: r.openingMeter,
+        closing_meter: r.closingMeter,
+        selling_rate: r.sellingRate,
+      })),
+    };
+    const res = await apiFetch('/api/nozzle-meters/batch', {
+      method: 'POST',
       body: JSON.stringify(payload),
     });
-    const mapped = mapShift(updated);
-    setShifts((prev) => prev.map((s) => (s.id === shift.id ? mapped : s)));
+    const mapped = Array.isArray(res) ? res.map(mapDailyNozzleMeter) : [];
+    setNozzleMeters(mapped);
     return mapped;
-  }, []);
-
-  const updateShift = useCallback(
-    async (
-      shiftId: string,
-      updates: { operatorId?: string; shiftType?: Shift['shiftType']; shiftDate?: string; notes?: string; status?: Shift['status'] }
-    ) => {
-      const payload: any = {};
-      if (updates.operatorId !== undefined) payload.operator_id = updates.operatorId;
-      if (updates.shiftType !== undefined) payload.shift_type = updates.shiftType;
-      if (updates.shiftDate !== undefined) payload.shift_date = updates.shiftDate;
-      if (updates.notes !== undefined) payload.notes = updates.notes;
-      if (updates.status !== undefined) payload.status = updates.status;
-
-      const updated = await apiFetch(`/api/shifts/${shiftId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapShift(updated) : s)));
-    },
-    []
-  );
-
-  const deleteShift = useCallback(async (shiftId: string) => {
-    await apiFetch(`/api/shifts/${shiftId}`, { method: 'DELETE' });
-    setShifts((prev) => prev.filter((s) => s.id !== shiftId));
-  }, []);
-
-  const closeShift = useCallback(
-    async (shiftId: string, shift: Shift, notes?: string) => {
-      const collections = shift.collections;
-      const payload = {
-        meter_readings: shift.meterReadings.map((r) => ({
-          nozzle_id: r.nozzleId,
-          closing_reading: r.closingReading ?? r.openingReading,
-          testing_litres: r.testingLitres || 0,
-        })),
-        cash_collected: collections.cash,
-        upi_gpay_collected: collections.upiGpay,
-        card_collected: collections.card,
-        fleet_card_collected: collections.fleetCard,
-        credit_sales: collections.creditSales,
-        cheque_collected: collections.cheque,
-        expenses_deducted: shift.expensesDeducted,
-        notes: notes ?? shift.notes,
-      };
-      const closed = await apiFetch(`/api/shifts/${shiftId}/close`, { method: 'POST', body: JSON.stringify(payload) });
-      const mapped = mapShift(closed);
-      setShifts((prev) => prev.map((s) => (s.id === shiftId ? mapped : s)));
-      await syncMasters();
-      return mapped;
-    },
-    [syncMasters]
-  );
+  };
 
   return (
     <ShiftOperationsContext.Provider
       value={{
-        shifts,
-        setShifts,
-        activeShift,
+        attributions,
+        setAttributions,
+        nozzleMeters,
+        setNozzleMeters,
+        selectedDate,
+        setSelectedDate,
         pumps,
         operators,
         products,
         role,
-        openNewShift,
-        saveShiftDraft,
-        closeShift,
-        updateShift,
-        deleteShift,
-        syncShifts,
+        saveAttribution,
+        deleteAttribution,
+        saveNozzleMetersBatch,
+        syncOperationsData,
+        shifts: attributions,
+        activeShift: attributions[0] || null,
       }}
     >
       {children}
@@ -245,11 +243,9 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
 };
 
 export const useShiftOperationsContext = () => {
-  const context = useContext(ShiftOperationsContext);
-  if (!context) {
-    throw new Error('useShiftOperationsContext must be used within a ShiftOperationsProvider');
-  }
-  return context;
+  const ctx = useContext(ShiftOperationsContext);
+  if (!ctx) throw new Error('useShiftOperationsContext must be used within ShiftOperationsProvider');
+  return ctx;
 };
 
-export { ShiftOperationsContext };
+export const useShiftOperations = useShiftOperationsContext;

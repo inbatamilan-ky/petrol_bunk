@@ -374,14 +374,14 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E2E8F0',
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: '#F1F5F9',
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -401,8 +401,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   closeBtn: {
     padding: 4,
@@ -416,15 +416,17 @@ const styles = StyleSheet.create({
   navBtn: {
     padding: 6,
     borderRadius: 6,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   navBtnDisabled: {
     opacity: 0.3,
   },
   navMonthYear: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   weekdaysRow: {
     flexDirection: 'row',
@@ -435,7 +437,7 @@ const styles = StyleSheet.create({
     width: 36,
     textAlign: 'center',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#64748B',
   },
   daysGrid: {
@@ -464,23 +466,24 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: '#0F172A',
   },
   dayTextToday: {
     color: colors.primary,
+    fontWeight: '700',
   },
   dayTextSelected: {
     color: '#FFFFFF',
     fontWeight: '800',
   },
   dayTextDisabled: {
-    color: '#475569',
+    color: '#CBD5E1',
   },
   footerBar: {
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#1E293B',
+    borderTopColor: '#F1F5F9',
     flexDirection: 'column',
     gap: 8,
   },
@@ -499,12 +502,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   todayBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#475569',
   },
   todayBtnPrimary: {
     flexDirection: 'row',
@@ -520,4 +525,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+
 });

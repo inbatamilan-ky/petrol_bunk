@@ -54,7 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'credit',      label: 'Credit Ledger', icon: CreditCard,      roles: ['Owner', 'Manager'] },
   { id: 'expenses',    label: 'Expenses',      icon: Receipt,         roles: ['Owner', 'Manager'] },
   { id: 'rates',       label: 'Daily Rates',   icon: TrendingUp,      roles: ['Owner', 'Manager'] },
-  { id: 'cashbank',    label: 'Cash & Bank',   icon: Banknote,        roles: ['Owner', 'Manager'] },
+  { id: 'cashbank',    label: 'Cash & Balance', icon: Banknote,       roles: ['Owner', 'Manager'] },
   { id: 'reports',     label: 'Reports',       icon: FileText,        roles: ['Owner'] },
   { id: 'masters',     label: 'Masters',       icon: Settings,        roles: ['Owner'] },
   { id: 'permissions', label: 'Role Access',   icon: ShieldCheck,     roles: ['Owner'] },
@@ -65,13 +65,25 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onSelectScreen,
   isSidebar = false,
 }) => {
-  const { role, activeShift, logout, branches, activeBranchId, switchBranch, returnToBunkSelection } = useBunk();
+  const {
+    role,
+    activeShift,
+    logout,
+    branches,
+    activeBranchId,
+    switchBranch,
+    returnToBunkSelection,
+    isPageVisible,
+  } = useBunk();
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const allowedItems = NAV_ITEMS.filter((item) => item.roles.includes(role)).filter((item) =>
+  const allowedItems = NAV_ITEMS.filter((item) =>
+    isPageVisible(item.id, role, activeBranchId)
+  ).filter((item) =>
     searchQuery ? item.label.toLowerCase().includes(searchQuery.toLowerCase()) : true
   );
+
 
   if (isSidebar) {
     return (
@@ -173,27 +185,8 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-
-              {role === 'Owner' && (
-                <TouchableOpacity
-                  style={{
-                    marginTop: 12,
-                    paddingVertical: 10,
-                    backgroundColor: '#F1F5F9',
-                    borderRadius: 8,
-                    alignItems: 'center',
-                  }}
-                  onPress={() => {
-                    setShowBranchModal(false);
-                    returnToBunkSelection();
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>
-                    Open All Stations Portal →
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
+
           </View>
         </Modal>
 
@@ -281,25 +274,27 @@ const styles = StyleSheet.create({
   sidebarItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    marginHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginHorizontal: 10,
+    borderRadius: 20,
     gap: 10,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   sidebarItemActive: {
-    backgroundColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    backgroundColor: '#6F7BF5',
+    shadowColor: '#6F7BF5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sidebarItemText: {
-    color: '#475569',
+    color: '#4B5563',
     fontSize: 13,
     fontWeight: '600',
   },
+
   sidebarItemTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',

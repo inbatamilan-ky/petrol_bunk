@@ -3,16 +3,15 @@ import {
   ChevronRight,
   CreditCard,
   Fuel,
-  Printer,
   Receipt
 } from 'lucide-react';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+
 import { MetricCard } from '../components/MetricCard';
 import { ScreenId } from '../components/NavigationBar';
-import { ThermalReceiptData, ThermalReceiptModal } from '../components/ThermalReceiptModal';
 import { useDashboardContext } from '../context/DashboardContext';
-import { colors, typography } from '../theme/colors';
+import { colors } from '../theme/colors';
 import { formatCurrency, formatDate, formatLitres, formatMeter } from '../utils/formatters';
 
 interface DashboardScreenProps {
@@ -23,51 +22,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const {
     products,
     pumps,
-    shifts,
     customers,
     expenses,
-    activeShift,
-    role,
+    totalSalesToday,
+    totalLitresToday,
+    totalCashCollected,
+    totalExpenses,
+    totalCreditOutstanding,
+    netCashOnHand,
+    shifts,
   } = useDashboardContext();
 
-  const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
-  const [showReceipt, setShowReceipt] = useState(false);
-
-  // Compute Aggregates
-  const totalSalesToday = shifts.reduce((sum: number, s) => sum + s.totalSalesAmount, 0);
-  const totalLitresToday = shifts.reduce((sum, s) => sum + s.totalLitresSold, 0);
-  const totalCashCollected = shifts.reduce((sum, s) => sum + s.collections.cash, 0);
-  const totalExpenses = expenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
-  const totalCreditOutstanding = customers.reduce((sum, c) => sum + c.outstandingBalance, 0);
-
-  const netCashOnHand = Math.max(0, totalCashCollected - totalExpenses);
-
-  const openShiftThermal = (shift: typeof shifts[0]) => {
-    const data: ThermalReceiptData = {
-      title: 'SHIFT SETTLEMENT SUMMARY',
-      receiptNo: shift.shiftNo,
-      dateStr: shift.shiftDate,
-      operatorName: shift.operatorName,
-      pumpNo: shift.pumpNo,
-      items: shift.meterReadings.map((r) => ({
-        name: `${r.productName} (Noz ${r.nozzleNo})`,
-        qty: `${formatLitres(r.litresSold)}`,
-        rate: `₹${r.rate}`,
-        amount: r.grossAmount || 0,
-      })),
-      subtotal: shift.totalSalesAmount,
-      expensesDeducted: shift.expensesDeducted,
-      netPayable: shift.totalCollected,
-      paymentMode: `Cash: ${formatCurrency(shift.collections.cash)} | UPI: ${formatCurrency(shift.collections.upiGpay)} | Credit: ${formatCurrency(shift.collections.creditSales)}`,
-      remarks: shift.notes || (shift.shortageOrExcess < 0 ? `Shortage: ${formatCurrency(shift.shortageOrExcess)}` : 'Shift balanced.'),
-      footerNote: 'VERIFIED & RECONCILED WITH BUNK LEDGER',
-    };
-    setReceiptData(data);
-    setShowReceipt(true);
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Top Welcome & Quick Actions */}
       <View style={styles.topSection}>
         <View>
@@ -75,26 +46,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
            
         </View>
 
-        <View style={styles.actionPills}>
-          {/* <TouchableOpacity
-            style={[styles.actionPill, { backgroundColor: colors.primary }]}
-            onPress={() => onNavigate('shifts')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionPillText}>
-              {activeShift ? 'Manage Active Shift' : 'Open New Shift'}
-            </Text>
-          </TouchableOpacity> */}
-
-          {/* <TouchableOpacity
-            style={[styles.actionPill, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}
-            onPress={() => onNavigate('credit')}
-            activeOpacity={0.8}
-          >
-            <CreditCard size={14} color={colors.accent} />
-            <Text style={styles.actionPillText}>New Credit Bill</Text>
-          </TouchableOpacity> */}
-        </View>
+         
       </View>
 
       {/* KPI Metrics Row */}
@@ -102,12 +54,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Today's Fuel Sales"
           value={formatCurrency(totalSalesToday)}
-          subtitle={"Total litres: "+formatLitres(totalLitresToday)}
+          subtitle={`${formatLitres(totalLitresToday)} sold`}
           icon={Fuel}
           accentColor={colors.petrol}
-           
           trendPositive={true}
-          onPress={() => onNavigate('reports')}
+          onPress={() => onNavigate('tanks')}
         />
 
         <MetricCard
@@ -130,7 +81,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <MetricCard
           title="Daily Expenses"
           value={formatCurrency(totalExpenses)}
-           
           icon={Receipt}
           accentColor={colors.speed}
           onPress={() => onNavigate('expenses')}
@@ -141,71 +91,43 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Dispenser & Nozzle Status</Text>
-          <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
-            <Text style={styles.linkText}>View Shifts</Text>
+          <TouchableOpacity onPress={() => onNavigate('tanks')} style={styles.linkRow}>
+            <Text style={styles.linkText}>Meter Readings (Block B)</Text>
             <ChevronRight size={14} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.pumpsGrid}>
-          {pumps.map((pump) => {
-            const shiftForPump = shifts.find((s) => s.pumpId === pump.id && s.status === 'IN_PROGRESS');
-            const isInactive = pump.status === 'INACTIVE';
-            const isMaintenance = pump.status === 'MAINTENANCE';
-
-            return (
-              <View key={pump.id} style={[styles.pumpCard, isInactive && { opacity: 0.8, borderColor: '#FCA5A5' }]}>
-                <View style={styles.pumpCardHeader}>
-                  <Text style={styles.pumpName}>Pump {pump.pumpNo}</Text>
-                  <View
-                    style={{
-                      paddingHorizontal: 6,
-                      paddingVertical: 2,
-                      borderRadius: 4,
-                      backgroundColor: isInactive ? '#F1F5F9' : isMaintenance ? '#FEF3C7' : '#DEF7EC',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 9,
-                        fontWeight: '800',
-                        color: isInactive ? '#475569' : isMaintenance ? '#D97706' : '#03543F',
-                      }}
-                    >
-                      {pump.status}
-                    </Text>
-                  </View>
-                </View>
-
-                {shiftForPump && (
-                  <View style={styles.operatorInfoRow}>
-                    <Text style={styles.operatorInfoLabel}>Operator:</Text>
-                    <Text style={styles.operatorInfoVal}>{shiftForPump.operatorName}</Text>
-                  </View>
-                )}
-
-                <View style={styles.nozzlesContainer}>
-                  {pump.nozzles.map((noz) => (
-                    <View key={noz.id} style={styles.nozzleItem}>
-                      <View style={styles.nozzleTop}>
-                        <Text style={styles.nozzleNumber}>Nozzle {noz.nozzleNo}</Text>
-                        <Text style={[styles.fuelCodeText, { color: noz.color }]}>{noz.fuelCode}</Text>
-                      </View>
-
-                      <View style={styles.meterDisplay}>
-                        <Text style={styles.meterLabel}>TOTALIZER METER</Text>
-                        <Text style={styles.meterValue}>{formatMeter(noz.currentMeterReading)}</Text>
-                      </View>
-                    </View>
-                  ))}
+          {pumps.map(pump => (
+            <View key={pump.id} style={styles.pumpCard}>
+              <View style={styles.pumpCardHeader}>
+                <Text style={styles.pumpName}>{pump.name}</Text>
+                <View style={styles.pumpBadge}>
+                  <Text style={styles.pumpBadgeText}>{pump.nozzles.length} Nozzles</Text>
                 </View>
               </View>
-            );
-          })}
+
+              <View style={styles.nozzlesContainer}>
+                {pump.nozzles.map(noz => (
+                  <View key={noz.id} style={styles.nozzleItem}>
+                    <View style={styles.nozzleTop}>
+                      <Text style={styles.nozzleNumber}>Nozzle {noz.nozzleNo}</Text>
+                      <Text style={styles.fuelCodeText}>{noz.productName || 'Fuel'}</Text>
+                    </View>
+
+                    <View style={styles.meterDisplay}>
+                      <Text style={styles.meterLabel}>TOTALIZER METER</Text>
+                      <Text style={styles.meterValue}>{formatMeter(noz.currentMeterReading)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* Recent Shifts & Settlement Section */}
+      {/* Recent Operator Attributions */}
       <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Shifts</Text>
@@ -215,23 +137,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             </TouchableOpacity>
           </View>
 
+        {shifts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No operator sessions recorded yet today.</Text>
+          </View>
+        ) : (
           <View style={styles.shiftsList}>
-            {shifts.slice(0, 4).map((shift) => {
-              const isClosed = shift.status === 'CLOSED';
-              return (
-                <View key={shift.id} style={[styles.shiftCard, isClosed && styles.shiftCardClosed]}>
-                  <View style={styles.shiftCardLeft}>
-                    <View style={styles.shiftNoRow}>
-                      <Text style={[styles.shiftNoText, isClosed && { color: colors.inactiveGrey }]}>{shift.shiftNo}</Text>
-                    </View>
-
-                    <Text style={[styles.shiftDetailsText, isClosed && { color: colors.inactiveText }]}>
-                      Pump {shift.pumpNo} • {shift.operatorName} • {formatDate(shift.shiftDate)} ({shift.shiftType})
-                    </Text>
-                    <Text style={[styles.shiftVolumeText, isClosed && { color: colors.inactiveMuted }]}>
-                      Volume: {formatLitres(shift.totalLitresSold)}
-                    </Text>
-                  </View>
+            {shifts.slice(0, 5).map((attr: any) => (
+              <View key={attr.id} style={styles.shiftCard}>
+                <View style={styles.shiftCardLeft}>
+                  <Text style={styles.shiftNoText}>Pump {attr.pumpNo}</Text>
+                  <Text style={styles.shiftDetailsText}>
+                    {attr.operatorName} • {formatDate(attr.attributionDate)} ({attr.timeIn || '06:00'} - {attr.timeOut || '14:00'})
+                  </Text>
+                </View>
 
                   <View style={styles.shiftCardRight}>
                     <Text style={[styles.shiftAmountText, isClosed && { color: colors.inactiveGrey }]}>{formatCurrency(shift.totalSalesAmount)}</Text>
@@ -245,19 +164,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     </TouchableOpacity> */}
                   </View>
                 </View>
-              );
-            })}
+              </View>
+            ))}
           </View>
-        </View>
-      {/* High-Risk Credit Customers Warning Bar */}
-       
-
-      {/* Thermal Receipt Modal */}
-      <ThermalReceiptModal
-        visible={showReceipt}
-        onClose={() => setShowReceipt(false)}
-        data={receiptData}
-      />
+        )}
+      </View>
     </ScrollView>
   );
 };
@@ -268,288 +179,224 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   contentContainer: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 16,
+    padding: 20,
+    gap: 20,
   },
   topSection: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#7F9FE0',
+    ...(Platform.OS === 'web'
+      ? { backgroundImage: 'linear-gradient(90deg, #7F9FE0 0%, #8FD3C9 100%)' }
+      : {}),
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
   greetingTitle: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   greetingSub: {
-    color: colors.textSecondary,
     fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
   },
   actionPills: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   actionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
     gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
   },
   actionPillText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#6F7BF5',
+    fontSize: 13,
+    fontWeight: '600',
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 14,
   },
   sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
     padding: 16,
-    gap: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
-    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
+    color: '#1F2937',
   },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   linkText: {
-    color: colors.primary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
+    color: '#6F7BF5',
   },
+
   pumpsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 14,
   },
   pumpCard: {
     flex: 1,
-    minWidth: 240,
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 12,
+    minWidth: 260,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
+    borderRadius: 10,
+    padding: 14,
   },
   pumpCardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   pumpName: {
-    color: colors.textPrimary,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
+    color: colors.text,
   },
-  operatorInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
+  pumpBadge: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  operatorInfoLabel: {
+  pumpBadgeText: {
+    fontSize: 11,
     color: colors.textMuted,
-    fontSize: 11,
-  },
-  operatorInfoVal: {
-    color: colors.accent,
-    fontSize: 11,
     fontWeight: '600',
   },
   nozzlesContainer: {
-    marginTop: 10,
-    gap: 8,
+    gap: 10,
   },
   nozzleItem: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 8,
-    padding: 8,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 8,
+    padding: 10,
   },
   nozzleTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    marginBottom: 6,
   },
   nozzleNumber: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
   },
   fuelCodeText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
   meterDisplay: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 6,
-    padding: 6,
-    marginTop: 2,
-    alignItems: 'flex-end',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   meterLabel: {
-    color: colors.textMuted,
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    color: colors.textMuted,
   },
   meterValue: {
-    color: colors.primary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    fontFamily: typography.monoFont,
-    letterSpacing: 0.5,
+    color: colors.text,
   },
   shiftsList: {
     gap: 10,
   },
   shiftCard: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
-    padding: 10,
+    alignItems: 'center',
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 10,
+    padding: 14,
   },
   shiftCardLeft: {
-    flex: 1,
     gap: 2,
   },
-  shiftCardClosed: {
-    backgroundColor: colors.inactiveBg,
-    borderColor: colors.inactiveBorder,
-    opacity: 0.9,
-  },
-  shiftNoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   shiftNoText: {
-    color: colors.textPrimary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    fontFamily: typography.monoFont,
-  },
-  shiftStatusPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  shiftStatusText: {
-    fontSize: 9,
-    fontWeight: '700',
+    color: colors.text,
   },
   shiftDetailsText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  shiftVolumeText: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '600',
-    fontFamily: typography.monoFont,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   shiftCardRight: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 2,
   },
   shiftAmountText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
   },
-  printSlipBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  printSlipText: {
-    color: colors.textSecondary,
-    fontSize: 10,
+  shiftNetText: {
+    fontSize: 12,
+    color: '#10B981',
     fontWeight: '600',
   },
-  creditWarningCard: {
-    flexDirection: 'row',
+  emptyState: {
+    padding: 24,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.creditOrange,
-    padding: 14,
-    flexWrap: 'wrap',
-    gap: 12,
   },
-  creditWarningLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  creditWarningTitle: {
-    color: '#9A3412',
+  emptyText: {
     fontSize: 13,
-    fontWeight: '700',
-  },
-  creditWarningSub: {
-    color: '#C2410C',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  creditViewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.creditOrange,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-  },
-  creditViewBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    color: colors.textMuted,
   },
 });

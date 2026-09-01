@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, Dimensions, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, Dimensions, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+
 import { BunkProvider, useBunk } from './context/BunkContext';
 import { Header } from './components/Header';
 import { NavigationBar, ScreenId } from './components/NavigationBar';
 import { LoginScreen } from './screens/LoginScreen';
-import { BunkSelectionScreen } from './screens/BunkSelectionScreen';
+
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { ShiftOperationsScreen } from './screens/ShiftOperationsScreen';
@@ -22,7 +23,15 @@ import { colors } from './theme/colors';
 const SIDEBAR_BREAKPOINT = 900;
 
 const MainAppContent: React.FC = () => {
-  const { isLoggedIn, login, logout, isAuthChecking, role, hasSelectedBunk, selectBunk } = useBunk();
+  const {
+    isLoggedIn,
+    login,
+    logout,
+    isAuthChecking,
+    role,
+    activeBranchId,
+    isPageVisible,
+  } = useBunk();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('dashboard');
   const [width, setWidth] = useState(Dimensions.get('window').width);
 
@@ -35,6 +44,13 @@ const MainAppContent: React.FC = () => {
   }, []);
 
   const isDesktop = width >= SIDEBAR_BREAKPOINT;
+
+  // If current screen becomes restricted (e.g. toggled off), redirect safely
+  useEffect(() => {
+    if (isLoggedIn && !isPageVisible(currentScreen, role, activeBranchId)) {
+      setCurrentScreen('dashboard');
+    }
+  }, [currentScreen, role, activeBranchId, isPageVisible, isLoggedIn]);
 
   // ── Initial session check (show clean splash while verifying session) ────
   if (isAuthChecking) {
@@ -56,17 +72,25 @@ const MainAppContent: React.FC = () => {
     );
   }
 
-  // ── Multi-Bunk Station Selection: Only for Owner / SuperAdmin ────────────
-  if (role === 'Owner' && !hasSelectedBunk) {
-    return (
-      <SafeAreaView style={styles.appRoot}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <BunkSelectionScreen onSelectBunk={selectBunk} onLogout={logout} />
-      </SafeAreaView>
-    );
-  }
-
   const renderActiveScreen = () => {
+
+    if (!isPageVisible(currentScreen, role, activeBranchId)) {
+      return (
+        <View style={styles.restrictedContainer}>
+          <Text style={styles.restrictedTitle}>Access Restricted</Text>
+          <Text style={styles.restrictedText}>
+            You do not have permission to access this page. This page has been hidden by the station owner.
+          </Text>
+          <TouchableOpacity
+            style={styles.restrictedBtn}
+            onPress={() => setCurrentScreen('dashboard')}
+          >
+            <Text style={styles.restrictedBtnText}>Return to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     switch (currentScreen) {
       case 'dashboard': return <DashboardScreen onNavigate={setCurrentScreen} />;
       case 'shifts':   return <ShiftOperationsScreen />;
@@ -81,6 +105,7 @@ const MainAppContent: React.FC = () => {
       default:            return <DashboardScreen onNavigate={setCurrentScreen} />;
     }
   };
+
 
   return (
     <SafeAreaView style={styles.appRoot}>
@@ -153,4 +178,36 @@ const styles = StyleSheet.create({
     minWidth: 0,
     overflow: 'hidden' as any,
   },
-});
+  restrictedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: colors.background,
+  },
+  restrictedTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  restrictedText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 420,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  restrictedBtn: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  restrictedBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});

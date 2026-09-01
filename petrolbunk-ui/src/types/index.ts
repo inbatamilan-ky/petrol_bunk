@@ -1,391 +1,431 @@
-// Domain Types for Petrol Pump Management Application (KY Technologies Scope)
+// Domain Types for FuelPulse — Strict Excel Scope
+// All models match the Daily Accounts & Daily Expenses Excel files.
 
-export type UserRole = 'Owner' | 'Manager';
-export type UserRoleNum = 1 | 2;
+export type UserRole = 'Owner' | 'Manager' | 'Attendant';
+export type UserRoleNum = 1 | 2 | 3;
 export const ROLE_OWNER: UserRoleNum = 1;
 export const ROLE_MANAGER: UserRoleNum = 2;
+export const ROLE_ATTENDANT: UserRoleNum = 3;
 
 export interface User {
-  id: string;
-  name: string;
-  phone: string;
-  role: UserRole;
-  avatarUrl?: string;
-}
-
-export type FuelType = 'DIESEL' | 'PETROL' | 'PETROL_II' | 'LUBRICANT';
-
-export interface DensityRange {
-  min: number;
-  max: number;
-}
-
-export interface Product {
-  id: string;
-  code: string; // "HSD", "MS", "MS2", "LUB"
-  name: string; // "HSD (Diesel)", "MS (Petrol)", etc.
-  category: 'FUEL' | 'LUBRICANT';
-  unit: 'Litre' | 'Can' | 'Kg' | 'Piece';
-  color: string;
-  currentRate: number; // ₹ per unit
-  hsnCode?: string; // HSN Code (e.g. 2710)
-  gstRate?: number; // GST % (e.g. 18)
-  tankCapacity?: number; // Total capacity in litres
-  densityStandardAt15C?: number; // Standard density kg/m³
-  standardDensityRange: DensityRange;
-  active?: boolean;
-}
-
-export interface Nozzle {
-  id: string;
-  pumpId: string;
-  nozzleNo: number;
-  productId: string;
-  productName: string;
-  fuelCode: string;
-  color: string;
-  currentMeterReading: number;
-  status?: 'ACTIVE' | 'INACTIVE';
-}
-
-export interface Pump {
-  id: string;
-  pumpNo: number;
-  name: string; // e.g. "Pump 1", "Pump 2"
-  model?: string; // e.g. "Midco MPD Duo"
-  serialNumber?: string; // Manufacturer Serial ID
-  makeModel?: string; // e.g. "Midco", "Gilbarco", "Tokheim"
-  pesoSealNo?: string; // W&M Stamping / PESO Seal Number
-  installationDate?: string; // Calibration Date
-  tankId?: string; // Assigned Tank Link
-  side?: string; // Dual Side / Lane 1
-  status: 'ACTIVE' | 'IDLE' | 'MAINTENANCE' | 'INACTIVE';
-  nozzles: Nozzle[];
-}
-
-export interface Operator {
-  id: string;
-  name: string;
-  phone: string;
-  employeeCode?: string; // EMP-101
-  aadhaarNo?: string; // Aadhaar / Gov ID
-  dailyBata?: number;
-  monthlySalary?: number; // Base monthly compensation
-  joiningDate?: string; // YYYY-MM-DD
-  emergencyContact?: string; // Contact phone
-  assignedShift?: string; // 'Morning' | 'Night' | 'Rotating'
-  status?: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
-  active: boolean;
-}
-
-export type ShiftType = 'Morning' | 'Evening' | 'Night' | 'Full Day';
-export type ShiftStatus = 'OPEN' | 'IN_PROGRESS' | 'RECONCILED' | 'CLOSED';
-
-export interface MeterReadingEntry {
-  nozzleId: string;
-  nozzleNo: number;
-  productName: string;
-  fuelCode: string;
-  rate: number;
-  openingReading: number;
-  closingReading?: number;
-  testingLitres: number;
-  litresSold?: number; // (closing - opening - testing)
-  grossAmount?: number; // litresSold * rate
-}
-
-export interface PaymentCollectionBreakdown {
-  cash: number;
-  upiGpay: number;
-  card: number;
-  fleetCard: number;
-  creditSales: number;
-  cheque: number;
-}
-
-export interface Shift {
-  id: string;
-  shiftNo: string;
-  shiftDate: string; // YYYY-MM-DD
-  shiftType: ShiftType;
-  pumpId: string;
-  pumpNo: number;
-  operatorId: string;
-  operatorName: string;
-  openedAt: string;
-  closedAt?: string;
-  status: ShiftStatus;
-  meterReadings: MeterReadingEntry[];
-  totalLitresSold: number;
-  totalSalesAmount: number;
-  expensesDeducted: number;
-  collections: PaymentCollectionBreakdown;
-  totalCollected: number;
-  shortageOrExcess: number; // positive = excess, negative = shortage
-  verifiedBy?: string;
-  notes?: string;
-}
-
-export interface CreditCustomer {
-  id: string;
-  code: string;
-  name: string;
-  contactPerson: string;
-  phone: string;
+  id: string | number;
+  name?: string;
+  username: string;
+  phone?: string;
   email?: string;
-  gstin?: string; // GST Number
-  panNumber?: string; // PAN
-  creditPeriodDays?: number; // Credit term (e.g. 15, 30 days)
-  discountPerLitre?: number; // Special concession ₹/L
-  maxVehiclesAllowed?: number;
-  vehicleNumbers: string[];
-  creditLimit: number;
-  outstandingBalance: number;
-  openingBalance: number;
-  status: 'ACTIVE' | 'HOLD' | 'BLOCKED' | 'INACTIVE';
-  address?: string;
-  billingAddress?: string;
-}
-
-export interface CreditTransaction {
-  id: string;
-  slipNo: string;
-  customerId: string;
-  customerName: string;
-  customerCode: string;
-  date: string;
-  time: string;
-  pumpId: string;
-  pumpNo: number;
-  productId: string;
-  productName: string;
-  vehicleNo: string;
-  litres: number;
-  rate: number;
-  amount: number;
-  driverName?: string;
-  attachmentName?: string;
-  shiftId?: string;
-  operatorName?: string;
-  remarks?: string;
-}
-
-export interface CreditPayment {
-  id: string;
-  receiptNo: string;
-  customerId: string;
-  customerName: string;
-  customerCode: string;
-  date: string;
-  amount: number;
-  paymentMode: 'Cash' | 'Cheque' | 'Bank Transfer' | 'NEFT' | 'UPI';
-  referenceNo?: string;
-  attachmentName?: string;
-  notes?: string;
-  receivedBy: string;
-}
-
-export interface ExpenseType {
-  id: string;
-  name: string;
-  category: 'OPERATIONAL' | 'STAFF' | 'FINANCIAL' | 'MAINTENANCE';
-  active?: boolean;
-}
-
-export interface Expense {
-  id: string;
-  voucherNo: string;
-  date: string;
-  expenseTypeId: string;
-  expenseTypeName: string;
-  amount: number;
-  pumpId?: string;
-  pumpNo?: number;
-  paidTo: string;
-  paidBy: string;
-  remarks?: string;
-  isCreditNote: boolean; // True for expense return / partial reversal
-  attachmentName?: string;
-}
-
-export interface CashDenomination {
-  note2000: number;
-  note500: number;
-  note200: number;
-  note100: number;
-  note50: number;
-  note20: number;
-  note10: number;
-  coins: number;
-}
-
-export interface BankDeposit {
-  id: string;
-  depositDate: string;
-  bankName: string;
-  accountNo: string;
-  amount: number;
-  denominations: CashDenomination;
-  depositedBy: string;
-  referenceNo: string;
-  attachmentName?: string;
-  notes?: string;
-}
-
-// ─── Tank & Dip Types ───────────────────────────────────────────────────────
-
-export interface Tank {
-  id: string;
-  name: string;
-  productId: string;
-  productName: string;
-  capacityLitres: number;
-  currentStockLitres: number;
-  diameterCm: number;
-  status: 'NORMAL' | 'LOW' | 'CRITICAL' | 'OVERFILL';
-}
-
-export interface TankDip {
-  id: string;
-  tankId: string;
-  tankName: string;
-  productName: string;
-  dipDate: string;
-  dipType: 'Morning' | 'Evening' | 'After Decantation';
-  fuelDipCm: number;
-  fuelDipLitres: number;
-  waterDipCm: number;
-  observedDensity: number;
-  observedTemp: number;
-  convertedDensity: number;
-  bookStockLitres: number;
-  variance: number;
-  testedBy: string;
-  remarks?: string;
-}
-
-export interface SmsLogEntry {
-  id: string;
-  sender: string; // e.g. 'VK-BPCLTD', 'AX-IOCLTD', 'VM-HPCLLTD', 'Manual Import'
-  receivedAt: string; // ISO string
-  rawText: string;
-  omc: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE' | 'GENERIC';
-  effectiveDateTime?: string;
-  parsedRates: {
-    fuelKey: string;
-    rate: number;
-    matchedProductName?: string;
-    matchedProductId?: string;
-  }[];
-  status: 'APPLIED' | 'PENDING' | 'DISMISSED';
-  appliedAt?: string;
-  appliedBy?: string;
+  role: UserRoleNum;
+  roleName?: UserRole;
+  avatarUrl?: string;
 }
 
 export interface Branch {
   id: string;
   name: string;
-  omc_brand: 'IOCL' | 'BPCL' | 'HPCL' | 'NAYARA' | 'RELIANCE';
-  dealer_code: string;
-  location: string;
+  location?: string;
+  dealer_code?: string;
+  omc_brand: string;
   is_active: boolean;
-  created_at?: string;
-
-  // Station Physical & Regulatory Details
-  gstin?: string; // GST Number
-  peso_license_no?: string; // Explosives/PESO License
-  operating_hours?: string; // e.g. "24 Hours" or "06:00 AM - 11:00 PM"
-  contact_email?: string;
-  address_street?: string;
-  pincode?: string;
-  
-  // Manager Access Configuration
+  bunk_name?: string;
+  city?: string;
   manager_name?: string;
   manager_phone?: string;
   manager_email?: string;
-  manager_access?: string; // e.g. "Full Operational Access", "Shift & Daybook Only", "Read Only"
-
-  // Backwards compatibility mappings for UI
-  bunk_name?: string;
-  city?: string;
+  manager_access?: string;
   auto_fetch_enabled?: boolean;
   auto_apply_enabled?: boolean;
+  gstin?: string;
+  operating_hours?: string;
+  created_at?: string;
 }
 
+// ── Rate Master Block (§1.1-A) ───────────────────────────────────────
+export interface Product {
+  id: string;
+  code: string; // "HSD" | "MS" | "MS2"
+  name: string; // "HSD(Diesel)" | "MS(Petrol)" | "MS(Petrol)-II"
+  category: 'FUEL' | 'LUBRICANT' | string;
+  currentRate: number; // ₹ per unit
+  active: boolean;
+  color?: string;
+  unit?: string;
+  hsnCode?: string;
+  gstRate?: number;
+  tankCapacity?: number;
+  densityStandardAt15C?: number;
+  standardDensityRange?: { min: number; max: number };
+  shortName?: string;
+}
+
+export interface FuelRateHistory {
+  id: string;
+  productId: string;
+  effectiveDate: string; // YYYY-MM-DD
+  rate: number;
+  remarks?: string;
+  createdAt?: string;
+}
+
+// ── Pump & Nozzle Master Block (§1.1-B) ──────────────────────────────
+export interface Nozzle {
+  id: string;
+  pumpId: string;
+  nozzleNo: number; // 1 | 2
+  productId: string;
+  productName?: string;
+  currentMeterReading: number;
+  color?: string;
+  fuelCode?: string;
+}
+
+export interface Pump {
+  id: string;
+  pumpNo: number; // 1, 2, 3
+  name: string; // "Pump 1", "Pump 2", "Pump 3"
+  nozzles: Nozzle[];
+  status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'IDLE';
+  model?: string;
+  serialNumber?: string;
+  makeModel?: string;
+  installationDate?: string;
+  tankId?: string;
+  side?: string;
+}
+
+export interface Operator {
+  id: string;
+  name: string;
+  phone?: string;
+  active: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
+  employeeCode?: string;
+  aadhaarNo?: string;
+  monthlySalary?: number;
+  joiningDate?: string;
+  emergencyContact?: string;
+  assignedShift?: string;
+}
+
+// ── Customer Block (§1.1-C) ──────────────────────────────────────────
+export interface CreditCustomer {
+  id: string;
+  name: string; // Customer name (e.g. sathish, kpj, kjf, etc.)
+  phone?: string;
+  outstandingBalance: number;
+  code?: string;
+  contactPerson?: string;
+  email?: string;
+  gstin?: string;
+  panNumber?: string;
+  creditLimit?: number;
+  openingBalance?: number;
+  creditPeriodDays?: number;
+  discountPerLitre?: number;
+  maxVehiclesAllowed?: number;
+  vehicleNumbers?: string[];
+  address?: string;
+  billingAddress?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'SUSPENDED';
+}
+
+// ── 33 Fixed Expense Heads (§1.2) ────────────────────────────────────
+export interface ExpenseType {
+  id: string;
+  name: string; // One of the 33 fixed heads
+  branchId?: string | null;
+  category?: string;
+  active?: boolean;
+}
+
+export interface Expense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  expenseTypeId: string;
+  expenseTypeName: string;
+  amount: number;
+  remarks?: string;
+}
+
+// ── Daily Meter Readings (§1.1-B) ────────────────────────────────────
 export interface DailyNozzleMeter {
   id: string;
-  readingDate: string;
+  readingDate: string; // YYYY-MM-DD
   pumpId: string;
   nozzleId: string;
   productId: string;
   openingMeter: number;
   closingMeter: number;
-  testingLitres: number;
-  litresSold: number;
+  litresSold: number; // computed: closing - opening
   sellingRate: number;
-  grossAmount: number;
-  recordedBy?: string;
+  grossAmount: number; // computed: litresSold * sellingRate
 }
 
-export interface BankAccount {
+// ── Credit Sales (§1.1-C) & Collections (§1.1-E) ──────────────────────
+export interface CreditTransaction {
   id: string;
-  bankName: string;
-  accountNumber: string;
-  accountType: 'Current' | 'CC/OD' | 'Savings';
-  branchName?: string;
-  ifscCode?: string;
-  accountHolderName?: string; // Entity legal name
-  branchAddress?: string; // Branch physical address
-  upiVpa?: string; // Station merchant UPI ID / VPA
-  posTerminalId?: string; // Linked EDC TID
-  overdraftLimit?: number; // Sanctioned OD/CC limit
+  date: string;
+  pumpId: string;
+  customerId: string;
+  customerName?: string;
+  productId: string;
+  productName?: string;
+  litres: number;
+  rate: number;
+  amount: number; // litres * rate
+  remarks?: string;
+}
+
+export type CreditPaymentMode =
+  | 'Cash'
+  | 'Card'
+  | 'FC'
+  | 'Paytm'
+  | 'Cheque'
+  | 'Bank Transfer'
+  | 'Gpay';
+
+export interface CreditPayment {
+  id: string;
+  date: string;
+  customerId: string;
+  customerName?: string;
+  amount: number;
+  paymentMode: CreditPaymentMode;
+}
+
+// ── Settlements Block (§1.1-F) ───────────────────────────────────────
+export type SettlementBankCode = 'ICICI' | 'SBI' | 'HDFC' | 'Paytm';
+export type SettlementChannelCode =
+  | 'Gpay'
+  | 'Paytm'
+  | 'Swiping Machine'
+  | 'Fleet Card'
+  | 'Phone Pay';
+
+export interface Settlement {
+  id: string;
+  settlementDate: string; // YYYY-MM-DD
+  bankCode: string;
+  channelCode: string;
+  amount: number;
+}
+
+// ── Operator Pump-Day Attribution (§1.1-H) ───────────────────────────
+export type SessionStatus = 'DRAFT' | 'SUBMITTED' | 'RECONCILED';
+export type ShiftType = 'MORNING' | 'EVENING' | 'NIGHT';
+
+export interface PumpDayAttribution {
+  id: string;
+  attributionDate: string; // YYYY-MM-DD
+  pumpId: string;
+  pumpNo: number;
+  operatorId: string;
+  operatorName: string;
+  shiftType?: ShiftType | null;
+  timeIn?: string | null;   // e.g. "06:00"
+  timeOut?: string | null;  // e.g. "14:00"
+  // Type A — manually entered
+  cashCollected: number;
+  cardCollected: number;         // Swiping Machine
+  gpayCollected?: number;        // GPay
+  phonePayCollected?: number;    // PhonePe
+  paytmCollected?: number;       // Paytm
+  fleetCardCollected: number;    // Fleet Card
+  advanceAmount?: number;        // Advance given this session
+  actualCashHandover?: number | null;
+  // Type B — auto-fetched
+  creditSales: number;
+  meterSalesAmount?: number | null;
+  // Type C — auto-calculated
+  upiGpayCollected: number;
+  totalAmount: number;
+  expectedCashHandover?: number | null;
+  cashVariance?: number | null;
+  meterVariance?: number | null;
+  // Status
+  status?: SessionStatus;
+  notes?: string | null;
+  // Legacy
+  advancePayment: number;
+  creditAcc: number;
+  netPayment: number;
+}
+
+// ── Daily Cash Reconciliation (§1.1-I) ────────────────────────────────
+export interface DailyCashReconciliation {
+  id: string;
+  reconDate: string; // YYYY-MM-DD
   openingBalance: number;
-  currentBalance: number;
-  isPrimary: boolean;
+  morningCollection: number;
+  oilDw: number;
+  totalCash: number;
+  cashForCardSwipe: number;
+  cashDepositInBank: number;
+  bunkExpenses?: number;
+  bata?: number;
+  systemTotalInSheet: number; // "In Excel Sheet"
+  physicallyCountedNote: number; // "In Note"
+  difference: number; // systemTotalInSheet - physicallyCountedNote
+  netCashForTheDay: number;
+}
+
+// ── Bank Deposits ─────────────────────────────────────────────────────
+export interface BankDeposit {
+  id: string;
+  depositDate: string;
+  amount: number;
+}
+
+// ── Master Lookup Tables ──────────────────────────────────────────────
+export interface MasterBank {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
   isActive: boolean;
 }
 
-export interface PosSettlement {
-  id: string;
-  settlementDate: string;
-  channelType: 'UPI' | 'POS_CARD' | 'FLEET_CARD' | 'NEFT';
-  terminalId?: string;
-  batchNo?: string;
-  grossAmount: number;
-  mdrFee: number;
-  netSettledAmount: number;
-  bankAccountId?: string;
-  status: 'SETTLED' | 'PENDING';
+export interface MasterChannel {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
 }
 
-export interface CashSafeLedger {
-  id: string;
-  ledgerDate: string;
-  openingSafeCash: number;
-  shiftCashInflow: number;
-  creditCashRecovered: number;
-  pettyCashExpenses: number;
-  bankDepositsDropped: number;
-  expectedSafeCash: number;
-  physicalCountedCash: number;
+export interface MasterPaymentMode {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+// ── Dashboard Summary ─────────────────────────────────────────────────
+export interface DashboardSummary {
+  totalSalesAmount: number;
+  totalLitresSold: number;
+  totalCashCollected: number;
+  totalExpenses: number;
+  netCashOnHand: number;
+  totalCreditOutstanding: number;
+  totalBankDeposited: number;
+  activeCustomers: number;
+  totalPumps: number;
+  totalOperators: number;
+}
+
+// ── Tally System Types ──────────────────────────────────────────────────
+
+export interface TallyTotals {
+  cash: number;
+  card: number;
+  gpay: number;
+  phonepe: number;
+  paytm: number;
+  fleet: number;
+  credit: number;
+  grandTotal: number;
+  meterTotal: number;
+  meterVariance: number;
+  expectedCash: number;
+  actualCash: number;
   cashVariance: number;
-  denominations: CashDenomination;
-  auditedBy: string;
-  notes?: string;
 }
 
-export type RateChangeSource = 'MANUAL_ENTRY' | 'MANUAL_UPLOAD' | 'SMS_AUTO' | 'SMS_MANUAL_APPLY' | 'BATCH_IMPORT';
-
-export interface FuelRateHistory {
-  id: string;
-  productId: string;
-  productCode: string;
-  productName: string;
-  effectiveDate: string;   // ISO date YYYY-MM-DD
-  oldRate: number;
-  newRate: number;
-  changeSource: RateChangeSource;
-  changedBy: string;
-  remarks?: string;
-  createdAt?: string;
+export interface OperatorSessionRow {
+  sessionId: string;
+  operatorName: string;
+  pumpNo: number;
+  pumpName: string;
+  shiftType: ShiftType | string | null;
+  timeIn: string | null;
+  timeOut: string | null;
+  cash: number;
+  card: number;
+  gpay: number;
+  phonepe: number;
+  paytm: number;
+  fleet: number;
+  credit: number;
+  totalSales: number;
+  meterSales: number | null;
+  meterVariance: number | null;
+  advanceAmount: number;
+  expectedCash: number | null;
+  actualCash: number | null;
+  cashVariance: number | null;
+  status: SessionStatus;
 }
+
+export interface ShiftTally {
+  shiftType: ShiftType | string;
+  sessions: OperatorSessionRow[];
+  subtotals: TallyTotals;
+}
+
+export interface PumpTally {
+  pumpId: string;
+  pumpNo: number;
+  pumpName: string;
+  sessions: OperatorSessionRow[];
+  subtotals: TallyTotals;
+}
+
+export interface DailyTally {
+  businessDate: string;
+  totals: TallyTotals;
+  byShift: ShiftTally[];
+  byPump: PumpTally[];
+  sessions: OperatorSessionRow[];
+}
+
+export interface CustomerCreditRow {
+  customerId: string;
+  customerName: string;
+  newCredit: number;
+  payments: number;
+  closingBalance: number;
+}
+
+export interface CreditLedgerDay {
+  businessDate: string;
+  openingOutstanding: number;
+  newCreditSales: number;
+  creditPayments: number;
+  closingOutstanding: number;
+  customerBreakdown: CustomerCreditRow[];
+}
+
+export interface ReconciliationOut {
+  businessDate: string;
+  sales: TallyTotals;
+  meter: { totalSales: number; variance: number };
+  cash: { expected: number; actual: number; variance: number };
+  bank: { expected: number; actual: number; variance: number };
+  credit: CreditLedgerDay;
+  expenses: { total: number };
+  overallStatus: 'RECONCILED' | 'NEEDS_REVIEW' | 'MISMATCH';
+}
+
+// ── Page-Wise Access Control Types ────────────────────────────────────
+export type PageId =
+  | 'dashboard'
+  | 'shifts'
+  | 'tanks'
+  | 'credit'
+  | 'expenses'
+  | 'rates'
+  | 'cashbank'
+  | 'reports'
+  | 'masters'
+  | 'permissions';
+
+export interface PagePermissionConfig {
+  id: PageId;
+  title: string;
+  category: 'Operations' | 'Finance & Sales' | 'Inventory' | 'Administration';
+  description: string;
+  defaultManagerAccess: boolean;
+  ownerOnly?: boolean;
+}
+

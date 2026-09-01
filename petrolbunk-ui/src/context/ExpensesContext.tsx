@@ -1,18 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Expense, ExpenseType, Pump, UserRole } from '../types';
+import { Expense, ExpenseType, UserRole } from '../types';
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
-import { useMastersContext } from './MastersContext';
+import { useMasters } from './MastersContext';
 import { mapExpense } from './mappers';
 
 export interface ExpensesContextType {
   expenses: Expense[];
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
   expenseTypes: ExpenseType[];
-  pumps: Pump[];
   role: UserRole;
 
-  addExpense: (expense: Omit<Expense, 'id' | 'voucherNo' | 'date'>) => Promise<Expense>;
+  addExpense: (expense: {
+    date?: string;
+    expenseTypeId: string;
+    amount: number;
+    remarks?: string;
+  }) => Promise<Expense>;
+  deleteExpense: (id: string) => Promise<void>;
   addExpenseType: (et: Omit<ExpenseType, 'id'>) => Promise<void>;
   updateExpenseType: (et: ExpenseType) => Promise<void>;
   deleteExpenseType: (id: string) => Promise<void>;
@@ -23,7 +28,7 @@ const ExpensesContext = createContext<ExpensesContextType | undefined>(undefined
 
 export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, role, activeBranchId } = useAuthContext();
-  const { expenseTypes, pumps, addExpenseType, updateExpenseType, deleteExpenseType } = useMastersContext();
+  const { expenseTypes, addExpenseType, updateExpenseType, deleteExpenseType } = useMasters();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
@@ -47,23 +52,33 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [isLoggedIn, activeBranchId, syncExpenses]);
 
   const addExpense = useCallback(
-    async (expenseData: Omit<Expense, 'id' | 'voucherNo' | 'date'>): Promise<Expense> => {
+    async (expenseData: {
+      date?: string;
+      expenseTypeId: string;
+      amount: number;
+      remarks?: string;
+    }): Promise<Expense> => {
       const payload = {
+        date: expenseData.date || new Date().toISOString().split('T')[0],
         expense_type_id: expenseData.expenseTypeId,
         amount: expenseData.amount,
-        paid_to: expenseData.paidTo,
-        paid_by: expenseData.paidBy,
-        pump_id: expenseData.pumpId || null,
-        is_credit_note: expenseData.isCreditNote,
-        remarks: expenseData.remarks,
+        remarks: expenseData.remarks || '',
       };
-      const created = await apiFetch('/api/expenses', { method: 'POST', body: JSON.stringify(payload) });
+      const created = await apiFetch('/api/expenses', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
       const newExpense = mapExpense(created);
-      setExpenses((prev) => [newExpense, ...prev]);
+      setExpenses(prev => [newExpense, ...prev]);
       return newExpense;
     },
     []
   );
+
+  const deleteExpense = useCallback(async (id: string) => {
+    await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  }, []);
 
   return (
     <ExpensesContext.Provider
@@ -71,9 +86,9 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         expenses,
         setExpenses,
         expenseTypes,
-        pumps,
         role,
         addExpense,
+        deleteExpense,
         addExpenseType,
         updateExpenseType,
         deleteExpenseType,
@@ -93,4 +108,5 @@ export const useExpensesContext = () => {
   return context;
 };
 
+export const useExpenses = useExpensesContext;
 export { ExpensesContext };
