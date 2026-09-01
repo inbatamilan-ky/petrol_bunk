@@ -1,11 +1,13 @@
+"""Expenses router — date | head | amount | remarks only."""
+
 from datetime import date as date_cls
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.deps import get_current_user, get_db, require_admin, get_current_branch
+from app.deps import get_current_user, get_db, get_current_branch
 from app.utils import generate_id
 
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
@@ -15,47 +17,46 @@ router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 def list_expenses(
     date_from: Optional[date_cls] = None,
     date_to: Optional[date_cls] = None,
+    expense_type_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
     branch_id: str = Depends(get_current_branch),
+    _=Depends(get_current_user),
 ):
-    query = db.query(models.Expense).filter(models.Expense.branch_id == branch_id)
+    q = db.query(models.Expense).filter(models.Expense.branch_id == branch_id)
     if date_from:
-        query = query.filter(models.Expense.date >= date_from)
+        q = q.filter(models.Expense.date >= date_from)
     if date_to:
-        query = query.filter(models.Expense.date <= date_to)
-    return query.order_by(models.Expense.date.desc()).all()
+        q = q.filter(models.Expense.date <= date_to)
+    if expense_type_id:
+        q = q.filter(models.Expense.expense_type_id == expense_type_id)
+    return q.order_by(models.Expense.date.desc()).all()
 
 
 @router.post("", response_model=schemas.ExpenseOut, status_code=status.HTTP_201_CREATED)
 def create_expense(
     payload: schemas.ExpenseCreate,
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
     branch_id: str = Depends(get_current_branch),
+    _=Depends(get_current_user),
 ):
-    expense_type = db.query(models.ExpenseType).filter(models.ExpenseType.branch_id == branch_id, models.ExpenseType.id == payload.expense_type_id).first()
+    # Accept both branch-specific and global (branch_id=NULL) expense types
+    expense_type = db.query(models.ExpenseType).filter(
+        models.ExpenseType.id == payload.expense_type_id
+    ).filter(
+        (models.ExpenseType.branch_id == branch_id) | (models.ExpenseType.branch_id == None)
+    ).first()
     if not expense_type:
         raise HTTPException(status_code=400, detail="Invalid expense_type_id")
     if payload.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
-    exp_date = payload.date or date_cls.today()
-    day_count = db.query(models.Expense).filter(models.Expense.branch_id == branch_id).filter(models.Expense.date == exp_date).count() + 1
-    voucher_no = f"VCH-{exp_date.strftime('%Y%m%d')}-{day_count:03d}"
-
     expense = models.Expense(
         id=generate_id("exp"),
         branch_id=branch_id,
-        voucher_no=voucher_no,
-        date=exp_date,
+        date=payload.date or date_cls.today(),
         expense_type_id=payload.expense_type_id,
         expense_type_name=expense_type.name,
         amount=payload.amount,
-        paid_to=payload.paid_to or "Vendor",
-        paid_by=payload.paid_by or "Manager",
-        pump_id=payload.pump_id,
-        is_credit_note=payload.is_credit_note,
         remarks=payload.remarks,
     )
     db.add(expense)
@@ -68,10 +69,12 @@ def create_expense(
 def delete_expense(
     expense_id: str,
     db: Session = Depends(get_db),
-    _=Depends(require_admin),
     branch_id: str = Depends(get_current_branch),
+    _=Depends(get_current_user),
 ):
-    expense = db.query(models.Expense).filter(models.Expense.branch_id == branch_id).filter(models.Expense.id == expense_id).first()
+    expense = db.query(models.Expense).filter(
+        models.Expense.branch_id == branch_id, models.Expense.id == expense_id
+    ).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     db.delete(expense)

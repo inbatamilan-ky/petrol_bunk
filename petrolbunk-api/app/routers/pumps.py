@@ -27,8 +27,23 @@ def get_pump(pump_id: str, db: Session = Depends(get_db), branch_id: str = Depen
 def create_pump(payload: schemas.PumpCreate, db: Session = Depends(get_db), branch_id: str = Depends(get_current_branch), _=Depends(get_current_user)):
     if db.query(models.Pump).filter(models.Pump.branch_id == branch_id).filter(models.Pump.pump_no == payload.pump_no).first():
         raise HTTPException(status_code=400, detail="pump_no already exists")
-    pump = models.Pump(branch_id=branch_id, id=generate_id("pump"), **payload.model_dump())
+    data = payload.model_dump()
+    nozzles_data = data.pop("nozzles", []) or []
+    pump_id = generate_id("pump")
+    pump = models.Pump(branch_id=branch_id, id=pump_id, **data)
     db.add(pump)
+    db.flush()
+
+    for idx, noz_data in enumerate(nozzles_data):
+        noz_data.pop("pump_id", None)
+        nozzle = models.Nozzle(
+            branch_id=branch_id,
+            id=generate_id("noz"),
+            pump_id=pump_id,
+            **noz_data,
+        )
+        db.add(nozzle)
+
     db.commit()
     db.refresh(pump)
     return pump
@@ -41,8 +56,43 @@ def update_pump(
     pump = db.query(models.Pump).filter(models.Pump.branch_id == branch_id, models.Pump.id == pump_id).first()
     if not pump:
         raise HTTPException(status_code=404, detail="Pump not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    nozzles_data = data.pop("nozzles", None)
+    for key, value in data.items():
         setattr(pump, key, value)
+
+    if nozzles_data is not None:
+        kept_noz_nos = set()
+        for noz_data in nozzles_data:
+            noz_no = noz_data.get("nozzle_no")
+            if noz_no is not None:
+                kept_noz_nos.add(noz_no)
+            existing = db.query(models.Nozzle).filter(
+                models.Nozzle.branch_id == branch_id,
+                models.Nozzle.pump_id == pump_id,
+                models.Nozzle.nozzle_no == noz_no,
+            ).first()
+            if existing:
+                for k, v in noz_data.items():
+                    if k not in ("id", "pump_id"):
+                        setattr(existing, k, v)
+            else:
+                noz_data.pop("pump_id", None)
+                new_noz = models.Nozzle(
+                    branch_id=branch_id,
+                    id=generate_id("noz"),
+                    pump_id=pump_id,
+                    **noz_data,
+                )
+                db.add(new_noz)
+
+        if kept_noz_nos:
+            db.query(models.Nozzle).filter(
+                models.Nozzle.branch_id == branch_id,
+                models.Nozzle.pump_id == pump_id,
+                ~models.Nozzle.nozzle_no.in_(kept_noz_nos),
+            ).delete(synchronize_session=False)
+
     db.commit()
     db.refresh(pump)
     return pump
