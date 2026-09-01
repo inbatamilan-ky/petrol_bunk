@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,2200 +7,2249 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
+
 import {
-  Fuel,
-  PlusCircle,
-  CheckCircle,
-  CheckCircle2,
-  Play,
-  Calculator,
-  Printer,
-  AlertCircle,
-  X,
-  FileCheck,
-  Pencil,
-  Trash2,
-  Save,
-  Gauge,
-  Layers,
-  ArrowRight,
-  ShieldAlert,
-  Droplets,
-  DollarSign,
+  UserCheck,
   Calendar,
+  PlusCircle,
   Clock,
-  User,
+  Save,
+  Trash2,
+  X,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  Truck,
+  FileSpreadsheet,
+  Layers,
+  Fuel,
+  Users,
+  Gauge,
+  Sun,
+  Sunset,
+  Moon,
+  ChevronRight,
+  Zap,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { useShiftOperationsContext } from '../context/ShiftOperationsContext';
-import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
+import { useExpensesContext } from '../context/ExpensesContext';
+import { useCreditLedgerContext } from '../context/CreditLedgerContext';
+import { useAuthContext } from '../context/AuthContext';
 import { colors } from '../theme/colors';
-import { formatCurrency, formatLitres, formatDate, formatDateTime, getTodayDateString } from '../utils/formatters';
-import { Shift, ShiftType, MeterReadingEntry, PaymentCollectionBreakdown } from '../types';
-import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
-import { DatePickerInput } from '../components/DatePickerInput';
-import { NoDataView } from '../components/NoDataView';
-import { useShiftTypes, usePaymentModes } from '../hooks/useMasters';
+import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
+import { PumpDayAttribution, Pump, DailyTally, ReconciliationOut } from '../types';
+import { tallyApi } from '../services/tallyApi';
+import DailyKpiStrip from '../components/tally/DailyKpiStrip';
+import TallyTabs, { TallyTab } from '../components/tally/TallyTabs';
+import ShiftTallyTable from '../components/tally/ShiftTallyTable';
+import PumpTallyTable from '../components/tally/PumpTallyTable';
+import OperatorTallyTable from '../components/tally/OperatorTallyTable';
+import ReconciliationCard from '../components/tally/ReconciliationCard';
+import SessionEntryForm from '../components/tally/SessionEntryForm';
+
+
+interface ShiftPreset {
+  label: string;
+  icon: any;
+  timeIn: string;
+  timeOut: string;
+}
+
+const SHIFT_PRESETS: ShiftPreset[] = [
+  { label: 'Morning (06:00 - 14:00)', icon: Sun, timeIn: '06:00', timeOut: '14:00' },
+  { label: 'Evening (14:00 - 22:00)', icon: Sunset, timeIn: '14:00', timeOut: '22:00' },
+  { label: 'Night (22:00 - 06:00)', icon: Moon, timeIn: '22:00', timeOut: '06:00' },
+  { label: 'Full Day (06:00 - 22:00)', icon: Clock, timeIn: '06:00', timeOut: '22:00' },
+];
 
 export const ShiftOperationsScreen: React.FC = () => {
   const {
-    pumps,
-    operators,
-    shifts,
-    products,
-    openNewShift,
-    saveShiftDraft,
-    closeShift,
-    updateShift,
-    deleteShift,
-    role,
+    attributions = [],
+    selectedDate = getTodayDateString(),
+    setSelectedDate,
+    saveAttribution,
+    deleteAttribution,
+    pumps = [],
+    operators = [],
+    nozzleMeters = [],
   } = useShiftOperationsContext();
 
-  // ── Master table lookups ──────────────────────────────────────────
-  const { options: shiftTypeOptions } = useShiftTypes();
-  const { options: paymentModeOptions } = usePaymentModes();
+  const { expenses = [] } = useExpensesContext() || { expenses: [] };
+  const { creditTransactions = [] } = useCreditLedgerContext() || { creditTransactions: [] };
+  const { activeBranchId } = useAuthContext();
 
-  // ── Date & Pump Filter State ───────────────────────────────────────
-  const [selectedPumpTab, setSelectedPumpTab] = useState<string>('ALL');
-  const [selectedShiftDate, setSelectedShiftDate] = useState<string>(() => {
-    const inProg = shifts.find((s) => s.status === 'IN_PROGRESS');
-    if (inProg) return inProg.shiftDate;
-    if (shifts.length > 0) return shifts[0].shiftDate;
-    return getTodayDateString();
-  });
+  // ── Tally System State ────────────────────────────────────────────────
+  const [activeTallyTab, setActiveTallyTab] = useState<TallyTab>('daily');
+  const [dailyTally, setDailyTally] = useState<DailyTally | null>(null);
+  const [reconciliation, setReconciliation] = useState<ReconciliationOut | null>(null);
+  const [tallyLoading, setTallyLoading] = useState(false);
+  const [showTallySessionForm, setShowTallySessionForm] = useState(false);
 
-  // Shifts matching selected date and selected pump
-  const shiftsOnDate = useMemo(() => {
-    return shifts.filter((s) => {
-      if (selectedPumpTab !== 'ALL' && s.pumpId !== selectedPumpTab) {
-        return false;
-      }
-      return s.shiftDate === selectedShiftDate;
-    });
-  }, [shifts, selectedPumpTab, selectedShiftDate]);
-
-  // Currently Active Selected Shift
-  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
-
-  // Keep currentShift pointing to the active shift or first shift of the selected date
-  useEffect(() => {
-    if (shiftsOnDate.length > 0) {
-      if (!currentShift || !shiftsOnDate.some((s) => s.id === currentShift.id)) {
-        const inProg = shiftsOnDate.find((s) => s.status === 'IN_PROGRESS');
-        setCurrentShift(inProg || shiftsOnDate[0]);
-      }
-    } else {
-      setCurrentShift(null);
+  const fetchTally = useCallback(async (dateStr: string) => {
+    if (!dateStr) return;
+    setTallyLoading(true);
+    try {
+      const [tally, recon] = await Promise.all([
+        tallyApi.getDaily(dateStr, activeBranchId),
+        tallyApi.getReconciliation(dateStr, activeBranchId),
+      ]);
+      setDailyTally(tally);
+      setReconciliation(recon);
+    } catch (e) {
+      console.error('Tally fetch error:', e);
+    } finally {
+      setTallyLoading(false);
     }
-  }, [shiftsOnDate, selectedShiftDate]);
+  }, [activeBranchId]);
 
-  // ── Open Shift Modal State ──────────────────────────────────────────
-  const [showOpenModal, setShowOpenModal] = useState(false);
+  useEffect(() => {
+    if (selectedDate) {
+      fetchTally(selectedDate);
+    }
+  }, [selectedDate, fetchTally, attributions]);
+
+  const [viewMode, setViewMode] = useState<'TALLY_HUB' | 'PUMP_GROUPED' | 'OPERATOR_LIST' | 'SPREADSHEET'>('TALLY_HUB');
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [editingAttr, setEditingAttr] = useState<PumpDayAttribution | null>(null);
+
+  // Form State for Assigning / Editing Operator Attribution
   const [selectedPumpId, setSelectedPumpId] = useState<string>(pumps[0]?.id || '');
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>(operators[0]?.id || '');
-  const [selectedShiftType, setSelectedShiftType] = useState<ShiftType>('Morning');
-  const [shiftDate, setShiftDate] = useState(getTodayDateString());
-  const [reliefOperatorId, setReliefOperatorId] = useState<string>('');
-  const [openingCashFloat, setOpeningCashFloat] = useState('0');
+  const [timeIn, setTimeIn] = useState('06:00');
+  const [timeOut, setTimeOut] = useState('14:00');
+  const [advancePayment, setAdvancePayment] = useState('0');
+  const [creditAcc, setCreditAcc] = useState('0');
+  const [cashCollected, setCashCollected] = useState('0');
+  const [cardCollected, setCardCollected] = useState('0');
+  const [fleetCardCollected, setFleetCardCollected] = useState('0');
+  const [creditSales, setCreditSales] = useState('0');
+  const [gpayCollected, setGpayCollected] = useState('0');
+  const [phonePayCollected, setPhonePayCollected] = useState('0');
+  const [paytmCollected, setPaytmCollected] = useState('0');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Pre-select pump when opening modal if a specific pump tab is selected
-  useEffect(() => {
-    if (selectedPumpTab !== 'ALL' && pumps.some((p) => p.id === selectedPumpTab)) {
-      setSelectedPumpId(selectedPumpTab);
-    } else if ((!selectedPumpId || !pumps.some((p) => p.id === selectedPumpId)) && pumps.length > 0) {
-      setSelectedPumpId(pumps[0].id);
+
+  // ── Auto-Fetched Data with Safe Null Checks ───────────────────────────
+  const dayExpenses = useMemo(() => {
+    return (expenses || []).filter((e) => (e?.date || '').slice(0, 10) === selectedDate);
+  }, [expenses, selectedDate]);
+
+  const totalDayExpenses = useMemo(() => {
+    return dayExpenses.reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
+  }, [dayExpenses]);
+
+  const totalDayAdvance = useMemo(() => {
+    return dayExpenses
+      .filter((e) => {
+        const name = (e?.expenseTypeName || '').toLowerCase();
+        return name.includes('advance') || name.includes('bata') || name.includes('salary');
+      })
+      .reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
+  }, [dayExpenses]);
+
+  const dayCreditTx = useMemo(() => {
+    return (creditTransactions || []).filter((t) => (t?.date || '').slice(0, 10) === selectedDate);
+  }, [creditTransactions, selectedDate]);
+
+  const totalDayCredit = useMemo(() => {
+    return dayCreditTx.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
+  }, [dayCreditTx]);
+
+  const dayNozzleMeters = useMemo(() => {
+    return (nozzleMeters || []).filter((m) => (m?.readingDate || '').slice(0, 10) === selectedDate);
+  }, [nozzleMeters, selectedDate]);
+
+  const totalDayMeterSales = useMemo(() => {
+    return dayNozzleMeters.reduce((sum, m) => {
+      const gross = Number(m?.grossAmount ?? (m?.litresSold || 0) * (m?.sellingRate || 0)) || 0;
+      return sum + gross;
+    }, 0);
+  }, [dayNozzleMeters]);
+
+  const totalDayMeterLitres = useMemo(() => {
+    return dayNozzleMeters.reduce((sum, m) => {
+      const litres = Number(m?.litresSold ?? Math.max(0, (m?.closingMeter || 0) - (m?.openingMeter || 0))) || 0;
+      return sum + litres;
+    }, 0);
+  }, [dayNozzleMeters]);
+
+  // Pump-specific auto-fetch metrics for modal
+  const pumpNozzleMeters = useMemo(() => {
+    if (!selectedPumpId) return [];
+    return dayNozzleMeters.filter((m) => m?.pumpId === selectedPumpId);
+  }, [dayNozzleMeters, selectedPumpId]);
+
+  const pumpMeterSales = useMemo(() => {
+    return pumpNozzleMeters.reduce((sum, m) => {
+      const gross = Number(m?.grossAmount ?? (m?.litresSold || 0) * (m?.sellingRate || 0)) || 0;
+      return sum + gross;
+    }, 0);
+  }, [pumpNozzleMeters]);
+
+  const pumpMeterLitres = useMemo(() => {
+    return pumpNozzleMeters.reduce((sum, m) => {
+      const litres = Number(m?.litresSold ?? Math.max(0, (m?.closingMeter || 0) - (m?.openingMeter || 0))) || 0;
+      return sum + litres;
+    }, 0);
+  }, [pumpNozzleMeters]);
+
+  const pumpCreditTx = useMemo(() => {
+    if (!selectedPumpId) return dayCreditTx;
+    const tagged = dayCreditTx.filter((t) => t?.pumpId === selectedPumpId);
+    return tagged.length > 0 ? tagged : dayCreditTx;
+  }, [dayCreditTx, selectedPumpId]);
+
+  const pumpCreditSales = useMemo(() => {
+    return pumpCreditTx.reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
+  }, [pumpCreditTx]);
+
+  // Auto-Fetch & Auto-Populate Helper
+  const handleAutoFetchValues = (overrideExisting = true) => {
+    if (pumpCreditSales > 0 || overrideExisting) {
+      setCreditSales(String(pumpCreditSales || 0));
     }
-  }, [selectedPumpTab, pumps]);
-
-  useEffect(() => {
-    if ((!selectedOperatorId || !operators.some((o) => o.id === selectedOperatorId)) && operators.length > 0) {
-      setSelectedOperatorId(operators[0].id);
+    if (totalDayAdvance > 0 || overrideExisting) {
+      setAdvancePayment(String(totalDayAdvance || 0));
     }
-  }, [operators]);
-
-  // ── Edit Metadata Modal State ───────────────────────────────────────
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editOperatorId, setEditOperatorId] = useState('');
-  const [editShiftType, setEditShiftType] = useState<ShiftType>('Morning');
-  const [editShiftDate, setEditShiftDate] = useState('');
-  const [editNotes, setEditNotes] = useState('');
-
-  // ── Raw String Buffers for Smooth Typing ────────────────────────────
-  // Keeps typed text (e.g. "120.", "", "0") stable while typing
-  const [readingBuffers, setReadingBuffers] = useState<
-    Record<string, { closing: string; opening: string; testing: string }>
-  >({});
-
-  // Sync buffers when a different shift is loaded
-  useEffect(() => {
-    if (!currentShift) {
-      setReadingBuffers({});
-      return;
+    const card = parseFloat(cardCollected) || 0;
+    const gpay = parseFloat(gpayCollected) || 0;
+    const phonePay = parseFloat(phonePayCollected) || 0;
+    const paytm = parseFloat(paytmCollected) || 0;
+    const fleet = parseFloat(fleetCardCollected) || 0;
+    const digital = card + gpay + phonePay + paytm + fleet;
+    if (pumpMeterSales > 0) {
+      const estimatedCash = Math.max(
+        0,
+        pumpMeterSales - (pumpCreditSales || 0) - digital
+      );
+      if (overrideExisting || !cashCollected || cashCollected === '0') {
+        setCashCollected(String(estimatedCash || 0));
+      }
     }
-    const newBuffers: Record<string, { closing: string; opening: string; testing: string }> = {};
-    currentShift.meterReadings.forEach((r) => {
-      newBuffers[r.nozzleId] = {
-        opening: String(r.openingReading ?? 0),
-        closing: String(r.closingReading ?? r.openingReading ?? 0),
-        testing: String(r.testingLitres ?? 0),
+  };
+
+  // Auto-recalculate suggested cash when payment modes change in modal
+  const modalTotal = useMemo(() => {
+    const cash = parseFloat(cashCollected) || 0;
+    const card = parseFloat(cardCollected) || 0;
+    const fleet = parseFloat(fleetCardCollected) || 0;
+    const credit = parseFloat(creditSales) || 0;
+    const gpay = parseFloat(gpayCollected) || 0;
+    const phonePay = parseFloat(phonePayCollected) || 0;
+    const paytm = parseFloat(paytmCollected) || 0;
+    return cash + card + fleet + credit + gpay + phonePay + paytm;
+  }, [cashCollected, cardCollected, fleetCardCollected, creditSales, gpayCollected, phonePayCollected, paytmCollected]);
+
+  const modalNet = useMemo(() => {
+    const adv = parseFloat(advancePayment) || 0;
+    const cAcc = parseFloat(creditAcc) || 0;
+    return modalTotal - adv - cAcc;
+  }, [modalTotal, advancePayment, creditAcc]);
+
+  // Computed KPIs across entire bunk (Split channels)
+  const totalCash = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.cashCollected) || 0), 0),
+    [attributions]
+  );
+  const totalCard = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.cardCollected) || 0), 0),
+    [attributions]
+  );
+  const totalGpay = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.gpayCollected ?? 0) || 0), 0),
+    [attributions]
+  );
+  const totalPhonePay = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.phonePayCollected ?? 0) || 0), 0),
+    [attributions]
+  );
+  const totalPaytm = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.paytmCollected ?? 0) || 0), 0),
+    [attributions]
+  );
+  const totalFleet = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.fleetCardCollected) || 0), 0),
+    [attributions]
+  );
+  const totalCredit = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.creditSales) || 0), 0),
+    [attributions]
+  );
+  const grandTotal = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.totalAmount) || 0), 0),
+    [attributions]
+  );
+  const grandNet = useMemo(
+    () => (attributions || []).reduce((sum, a) => sum + (Number(a?.netPayment) || 0), 0),
+    [attributions]
+  );
+
+  // Group attributions by Pump (Allows multiple operators per pump)
+  const pumpGroupedData = useMemo(() => {
+    return (pumps || []).map((pump) => {
+      const pumpAttrs = (attributions || []).filter(
+        (a) => a?.pumpId === pump?.id || a?.pumpNo === pump?.pumpNo
+      );
+      const pumpTotalCash = pumpAttrs.reduce((sum, a) => sum + (Number(a?.cashCollected) || 0), 0);
+      const pumpTotalCard = pumpAttrs.reduce((sum, a) => sum + (Number(a?.cardCollected) || 0), 0);
+      const pumpTotalGpay = pumpAttrs.reduce((sum, a) => sum + (Number(a?.gpayCollected ?? 0) || 0), 0);
+      const pumpTotalPhonePay = pumpAttrs.reduce((sum, a) => sum + (Number(a?.phonePayCollected ?? 0) || 0), 0);
+      const pumpTotalPaytm = pumpAttrs.reduce((sum, a) => sum + (Number(a?.paytmCollected ?? 0) || 0), 0);
+      const pumpTotalFleet = pumpAttrs.reduce((sum, a) => sum + (Number(a?.fleetCardCollected) || 0), 0);
+      const pumpTotalCredit = pumpAttrs.reduce((sum, a) => sum + (Number(a?.creditSales) || 0), 0);
+      const pumpTotalAmt = pumpAttrs.reduce((sum, a) => sum + (Number(a?.totalAmount) || 0), 0);
+      const pumpTotalNet = pumpAttrs.reduce((sum, a) => sum + (Number(a?.netPayment) || 0), 0);
+
+      return {
+        pump,
+        attributions: pumpAttrs,
+        totals: {
+          cash: pumpTotalCash,
+          card: pumpTotalCard,
+          gpay: pumpTotalGpay,
+          phonePay: pumpTotalPhonePay,
+          paytm: pumpTotalPaytm,
+          fleet: pumpTotalFleet,
+          credit: pumpTotalCredit,
+          totalAmount: pumpTotalAmt,
+          netPayment: pumpTotalNet,
+        },
       };
     });
-    setReadingBuffers(newBuffers);
-  }, [currentShift?.id]);
+  }, [pumps, attributions]);
 
-  // Saving / Draft status indicator
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [draftSavedToast, setDraftSavedToast] = useState(false);
+  const handleOpenAssignModal = (pumpId?: string, attr?: PumpDayAttribution) => {
+    if (attr) {
+      setEditingAttr(attr);
+      setSelectedPumpId(attr?.pumpId || pumps[0]?.id || '');
+      setSelectedOperatorId(attr?.operatorId || operators[0]?.id || '');
+      setTimeIn(attr?.timeIn || '06:00');
+      setTimeOut(attr?.timeOut || '14:00');
+      setAdvancePayment(String(attr?.advancePayment ?? '0'));
+      setCreditAcc(String(attr?.creditAcc ?? '0'));
+      setCashCollected(String(attr?.cashCollected ?? '0'));
+      setCardCollected(String(attr?.cardCollected ?? '0'));
+      setFleetCardCollected(String(attr?.fleetCardCollected ?? '0'));
+      setCreditSales(String(attr?.creditSales ?? '0'));
+      setGpayCollected(String(attr?.gpayCollected ?? attr?.upiGpayCollected ?? '0'));
+      setPhonePayCollected(String(attr?.phonePayCollected ?? '0'));
+      setPaytmCollected(String(attr?.paytmCollected ?? '0'));
+    } else {
+      setEditingAttr(null);
+      const targetPumpId = pumpId || pumps[0]?.id || '';
+      setSelectedPumpId(targetPumpId);
 
-  // ── Dispenser Simulation Modal ──────────────────────────────────────
-  const [simNozzleId, setSimNozzleId] = useState<string | null>(null);
-  const [simLitresToAdd, setSimLitresToAdd] = useState<string>('20.00');
-
-  // ── Thermal Receipt Modal ───────────────────────────────────────────
-  const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
-  const [showReceipt, setShowReceipt] = useState(false);
-
-  const isClosed = currentShift?.status === 'CLOSED';
-
-  // ── Handle Typing in Meter Readings ──────────────────────────────────
-  const handleReadingTextChange = (
-    nozzleId: string,
-    field: 'closing' | 'testing' | 'opening',
-    rawVal: string
-  ) => {
-    if (!currentShift) return;
-
-    // 1. Update text buffer immediately for responsive UI
-    setReadingBuffers((prev) => ({
-      ...prev,
-      [nozzleId]: {
-        ...prev[nozzleId],
-        [field]: rawVal,
-      },
-    }));
-
-    // 2. Parse numeric value and update currentShift calculations live
-    const numVal = parseFloat(rawVal) || 0;
-    const shiftPump = pumps.find((p) => p.id === currentShift.pumpId);
-    const baseReadings: MeterReadingEntry[] =
-      currentShift.meterReadings && currentShift.meterReadings.length > 0
-        ? currentShift.meterReadings
-        : (shiftPump?.nozzles || []).map((noz) => {
-            const prod = products.find((p) => p.id === noz.productId);
-            return {
-              nozzleId: noz.id,
-              nozzleNo: noz.nozzleNo,
-              productName: noz.productName || prod?.name || 'Fuel',
-              fuelCode: noz.fuelCode || prod?.code || 'HSD',
-              rate: prod?.currentRate || 94.5,
-              openingReading: noz.currentMeterReading || 0,
-              closingReading: noz.currentMeterReading || 0,
-              testingLitres: 0,
-              litresSold: 0,
-              grossAmount: 0,
-            };
-          });
-
-    const updatedReadings = baseReadings.map((r) => {
-      if (r.nozzleId === nozzleId) {
-        const opening = field === 'opening' ? numVal : r.openingReading;
-        const closing = field === 'closing' ? numVal : (r.closingReading ?? r.openingReading);
-        const testing = field === 'testing' ? numVal : r.testingLitres;
-        const sold = Math.max(0, closing - opening - testing);
-        const gross = sold * r.rate;
-
-        return {
-          ...r,
-          [field === 'closing' ? 'closingReading' : field === 'testing' ? 'testingLitres' : 'openingReading']: numVal,
-          litresSold: Math.round(sold * 100) / 100,
-          grossAmount: Math.round(gross * 100) / 100,
-        };
+      // If this pump already has morning operator, default next operator to evening (14:00 - 22:00)
+      const existingForPump = (attributions || []).filter((a) => a?.pumpId === targetPumpId);
+      if (existingForPump.length === 1) {
+        setTimeIn('14:00');
+        setTimeOut('22:00');
+      } else if (existingForPump.length >= 2) {
+        setTimeIn('22:00');
+        setTimeOut('06:00');
+      } else {
+        setTimeIn('06:00');
+        setTimeOut('14:00');
       }
-      return r;
-    });
 
-    const totalLitres = updatedReadings.reduce((sum, r) => sum + (r.litresSold || 0), 0);
-    const totalAmount = updatedReadings.reduce((sum, r) => sum + (r.grossAmount || 0), 0);
-    const netExpected = totalAmount - (currentShift.expensesDeducted || 0);
-    const shortageOrExcess = (currentShift.totalCollected || 0) - netExpected;
+      // Pick operator not yet assigned to this pump if available
+      const usedOpIds = new Set(existingForPump.map((a) => a?.operatorId));
+      const unusedOp = (operators || []).find((o) => !usedOpIds.has(o?.id));
+      setSelectedOperatorId(unusedOp?.id || operators[0]?.id || '');
 
-    const updatedShift: Shift = {
-      ...currentShift,
-      meterReadings: updatedReadings,
-      totalLitresSold: Math.round(totalLitres * 100) / 100,
-      totalSalesAmount: Math.round(totalAmount * 100) / 100,
-      shortageOrExcess: Math.round(shortageOrExcess * 100) / 100,
-    };
+      // Auto-fetch initial values from Credit, Expenses & Meter for this pump
+      const pCredit = (dayCreditTx || [])
+        .filter((t) => !targetPumpId || t?.pumpId === targetPumpId)
+        .reduce((sum, t) => sum + (Number(t?.amount) || 0), 0);
 
-    setCurrentShift(updatedShift);
-  };
+      const pMeters = (dayNozzleMeters || []).filter((m) => m?.pumpId === targetPumpId);
+      const pSales = pMeters.reduce((sum, m) => {
+        const gross = Number(m?.grossAmount ?? (m?.litresSold || 0) * (m?.sellingRate || 0)) || 0;
+        return sum + gross;
+      }, 0);
 
-  // ── Explicit Save Draft ──────────────────────────────────────────────
-  const handleSaveDraft = async () => {
-    if (!currentShift || isClosed) return;
-    try {
-      setIsSavingDraft(true);
-      const saved = await saveShiftDraft(currentShift);
-      if (saved) {
-        setCurrentShift(saved);
-      }
-      setDraftSavedToast(true);
-      setTimeout(() => setDraftSavedToast(false), 2500);
-    } catch (e: any) {
-      alert(`Failed to save draft: ${e.message}`);
-    } finally {
-      setIsSavingDraft(false);
+      setAdvancePayment(totalDayAdvance > 0 ? String(totalDayAdvance) : '0');
+      setCreditAcc('0');
+      setCreditSales(pCredit > 0 ? String(pCredit) : '0');
+      setCashCollected(pSales > 0 ? String(Math.max(0, pSales - pCredit)) : '0');
+      setCardCollected('0');
+      setFleetCardCollected('0');
+      setGpayCollected('0');
+      setPhonePayCollected('0');
+      setPaytmCollected('0');
     }
+    setShowAssignModal(true);
   };
 
-  // ── Handle Payment Collections Change ────────────────────────────────
-  const handleCollectionChange = (mode: keyof PaymentCollectionBreakdown, val: string) => {
-    if (!currentShift) return;
-    const numVal = parseFloat(val) || 0;
-
-    const updatedCollections = {
-      ...currentShift.collections,
-      [mode]: numVal,
-    };
-
-    const totalCollected =
-      (updatedCollections.cash || 0) +
-      (updatedCollections.card || 0) +
-      (updatedCollections.upiGpay || 0) +
-      (updatedCollections.fleetCard || 0) +
-      (updatedCollections.creditSales || 0) +
-      (updatedCollections.cheque || 0);
-
-    const netExpected = currentShift.totalSalesAmount - (currentShift.expensesDeducted || 0);
-    const shortageOrExcess = totalCollected - netExpected;
-
-    const updatedShift: Shift = {
-      ...currentShift,
-      collections: updatedCollections,
-      totalCollected: Math.round(totalCollected * 100) / 100,
-      shortageOrExcess: Math.round(shortageOrExcess * 100) / 100,
-    };
-
-    setCurrentShift(updatedShift);
+  const handleApplyPreset = (preset: ShiftPreset) => {
+    setTimeIn(preset.timeIn);
+    setTimeOut(preset.timeOut);
   };
 
-  // ── Handle Expenses Deducted Change ──────────────────────────────────
-  const handleExpenseDeductionChange = (val: string) => {
-    if (!currentShift) return;
-    const numVal = parseFloat(val) || 0;
-    const netExpected = currentShift.totalSalesAmount - numVal;
-    const shortageOrExcess = currentShift.totalCollected - netExpected;
-
-    const updatedShift: Shift = {
-      ...currentShift,
-      expensesDeducted: numVal,
-      shortageOrExcess: Math.round(shortageOrExcess * 100) / 100,
-    };
-
-    setCurrentShift(updatedShift);
-  };
-
-  // ── Open Shift ───────────────────────────────────────────────────────
-  const handleConfirmOpenShift = async () => {
-    const pumpIdToUse = selectedPumpId || pumps[0]?.id;
-    const operatorIdToUse = selectedOperatorId || operators[0]?.id;
-
-    if (!pumpIdToUse) {
-      alert('Please configure at least one pump dispenser before opening a shift.');
+  const handleSave = async () => {
+    if (!selectedPumpId) {
+      Alert.alert('Error', 'Please select a pump');
       return;
     }
-    if (!operatorIdToUse) {
-      alert('Please configure at least one shift operator before opening a shift.');
+    if (!selectedOperatorId) {
+      Alert.alert('Error', 'Please select an operator');
       return;
     }
 
-    const pumpObj = pumps.find((p) => p.id === pumpIdToUse);
-    if (pumpObj && (pumpObj.status === 'INACTIVE' || pumpObj.status === 'MAINTENANCE')) {
-      alert(`Cannot open shift: Pump ${pumpObj.pumpNo} (${pumpObj.name}) is currently marked ${pumpObj.status} in Station Masters.\n\nYou cannot open a shift or record sales on a deactivated dispenser. Please activate it in Masters first.`);
-      return;
-    }
+    const numAdv = parseFloat(advancePayment) || 0;
+    const numCreditAcc = parseFloat(creditAcc) || 0;
+    const numCash = parseFloat(cashCollected) || 0;
+    const numCard = parseFloat(cardCollected) || 0;
+    const numFleet = parseFloat(fleetCardCollected) || 0;
+    const numCreditSales = parseFloat(creditSales) || 0;
+    const numGpay = parseFloat(gpayCollected) || 0;
+    const numPhonePay = parseFloat(phonePayCollected) || 0;
+    const numPaytm = parseFloat(paytmCollected) || 0;
+    const numUpi = numGpay + numPhonePay + numPaytm;
 
-    const opObj = operators.find((o) => o.id === operatorIdToUse);
-    if (opObj && !opObj.active) {
-      alert(`Cannot open shift: Operator "${opObj.name}" is currently marked INACTIVE in Station Masters.\n\nPlease activate the staff member in Masters or choose an active operator.`);
-      return;
-    }
+    const totalAmt = numCash + numCard + numFleet + numCreditSales + numUpi;
+    const netPay = totalAmt - numAdv - numCreditAcc;
 
     try {
-      const targetDate = shiftDate || getTodayDateString();
-      const newShift = await openNewShift({
-        pumpId: pumpIdToUse,
-        operatorId: operatorIdToUse,
-        shiftType: selectedShiftType || 'Morning',
-        shiftDate: targetDate,
+      setIsSaving(true);
+      await saveAttribution({
+        id: editingAttr?.id,
+        attributionDate: selectedDate,
+        pumpId: selectedPumpId,
+        operatorId: selectedOperatorId,
+        timeIn,
+        timeOut,
+        advancePayment: numAdv,
+        creditAcc: numCreditAcc,
+        cashCollected: numCash,
+        cardCollected: numCard,
+        fleetCardCollected: numFleet,
+        creditSales: numCreditSales,
+        gpayCollected: numGpay,
+        phonePayCollected: numPhonePay,
+        paytmCollected: numPaytm,
+        upiGpayCollected: numUpi,
+        totalAmount: totalAmt,
+        netPayment: netPay,
       });
-      setSelectedShiftDate(targetDate);
-      setSelectedPumpTab(pumpIdToUse);
-      setCurrentShift(newShift);
-      setShowOpenModal(false);
+      setShowAssignModal(false);
+      Alert.alert('Success', 'Operator shift session saved successfully!');
     } catch (e: any) {
-      alert(e.message || 'Failed to open shift. Please check dispenser and operator configuration.');
+      Alert.alert('Error', e?.message || 'Failed to save attribution');
+    } finally {
+      setIsSaving(false);
     }
   };
-
-  // ── Edit Shift Metadata ──────────────────────────────────────────────
-  const handleOpenEditModal = () => {
-    if (!currentShift) return;
-    setEditOperatorId(currentShift.operatorId);
-    setEditShiftType(currentShift.shiftType);
-    setEditShiftDate(currentShift.shiftDate);
-    setEditNotes(currentShift.notes || '');
-    setShowEditModal(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!currentShift) return;
-    await updateShift(currentShift.id, {
-      operatorId: editOperatorId,
-      shiftType: editShiftType,
-      shiftDate: editShiftDate,
-      notes: editNotes,
-    });
-    setShowEditModal(false);
-  };
-
-  // ── Delete Shift ─────────────────────────────────────────────────────
-  const handleDeleteShift = async () => {
-    if (!currentShift) return;
-    if (window.confirm(`Delete shift ${currentShift.shiftNo}? This will permanently remove its records.`)) {
-      await deleteShift(currentShift.id);
-      setCurrentShift(null);
-    }
-  };
-
-  // ── Close Shift ──────────────────────────────────────────────────────
-  const handleFinalCloseShift = async () => {
-    if (!currentShift) return;
-
-    // Validate closing >= opening
-    for (const r of currentShift.meterReadings) {
-      const closing = r.closingReading ?? r.openingReading;
-      if (closing < r.openingReading) {
-        alert(
-          `Closing reading (${closing}) for Nozzle ${r.nozzleNo} (${r.productName}) cannot be less than opening reading (${r.openingReading}).`
-        );
-        return;
-      }
-    }
-
-    if (
-      window.confirm(
-        `Confirm Closing Shift ${currentShift.shiftNo}?\n\n` +
-          `• Pump Dispenser: Pump ${currentShift.pumpNo}\n` +
-          `• Total Litres Sold: ${formatLitres(currentShift.totalLitresSold)}\n` +
-          `• Gross Fuel Turnover: ${formatCurrency(currentShift.totalSalesAmount)}\n` +
-          `• Net Cash Handover / Variance: ${formatCurrency(currentShift.shortageOrExcess)}\n\n` +
-          `This will synchronize live nozzle meters and freeze shift reconciliation.`
-      )
-    ) {
-      try {
-        const closed = await closeShift(currentShift.id, currentShift, currentShift.notes);
-        if (closed) setCurrentShift(closed);
-        generateThermalReceipt(currentShift);
-      } catch (e: any) {
-        alert(`Error closing shift: ${e.message}`);
-      }
-    }
-  };
-
-  // ── Dispenser simulator pulse ────────────────────────────────────────
-  const handleSimulateDispense = () => {
-    if (!currentShift || !simNozzleId) return;
-    const litres = parseFloat(simLitresToAdd) || 0;
-    const reading = currentShift.meterReadings.find((r) => r.nozzleId === simNozzleId);
-    if (!reading) return;
-
-    const currentClosing = reading.closingReading ?? reading.openingReading;
-    const newClosing = Math.round((currentClosing + litres) * 100) / 100;
-
-    handleReadingTextChange(simNozzleId, 'closing', String(newClosing));
-    setSimNozzleId(null);
-  };
-
-  // ── Thermal Receipt Generator ────────────────────────────────────────
-  const generateThermalReceipt = (shift: Shift) => {
-    const data: ThermalReceiptData = {
-      title: 'SHIFT SETTLEMENT VOUCHER',
-      receiptNo: shift.shiftNo,
-      dateStr: shift.shiftDate,
-      operatorName: shift.operatorName,
-      pumpNo: shift.pumpNo,
-      items: shift.meterReadings.map((r) => ({
-        name: `${r.productName} (Noz ${r.nozzleNo})`,
-        qty: `${formatLitres(r.litresSold)}`,
-        rate: `₹${r.rate}`,
-        amount: r.grossAmount || 0,
-      })),
-      subtotal: shift.totalSalesAmount,
-      expensesDeducted: shift.expensesDeducted,
-      netPayable: shift.totalCollected,
-      paymentMode: `Cash: ${formatCurrency(shift.collections.cash)} | UPI: ${formatCurrency(shift.collections.upiGpay)} | Card: ${formatCurrency(shift.collections.card)} | Credit: ${formatCurrency(shift.collections.creditSales)}`,
-      remarks:
-        shift.shortageOrExcess === 0
-          ? 'Reconciled Perfectly (Zero Variance)'
-          : shift.shortageOrExcess < 0
-          ? `Shortage of ${formatCurrency(Math.abs(shift.shortageOrExcess))} by Operator`
-          : `Excess of ${formatCurrency(shift.shortageOrExcess)} in collection`,
-      footerNote: 'OFFICIAL SHIFT CLOSING DOCUMENT • AUDITED',
-    };
-    setReceiptData(data);
-    setShowReceipt(true);
-  };
-
-  const selectedPumpForModal = pumps.find((p) => p.id === selectedPumpId);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* ── Top Header Bar ───────────────────────────────────────────────── */}
-      <View style={styles.headerRow}>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
         <View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.screenTitle}>Shift Operations & Nozzle Meter Readings</Text>
+          <Text style={styles.headerTitle}>Daily Pump & Operator Attribution</Text>
+          <Text style={styles.headerSubtitle}>
+            Block H: Multiple Operators per Pump (Morning, Evening & Night Sessions) + Block D Collections
+          </Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <View style={styles.dateSelectorRow}>
+            <Calendar size={16} color={colors.primary} />
+            <TextInput
+              style={styles.dateInput}
+              value={selectedDate}
+              onChangeText={setSelectedDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => handleOpenAssignModal()}
+          >
+            <PlusCircle size={16} color="#FFF" />
+            <Text style={styles.primaryBtnText}>+ Assign Operator</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* KPI Top Strip — Split Excel Payment Channels */}
+      <View style={styles.kpiStrip}>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Cash Collected</Text>
+          <Text style={[styles.kpiValue, { color: '#10B981' }]}>{formatCurrency(totalCash)}</Text>
+          <Text style={styles.kpiSub}>Physical Cash</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Swiping Machine</Text>
+          <Text style={[styles.kpiValue, { color: '#3B82F6' }]}>{formatCurrency(totalCard)}</Text>
+          <Text style={styles.kpiSub}>Card POS</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Gpay</Text>
+          <Text style={[styles.kpiValue, { color: '#4285F4' }]}>{formatCurrency(totalGpay)}</Text>
+          <Text style={styles.kpiSub}>Google Pay</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Phone Pay</Text>
+          <Text style={[styles.kpiValue, { color: '#5F259F' }]}>{formatCurrency(totalPhonePay)}</Text>
+          <Text style={styles.kpiSub}>PhonePe</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Paytm</Text>
+          <Text style={[styles.kpiValue, { color: '#00BAF2' }]}>{formatCurrency(totalPaytm)}</Text>
+          <Text style={styles.kpiSub}>Paytm QR</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Fleet Card</Text>
+          <Text style={[styles.kpiValue, { color: '#06B6D4' }]}>{formatCurrency(totalFleet)}</Text>
+          <Text style={styles.kpiSub}>FC Cards</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>Credit Sales</Text>
+          <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>{formatCurrency(totalCredit)}</Text>
+          <Text style={styles.kpiSub}>Customer Credit</Text>
+        </View>
+        <View style={[styles.kpiCard, { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }]}>
+          <Text style={[styles.kpiLabel, { color: '#047857' }]}>Grand Total</Text>
+          <Text style={[styles.kpiValue, { color: '#065F46' }]}>{formatCurrency(grandTotal)}</Text>
+          <Text style={[styles.kpiSub, { color: '#059669' }]}>Net: {formatCurrency(grandNet)}</Text>
+        </View>
+      </View>
+
+
+      {/* ── Auto-Fetched Cross-Module Data Strip ─────────────────────── */}
+      <View style={styles.autoFetchBanner}>
+        <View style={styles.autoFetchHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Zap size={16} color="#F59E0B" />
+            <Text style={styles.autoFetchTitle}>Live Auto-Fetched Module Feeds ({selectedDate})</Text>
+          </View>
+          <View style={styles.autoFetchBadge}>
+            <CheckCircle2 size={12} color="#10B981" />
+            <Text style={styles.autoFetchBadgeText}>Connected Feeds</Text>
           </View>
         </View>
 
-        <View style={styles.headerButtons}>
-          {currentShift && !isClosed && (
-            <TouchableOpacity
-              style={[styles.saveDraftBtn, draftSavedToast && styles.saveDraftBtnSuccess]}
-              onPress={handleSaveDraft}
-              disabled={isSavingDraft}
-              activeOpacity={0.8}
+        <View style={styles.autoFetchGrid}>
+          <View style={styles.autoFetchCol}>
+            <Text style={styles.autoFetchColLabel}>Nozzle Meters</Text>
+            <Text style={styles.autoFetchColVal}>{formatCurrency(totalDayMeterSales)}</Text>
+            <Text style={styles.autoFetchColSub}>{totalDayMeterLitres.toFixed(1)} Litres sold</Text>
+          </View>
+
+          <View style={styles.autoFetchCol}>
+            <Text style={styles.autoFetchColLabel}>Credit Ledger</Text>
+            <Text style={styles.autoFetchColVal}>{formatCurrency(totalDayCredit)}</Text>
+            <Text style={styles.autoFetchColSub}>{dayCreditTx.length} Credit Bills</Text>
+          </View>
+
+          <View style={styles.autoFetchCol}>
+            <Text style={styles.autoFetchColLabel}>Daily Expenses</Text>
+            <Text style={styles.autoFetchColVal}>{formatCurrency(totalDayExpenses)}</Text>
+            <Text style={styles.autoFetchColSub}>Staff Adv: {formatCurrency(totalDayAdvance)}</Text>
+          </View>
+
+          <View style={styles.autoFetchCol}>
+            <Text style={styles.autoFetchColLabel}>Shift vs Meter Variance</Text>
+
+            <Text
+              style={[
+                styles.autoFetchColVal,
+                {
+                  color:
+                    Math.abs(grandTotal - totalDayMeterSales) < 1 && totalDayMeterSales > 0
+                      ? '#10B981'
+                      : totalDayMeterSales > 0
+                      ? '#F59E0B'
+                      : colors.textMuted,
+                },
+              ]}
             >
-              {draftSavedToast ? (
-                <>
-                  <CheckCircle2 size={15} color="#16A34A" />
-                  <Text style={[styles.saveDraftBtnText, { color: '#16A34A' }]}>Draft Saved ✓</Text>
-                </>
-              ) : (
-                <>
-                  <Save size={15} color="#007DC6" />
-                  <Text style={styles.saveDraftBtnText}>
-                    {isSavingDraft ? 'Saving...' : 'Save Draft'}
+              {totalDayMeterSales > 0 ? formatCurrency(grandTotal - totalDayMeterSales) : '₹0.00'}
+            </Text>
+            <Text style={styles.autoFetchColSub}>
+              {totalDayMeterSales > 0
+                ? Math.abs(grandTotal - totalDayMeterSales) < 1
+                  ? 'Perfect Match with Meters'
+                  : grandTotal > totalDayMeterSales
+                  ? 'Surplus vs Meter'
+                  : 'Shortage vs Meter'
+                : 'No meter readings logged'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* View Mode Toggle */}
+      <View style={styles.viewToggleBar}>
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'TALLY_HUB' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('TALLY_HUB')}
+        >
+          <Zap size={16} color={viewMode === 'TALLY_HUB' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.toggleBtnText, viewMode === 'TALLY_HUB' && styles.toggleBtnTextActive]}>
+            Daily Tally & Recon
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'PUMP_GROUPED' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('PUMP_GROUPED')}
+        >
+          <Layers size={16} color={viewMode === 'PUMP_GROUPED' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.toggleBtnText, viewMode === 'PUMP_GROUPED' && styles.toggleBtnTextActive]}>
+            Pump-Wise Multi-Operator
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'OPERATOR_LIST' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('OPERATOR_LIST')}
+        >
+          <UserCheck size={16} color={viewMode === 'OPERATOR_LIST' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.toggleBtnText, viewMode === 'OPERATOR_LIST' && styles.toggleBtnTextActive]}>
+            Sessions ({attributions.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === 'SPREADSHEET' && styles.toggleBtnActive]}
+          onPress={() => setViewMode('SPREADSHEET')}
+        >
+          <FileSpreadsheet size={16} color={viewMode === 'SPREADSHEET' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.toggleBtnText, viewMode === 'SPREADSHEET' && styles.toggleBtnTextActive]}>
+            Excel Matrix
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        {viewMode === 'TALLY_HUB' ? (
+          <View style={tallyStyles.container}>
+            {dailyTally ? (
+              <>
+                <View style={tallyStyles.grandTotalRow}>
+                  <Text style={tallyStyles.grandTotalLabel}>TODAY'S TOTAL SALES</Text>
+                  <Text style={tallyStyles.grandTotal}>
+                    ₹{dailyTally.totals.grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                   </Text>
-                </>
-              )}
+                </View>
+                <DailyKpiStrip totals={dailyTally.totals} />
+                <TallyTabs active={activeTallyTab} onChange={setActiveTallyTab} />
+                <View style={tallyStyles.tabContent}>
+                  {activeTallyTab === 'daily' && (
+                    reconciliation ? (
+                      <ReconciliationCard data={reconciliation} compact />
+                    ) : (
+                      <ActivityIndicator color="#3B82F6" style={{ marginTop: 20 }} />
+                    )
+                  )}
+                  {activeTallyTab === 'shift' && (
+                    <ShiftTallyTable shifts={dailyTally.byShift} grandTotal={dailyTally.totals.grandTotal} />
+                  )}
+                  {activeTallyTab === 'pump' && (
+                    <PumpTallyTable pumps={dailyTally.byPump} grandTotal={dailyTally.totals.grandTotal} />
+                  )}
+                  {activeTallyTab === 'operator' && (
+                    <OperatorTallyTable sessions={dailyTally.sessions} />
+                  )}
+                  {activeTallyTab === 'reconcile' && (
+                    reconciliation ? (
+                      <ReconciliationCard data={reconciliation} />
+                    ) : (
+                      <ActivityIndicator color="#3B82F6" style={{ marginTop: 20 }} />
+                    )
+                  )}
+                </View>
+              </>
+            ) : tallyLoading ? (
+              <View style={tallyStyles.loadingRow}>
+                <ActivityIndicator color="#3B82F6" />
+                <Text style={tallyStyles.loadingText}>Loading live daily tally...</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Users size={44} color={colors.textMuted} style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyTitle}>No Tally Data for {selectedDate}</Text>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { marginTop: 16 }]}
+                  onPress={() => setShowTallySessionForm(true)}
+                >
+                  <PlusCircle size={16} color="#FFF" />
+                  <Text style={styles.primaryBtnText}>Create Operator Session</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : attributions.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Users size={44} color={colors.textMuted} style={{ marginBottom: 12 }} />
+            <Text style={styles.emptyTitle}>No Operators Assigned for {selectedDate}</Text>
+            <Text style={styles.emptySub}>
+              Assign morning and evening operators to Pump 1, 2, or 3 with reporting times and collections.
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { marginTop: 16 }]}
+              onPress={() => handleOpenAssignModal()}
+            >
+              <PlusCircle size={16} color="#FFF" />
+              <Text style={styles.primaryBtnText}>Assign First Operator Now</Text>
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.openShiftBtn}
-            onPress={() => setShowOpenModal(true)}
-            activeOpacity={0.8}
-          >
-            <PlusCircle size={15} color="#FFFFFF" />
-            <Text style={styles.openShiftBtnText}>Open New Shift</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Pump Filter Tabs ───────────────────────────────────────── */}
-      <View style={styles.pumpFilterCard}>
-        <View style={styles.pumpFilterHeader}>
-          <Gauge size={15} color="#007DC6" />
-          <Text style={styles.pumpFilterTitle}>SELECT PUMP DISPENSER:</Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pumpTabsScroll}>
-          <TouchableOpacity
-            style={[styles.pumpTabPill, selectedPumpTab === 'ALL' && styles.pumpTabPillActive]}
-            onPress={() => setSelectedPumpTab('ALL')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.pumpTabText, selectedPumpTab === 'ALL' && styles.pumpTabTextActive]}>
-              All Pumps
-            </Text>
-          </TouchableOpacity>
-
-          {pumps.map((pump) => {
-            const hasActiveShift = shifts.some((s) => s.pumpId === pump.id && s.status === 'IN_PROGRESS');
-            const isInactive = pump.status === 'INACTIVE';
-            const isMaintenance = pump.status === 'MAINTENANCE';
-
-            return (
-              <TouchableOpacity
-                key={pump.id}
-                style={[
-                  styles.pumpTabPill,
-                  selectedPumpTab === pump.id && styles.pumpTabPillActive,
-                  hasActiveShift && styles.pumpTabHasActive,
-                  isInactive && styles.pumpTabInactive,
-                ]}
-                onPress={() => setSelectedPumpTab(pump.id)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasActiveShift && <View style={styles.activeDot} />}
-                  <Text
-                    style={[
-                      styles.pumpTabText,
-                      selectedPumpTab === pump.id && styles.pumpTabTextActive,
-                    ]}
-                  >
-                    Pump {pump.pumpNo}
-                  </Text>
-                  {isInactive && (
-                    <View style={styles.tabInactiveBadge}>
-                      <Text style={styles.tabInactiveBadgeText}>INACTIVE</Text>
-                    </View>
-                  )}
-                  {isMaintenance && (
-                    <View style={styles.tabMaintBadge}>
-                      <Text style={styles.tabMaintBadgeText}>MAINT</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* ── Direct Shift Date & Day-Shift Selector ─────────────────────── */}
-      <View style={styles.shiftListBar}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={styles.shiftBarLabel}>
-              DATE FOR {selectedPumpTab === 'ALL' ? 'ALL PUMPS' : `PUMP ${pumps.find((p) => p.id === selectedPumpTab)?.pumpNo || ''}`}:
-            </Text>
-
-            <View style={{ minWidth: 200 }}>
-              <DatePickerInput
-                value={selectedShiftDate}
-                onChange={(d) => setSelectedShiftDate(d)}
-                maxDate={getTodayDateString()}
-              />
-            </View>
           </View>
+        ) : viewMode === 'PUMP_GROUPED' ? (
+          /* ── VIEW 1: PUMP-WISE MULTI-OPERATOR GROUPED VIEW ──────────────── */
 
-          {/* Multiple Shifts on this date selector */}
-          {shiftsOnDate.length > 1 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B' }}>SHIFTS ON THIS DATE:</Text>
-              {shiftsOnDate.map((s) => {
-                const isSelected = currentShift?.id === s.id;
-                const isInProgress = s.status === 'IN_PROGRESS';
-                return (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[
-                      styles.shiftPill,
-                      isSelected && styles.shiftPillActive,
-                      isInProgress && styles.shiftPillInProgress,
-                    ]}
-                    onPress={() => setCurrentShift(s)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.statusDot, { backgroundColor: isInProgress ? '#F59E0B' : '#10B981' }]} />
+          <View style={styles.pumpGroupContainer}>
+            {pumpGroupedData.map(({ pump, attributions: pAttrs, totals }) => (
+              <View key={pump.id} style={styles.pumpSectionCard}>
+                {/* Pump Header Strip */}
+                <View style={styles.pumpSectionHeader}>
+                  <View style={styles.pumpHeaderLeft}>
+                    <View style={styles.pumpBadgeLarge}>
+                      <Gauge size={16} color="#FFF" />
+                      <Text style={styles.pumpBadgeLargeText}>Pump {pump.pumpNo}</Text>
+                    </View>
                     <View>
-                      <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>
-                        Pump {s.pumpNo} • {s.shiftType}
+                      <Text style={styles.pumpSectionTitle}>{pump.name}</Text>
+                      <Text style={styles.pumpSectionSub}>
+                        {pAttrs.length === 0
+                          ? 'No operators assigned yet'
+                          : `${pAttrs.length} Operator${pAttrs.length > 1 ? 's' : ''} on this pump today`}
                       </Text>
-                      <Text style={styles.pillSubText}>{s.shiftNo}</Text>
                     </View>
-                    <View
-                      style={[
-                        styles.pillStatusTag,
-                        { backgroundColor: isInProgress ? '#FEF3C7' : '#D1FAE5' },
-                      ]}
+                  </View>
+
+                  <View style={styles.pumpHeaderRight}>
+                    <TouchableOpacity
+                      style={styles.addOpToPumpBtn}
+                      onPress={() => handleOpenAssignModal(pump.id)}
                     >
-                      <Text
-                        style={[
-                          styles.pillStatusTagText,
-                          { color: isInProgress ? '#B45309' : '#047857' },
-                        ]}
-                      >
-                        {isInProgress ? 'ACTIVE' : 'CLOSED'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {shiftsOnDate.length === 0 && (
-          <NoDataView
-            title="No Shifts Found"
-            selectedDate={selectedShiftDate}
-            message={`No shift records found for ${formatDate(selectedShiftDate)} on the selected pump.`}
-            onResetDate={() => setSelectedShiftDate(getTodayDateString())}
-            actionLabel="Open New Shift"
-            onAction={() => {
-              setShiftDate(selectedShiftDate);
-              setShowOpenModal(true);
-            }}
-          />
-        )}
-      </View>
-
-      {currentShift ? (
-        <>
-          {/* ── Shift Metadata Card ────────────────────────────────────────── */}
-          <View style={styles.shiftMetaCard}>
-            <View style={styles.metaCardTop}>
-              <View style={styles.metaMain}>
-                <View style={styles.metaBadgeRow}>
-                  <Text style={styles.shiftIdText}>{currentShift.shiftNo}</Text>
-                  <View style={[styles.statusBadgeLive, currentShift.status === 'CLOSED' && { backgroundColor: '#F1F5F9' }]}>
-                    <Text style={[styles.statusBadgeLiveText, currentShift.status === 'CLOSED' && { color: '#475569' }]}>
-                      {currentShift.status === 'CLOSED' ? 'CLOSED' : 'LIVE SHIFT'}
-                    </Text>
+                      <PlusCircle size={15} color="#3B82F6" />
+                      <Text style={styles.addOpToPumpBtnText}>+ Add Operator / Shift</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
-                {/* Prominent Shift Summary Chips */}
-                <View style={styles.shiftHighlightsRow}>
-                  <View style={styles.shiftHighlightPill}>
-                    <Calendar size={13} color="#007DC6" />
-                    <Text style={styles.shiftHighlightPillBold}>Date: {formatDate(currentShift.shiftDate)}</Text>
+                {/* Operator Sessions under this Pump */}
+                {pAttrs.length === 0 ? (
+                  <View style={styles.pumpEmptyBox}>
+                    <Text style={styles.pumpEmptyText}>No operator sessions recorded for {pump.name}.</Text>
+                    <TouchableOpacity
+                      style={styles.inlineAddBtn}
+                      onPress={() => handleOpenAssignModal(pump.id)}
+                    >
+                      <Text style={styles.inlineAddBtnText}>+ Assign Morning Operator</Text>
+                    </TouchableOpacity>
                   </View>
+                ) : (
+                  <View style={styles.opCardsUnderPump}>
+                    {pAttrs.map((attr, idx) => {
+                      const isMorning = (attr.timeIn || '06:00') < '12:00';
+                      const isNight = (attr.timeIn || '06:00') >= '21:00';
+                      const shiftLabel = isNight
+                        ? 'Night Session'
+                        : isMorning
+                        ? 'Morning Session'
+                        : 'Evening Session';
 
-                  <View style={styles.shiftHighlightPill}>
-                    <Clock size={13} color="#D97706" />
-                    <Text style={styles.shiftHighlightPillText}>
-                      {currentShift.openedAt ? `Opened: ${formatDateTime(currentShift.openedAt)}` : `${currentShift.shiftType} Shift`}
-                    </Text>
-                  </View>
 
-                  <View style={styles.shiftHighlightPill}>
-                    <Gauge size={13} color="#475569" />
-                    <Text style={styles.shiftHighlightPillText}>
-                      Pump {currentShift.pumpNo}
-                    </Text>
-                    {pumps.find((p) => p.id === currentShift.pumpId)?.status === 'INACTIVE' && (
-                      <View style={styles.microInactiveBadge}>
-                        <Text style={styles.microInactiveBadgeText}>INACTIVE PUMP</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.shiftHighlightPill}>
-                    <User size={13} color="#16A34A" />
-                    <Text style={styles.shiftHighlightPillText}>
-                      Operator: <Text style={{ fontWeight: '700', color: '#0F172A' }}>{currentShift.operatorName}</Text>
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.metaActions}>
-                <TouchableOpacity
-                  style={styles.printBtn}
-                  onPress={() => generateThermalReceipt(currentShift)}
-                  activeOpacity={0.8}
-                >
-                  <Printer size={14} color="#0F172A" />
-                  <Text style={styles.printBtnText}>Print Slip</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.editShiftBtn}
-                  onPress={handleOpenEditModal}
-                  activeOpacity={0.8}
-                >
-                  <Pencil size={14} color="#0F172A" />
-                  <Text style={styles.editShiftBtnText}>Edit Shift</Text>
-                </TouchableOpacity>
-
-                {role === 'Owner' && (
-                  <TouchableOpacity
-                    style={styles.deleteShiftBtn}
-                    onPress={handleDeleteShift}
-                    activeOpacity={0.8}
-                  >
-                    <Trash2 size={14} color="#FFFFFF" />
-                    <Text style={styles.deleteShiftBtnText}>Delete</Text>
-                  </TouchableOpacity>
-                )}
-
-                {!isClosed && (
-                  <TouchableOpacity
-                    style={styles.closeShiftBtn}
-                    onPress={handleFinalCloseShift}
-                    activeOpacity={0.8}
-                  >
-                    <FileCheck size={14} color="#FFFFFF" />
-                    <Text style={styles.closeShiftBtnText}>Close Shift</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-
-          {/* ── Section 1: Nozzle Meter Readings Matrix ────────────────────── */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionTitleHeader}>
-              <View style={styles.titleIconRow}>
-                <Calculator size={18} color="#007DC6" />
-                <Text style={styles.sectionTitle}>1. Nozzle Meter Readings & Sales Calculation</Text>
-              </View>
-              {!isClosed && (
-                <Text style={styles.hintTypableText}>
-                  ✏️ Type closing meter & testing litres freely below
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.readingsList}>
-              {(() => {
-                const shiftPump = pumps.find((p) => p.id === currentShift.pumpId);
-                const readingsToDisplay: MeterReadingEntry[] =
-                  currentShift.meterReadings && currentShift.meterReadings.length > 0
-                    ? currentShift.meterReadings
-                    : (shiftPump?.nozzles || []).map((noz) => {
-                        const prod = products.find((p) => p.id === noz.productId);
-                        return {
-                          nozzleId: noz.id,
-                          nozzleNo: noz.nozzleNo,
-                          productName: noz.productName || prod?.name || 'Fuel',
-                          fuelCode: noz.fuelCode || prod?.code || 'HSD',
-                          rate: prod?.currentRate || 94.5,
-                          openingReading: noz.currentMeterReading || 0,
-                          closingReading: noz.currentMeterReading || 0,
-                          testingLitres: 0,
-                          litresSold: 0,
-                          grossAmount: 0,
-                        };
-                      });
-
-                if (readingsToDisplay.length === 0) {
-                  return (
-                    <View style={styles.emptyNozzleNotice}>
-                      <AlertCircle size={16} color={colors.warning} />
-                      <Text style={styles.emptyNozzleText}>
-                        No nozzles configured for Pump {currentShift.pumpNo}. Please configure nozzles in Masters.
-                      </Text>
-                    </View>
-                  );
-                }
-
-                return readingsToDisplay.map((reading) => {
-                  const prod = products.find((p) => p.id === reading.nozzleId || p.name === reading.productName || p.code === reading.fuelCode);
-                  const prodColor = prod?.color || '#007DC6';
-                  const isProdInactive = prod?.active === false;
-                  const isPumpInactive = shiftPump?.status === 'INACTIVE' || shiftPump?.status === 'MAINTENANCE';
-                  const isNozzleDisabled = isClosed || isProdInactive || isPumpInactive;
-
-                  const sold = reading.litresSold || 0;
-                  const amount = reading.grossAmount || 0;
-
-                  const currentBuffer = readingBuffers[reading.nozzleId] || {
-                    opening: String(reading.openingReading ?? 0),
-                    closing: String(reading.closingReading ?? reading.openingReading ?? 0),
-                    testing: String(reading.testingLitres ?? 0),
-                  };
-
-                  return (
-                    <View key={reading.nozzleId} style={[styles.readingCard, { borderLeftColor: (isProdInactive || isPumpInactive) ? '#94A3B8' : prodColor, borderLeftWidth: 4 }, (isProdInactive || isPumpInactive) && { opacity: 0.85, backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }]}>
-                      {/* Header */}
-                      <View style={styles.readingCardHeader}>
-                        <View style={styles.readingTitleLeft}>
-                          <View style={[styles.prodDot, { backgroundColor: (isProdInactive || isPumpInactive) ? '#94A3B8' : prodColor }]} />
-                          <Text style={[styles.readingProductName, (isProdInactive || isPumpInactive) && { color: '#475569' }]}>
-                            Nozzle {reading.nozzleNo} — {reading.productName} ({reading.fuelCode})
-                          </Text>
-                          {isProdInactive && (
-                            <View style={styles.microInactiveBadge}>
-                              <Text style={styles.microInactiveBadgeText}>INACTIVE PRODUCT</Text>
-                            </View>
-                          )}
-                          {isPumpInactive && (
-                            <View style={styles.microInactiveBadge}>
-                              <Text style={styles.microInactiveBadgeText}>INACTIVE PUMP</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={[styles.rateBadge, { borderColor: (isProdInactive || isPumpInactive) ? '#CBD5E1' : prodColor + '40' }]}>
-                          <Text style={[styles.rateBadgeText, { color: '#0F172A' }]}>
-                            Rate: <Text style={{ fontWeight: '800', color: (isProdInactive || isPumpInactive) ? '#64748B' : prodColor }}>{formatCurrency(reading.rate)}/L</Text>
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Locked Inactive Notice */}
-                      {(isProdInactive || isPumpInactive) && (
-                        <View style={styles.lockedNozzleBar}>
-                          <AlertCircle size={12} color="#64748B" />
-                          <Text style={styles.lockedNozzleBarText}>
-                            {isProdInactive
-                              ? `Product "${reading.productName}" is inactive in Masters. Meter entry is disabled.`
-                              : `Pump ${currentShift.pumpNo} is ${shiftPump?.status} in Masters. Meter entry is disabled.`}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Inputs Row */}
-                      <View style={styles.inputsGrid}>
-                        {/* Opening Reading */}
-                        <View style={styles.inputCol}>
-                          <Text style={styles.inputLabel}>Opening Meter (L)</Text>
-                          <TextInput
-                            style={[styles.inputField, styles.disabledInput]}
-                            value={currentBuffer.opening}
-                            editable={!isNozzleDisabled && role === 'Owner'}
-                            onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'opening', val)}
-                            keyboardType="numeric"
-                          />
-                          <Text style={styles.inputSubHint}>From master totalizer</Text>
-                        </View>
-
-                        {/* Closing Reading */}
-                        <View style={[styles.inputCol, { flex: 1.2 }]}>
-                          <View style={styles.inputLabelRow}>
-                            <Text style={[styles.inputLabel, { color: isNozzleDisabled ? '#64748B' : '#007DC6', fontWeight: '700' }]}>
-                              Closing Meter (L) {isNozzleDisabled ? '(Locked)' : '*'}
-                            </Text>
-                            {!isNozzleDisabled && (
-                              <TouchableOpacity
-                                style={styles.simTriggerBtn}
-                                onPress={() => setSimNozzleId(reading.nozzleId)}
-                                activeOpacity={0.7}
-                              >
-                                <Gauge size={11} color="#3B82F6" />
-                                <Text style={styles.simTriggerText}>Test Meter</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                          <TextInput
-                            style={[
-                              styles.inputField,
-                              isNozzleDisabled ? styles.disabledInput : styles.activeInput,
-                              { borderColor: !isNozzleDisabled ? '#007DC6' : '#CBD5E1' },
-                            ]}
-                            value={currentBuffer.closing}
-                            editable={!isNozzleDisabled}
-                            onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'closing', val)}
-                            placeholder={isNozzleDisabled ? 'Locked (Inactive)' : 'Enter closing meter'}
-                            placeholderTextColor={colors.textMuted}
-                            keyboardType="numeric"
-                          />
-                          <Text style={styles.inputSubHint}>
-                            {isNozzleDisabled ? 'Deactivated in Masters' : 'Physical dispenser reading'}
-                          </Text>
-                        </View>
-
-                        {/* Testing / Calibration */}
-                        <View style={[styles.inputCol, { maxWidth: 110 }]}>
-                          <Text style={styles.inputLabel}>Testing (L)</Text>
-                          <TextInput
-                            style={[
-                              styles.inputField,
-                              isNozzleDisabled ? styles.disabledInput : styles.activeInput,
-                            ]}
-                            value={currentBuffer.testing}
-                            editable={!isNozzleDisabled}
-                            onChangeText={(val) => handleReadingTextChange(reading.nozzleId, 'testing', val)}
-                            keyboardType="numeric"
-                          />
-                          <Text style={styles.inputSubHint}>Returned to tank</Text>
-                        </View>
-
-                        {/* Calculated Output Box */}
-                        <View style={styles.calcOutputCol}>
-                          <View style={styles.calcRowItem}>
-                            <Text style={styles.calcLabelMini}>NET SOLD:</Text>
-                            <Text style={[styles.calcValLitres, { color: prodColor }]}>
-                              {formatLitres(sold)}
-                            </Text>
-                          </View>
-                          <View style={styles.calcRowItem}>
-                            <Text style={styles.calcLabelMini}>TURNOVER:</Text>
-                            <Text style={styles.calcValAmount}>
-                              {formatCurrency(amount)}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                });
-              })()}
-            </View>
-          </View>
-
-          {/* ── Section 2: Payment Collections & Settlement Split ─────────── */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionTitleHeader}>
-              <View style={styles.titleIconRow}>
-                <Fuel size={18} color="#16A34A" />
-                <Text style={styles.sectionTitle}>2. Payment Collections</Text>
-              </View>
-            </View>
-
-            <View style={styles.collectionsGrid}>
-              {/* Cash Collection */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>Cash Collected (₹)</Text>
-                <TextInput
-                  style={[styles.collectionInput, { borderColor: '#16A34A' }]}
-                  value={String(currentShift.collections.cash || '')}
-                  editable={!isClosed}
-                  onChangeText={(val) => handleCollectionChange('cash', val)}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* UPI */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>UPI (₹)</Text>
-                <TextInput
-                  style={[styles.collectionInput, { borderColor: '#8B5CF6' }]}
-                  value={String(currentShift.collections.upiGpay || '')}
-                  editable={!isClosed}
-                  onChangeText={(val) => handleCollectionChange('upiGpay', val)}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* POS Card Swipes */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>Card / POS (₹)</Text>
-                <TextInput
-                  style={[styles.collectionInput, { borderColor: '#0284C7' }]}
-                  value={String(currentShift.collections.card || '')}
-                  editable={!isClosed}
-                  onChangeText={(val) => handleCollectionChange('card', val)}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* Credit Fuel Chits Issued */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>Credit Chits Issued (₹)</Text>
-                <TextInput
-                  style={[styles.collectionInput, { borderColor: '#EA580C' }]}
-                  value={String(currentShift.collections.creditSales || '')}
-                  editable={!isClosed}
-                  onChangeText={(val) => handleCollectionChange('creditSales', val)}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* Fleet Card / Cheque */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>Fleet Card / Cheques (₹)</Text>
-                <TextInput
-                  style={styles.collectionInput}
-                  value={String(currentShift.collections.fleetCard || '')}
-                  editable={!isClosed}
-                  onChangeText={(val) => handleCollectionChange('fleetCard', val)}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* Expenses Deducted from Shift Cash */}
-              <View style={styles.collectionCol}>
-                <Text style={styles.collectionLabel}>Shift Expenses Deducted (₹)</Text>
-                <TextInput
-                  style={[styles.collectionInput, { borderColor: '#DC2626' }]}
-                  value={String(currentShift.expensesDeducted || '')}
-                  editable={!isClosed}
-                  onChangeText={handleExpenseDeductionChange}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* ── Section 3: Reconciliation Summary Box ──────────────────────── */}
-          <View style={styles.settlementBox}>
-            <Text style={styles.settlementTitle}>SHIFT SUMMARY</Text>
-
-            <View style={styles.settlementRows}>
-              <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Total Fuel Sales (A):</Text>
-                <Text style={styles.settleVal}>{formatCurrency(currentShift.totalSalesAmount)}</Text>
-              </View>
-
-              <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Less Expenses Paid (B):</Text>
-                <Text style={styles.settleVal}>- {formatCurrency(currentShift.expensesDeducted)}</Text>
-              </View>
-
-              <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Net Expected Settlement (A - B):</Text>
-                <Text style={[styles.settleVal, { color: '#007DC6' }]}>
-                  {formatCurrency(currentShift.totalSalesAmount - (currentShift.expensesDeducted || 0))}
-                </Text>
-              </View>
-
-              <View style={styles.settleRow}>
-                <Text style={styles.settleLabel}>Total Collections Counted (C):</Text>
-                <Text style={styles.settleVal}>{formatCurrency(currentShift.totalCollected)}</Text>
-              </View>
-
-              <View style={[styles.settleRow, styles.settleRowHighlight]}>
-                <Text style={styles.settleLabelBold}>VARIANCE / HANDOVER BALANCE (C - (A - B)):</Text>
-                <Text
-                  style={[
-                    styles.settleValBold,
-                    {
-                      color:
-                        currentShift.shortageOrExcess === 0
-                          ? '#16A34A'
-                          : currentShift.shortageOrExcess < 0
-                          ? '#DC2626'
-                          : '#D97706',
-                    },
-                  ]}
-                >
-                  {currentShift.shortageOrExcess === 0
-                    ? '₹0.00 (Zero Variance ✓)'
-                    : currentShift.shortageOrExcess < 0
-                    ? `- ${formatCurrency(Math.abs(currentShift.shortageOrExcess))} (Shortage)`
-                    : `+ ${formatCurrency(currentShift.shortageOrExcess)} (Excess)`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.verificationBar}>
-              <CheckCircle
-                size={16}
-                color={currentShift.shortageOrExcess === 0 ? '#16A34A' : '#D97706'}
-              />
-              <Text style={styles.verificationText}>
-                {currentShift.shortageOrExcess === 0
-                  ? 'All sales & collections tally with zero variance'
-                  : currentShift.shortageOrExcess < 0
-                  ? `Shift collection has a shortage of ${formatCurrency(Math.abs(currentShift.shortageOrExcess))}`
-                  : `Shift collection has an excess of ${formatCurrency(currentShift.shortageOrExcess)}`}
-              </Text>
-            </View>
-          </View>
-        </>
-      ) : null}
-
-      {/* ── Open Shift Modal ─────────────────────────────────────────────── */}
-      <Modal visible={showOpenModal} transparent animationType="slide" onRequestClose={() => setShowOpenModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Open New Shift Handover</Text>
-              <TouchableOpacity onPress={() => setShowOpenModal(false)}>
-                <X size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-                {/* Shift Date */}
-                <DatePickerInput
-                  label="Shift Date *"
-                  value={shiftDate}
-                  onChange={(d) => setShiftDate(d)}
-                  maxDate={getTodayDateString()}
-                />
-
-                {/* Select Pump */}
-                <DropdownPicker
-                  label="Select Pump Dispenser *"
-                  placeholder="Select Pump Dispenser..."
-                  options={pumps.map((pump) => ({
-                    label: `Pump ${pump.pumpNo}`,
-                    value: pump.id,
-                    subtitle: `${pump.nozzles.length} nozzle(s) configured`,
-                    inactive: pump.status === 'INACTIVE' || pump.status === 'MAINTENANCE',
-                  } as DropdownOption))}
-                  value={selectedPumpId}
-                  onChange={(v) => setSelectedPumpId(v)}
-                />
-
-                {/* Pump Nozzle Starting Meter Preview */}
-                {selectedPumpForModal && (
-                  <View style={styles.nozzlePreviewCard}>
-                    <Text style={styles.nozzlePreviewTitle}>
-                      Starting Nozzle Meters for Pump {selectedPumpForModal.pumpNo}:
-                    </Text>
-                    {selectedPumpForModal.nozzles.map((n) => {
-                      const prod = products.find((p) => p.id === n.productId);
                       return (
-                        <View key={n.id} style={styles.nozzlePreviewRow}>
-                          <Text style={styles.nozzlePreviewName}>
-                            Nozzle {n.nozzleNo} ({n.productName || prod?.name})
-                          </Text>
-                          <Text style={styles.nozzlePreviewMeter}>
-                            Opening: {Math.round(Number(n.currentMeterReading || 0))} L
-                          </Text>
+                        <View key={attr.id} style={styles.subOperatorCard}>
+                          <View style={styles.subOpHeader}>
+                            <View style={styles.subOpHeaderLeft}>
+                              <View style={[styles.avatarCircle, { backgroundColor: isMorning ? '#3B82F6' : '#D97706' }]}>
+                                <Text style={styles.avatarText}>
+                                  {attr.operatorName.slice(0, 2).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <Text style={styles.subOpName}>{attr.operatorName}</Text>
+                                  <View style={[styles.shiftTag, { backgroundColor: isMorning ? '#EFF6FF' : '#FEF3C7' }]}>
+                                    <Text style={[styles.shiftTagText, { color: isMorning ? '#1E40AF' : '#B45309' }]}>
+                                      {shiftLabel}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <View style={styles.timeBadgeRow}>
+                                  <Clock size={12} color={colors.textMuted} />
+                                  <Text style={styles.timeText}>
+                                    Reporting: <Text style={{ fontWeight: '700', color: colors.text }}>{attr.timeIn || '06:00'}</Text> → Out: <Text style={{ fontWeight: '700', color: colors.text }}>{attr.timeOut || '14:00'}</Text>
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            <View style={styles.subOpActions}>
+                              <TouchableOpacity
+                                style={styles.editBtn}
+                                onPress={() => handleOpenAssignModal(pump.id, attr)}
+                              >
+                                <Text style={styles.editBtnText}>Edit</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.deleteBtn}
+                                onPress={() => {
+                                  Alert.alert('Confirm Delete', `Remove ${attr.operatorName} from ${pump.name}?`, [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Delete', style: 'destructive', onPress: () => deleteAttribution(attr.id) },
+                                  ]);
+                                }}
+                              >
+                                <Trash2 size={15} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* Operator Collections Breakdown — Split Channels */}
+                          <View style={styles.breakdownGrid}>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Cash</Text>
+                              <Text style={[styles.breakdownVal, { color: '#10B981' }]}>
+                                {formatCurrency(attr.cashCollected)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Swiping POS</Text>
+                              <Text style={[styles.breakdownVal, { color: '#3B82F6' }]}>
+                                {formatCurrency(attr.cardCollected)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Gpay</Text>
+                              <Text style={[styles.breakdownVal, { color: '#4285F4' }]}>
+                                {formatCurrency(attr.gpayCollected ?? 0)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Phone Pay</Text>
+                              <Text style={[styles.breakdownVal, { color: '#5F259F' }]}>
+                                {formatCurrency(attr.phonePayCollected ?? 0)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Paytm</Text>
+                              <Text style={[styles.breakdownVal, { color: '#00BAF2' }]}>
+                                {formatCurrency(attr.paytmCollected ?? 0)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Fleet Card</Text>
+                              <Text style={[styles.breakdownVal, { color: '#06B6D4' }]}>
+                                {formatCurrency(attr.fleetCardCollected)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Credit Sales</Text>
+                              <Text style={[styles.breakdownVal, { color: '#F59E0B' }]}>
+                                {formatCurrency(attr.creditSales)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Advance Ded.</Text>
+                              <Text style={[styles.breakdownVal, { color: '#EF4444' }]}>
+                                -{formatCurrency(attr.advancePayment + attr.creditAcc)}
+                              </Text>
+                            </View>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownLabel}>Net Payment</Text>
+                              <Text style={[styles.breakdownVal, { color: '#10B981', fontWeight: '800' }]}>
+                                {formatCurrency(attr.netPayment)}
+                              </Text>
+                            </View>
+                          </View>
                         </View>
                       );
                     })}
+
+                    {/* Combined Pump Summary Footer */}
+                    {pAttrs.length > 1 && (
+                      <View style={styles.combinedPumpSummary}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Users size={14} color="#475569" />
+                          <Text style={styles.combinedLabel}>
+                            Pump {pump.pumpNo} Combined ({pAttrs.length} Operators):
+                          </Text>
+                        </View>
+                        <View style={styles.combinedValuesRow}>
+                          <Text style={styles.combinedVal}>Cash: <Text style={{ color: '#10B981', fontWeight: '700' }}>{formatCurrency(totals.cash)}</Text></Text>
+                          <Text style={styles.combinedVal}>Swipes: <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{formatCurrency(totals.card)}</Text></Text>
+                          <Text style={styles.combinedVal}>Gpay: <Text style={{ color: '#4285F4', fontWeight: '700' }}>{formatCurrency(totals.gpay)}</Text></Text>
+                          <Text style={styles.combinedVal}>PhonePay: <Text style={{ color: '#5F259F', fontWeight: '700' }}>{formatCurrency(totals.phonePay)}</Text></Text>
+                          <Text style={styles.combinedVal}>Paytm: <Text style={{ color: '#00BAF2', fontWeight: '700' }}>{formatCurrency(totals.paytm)}</Text></Text>
+                          <Text style={styles.combinedVal}>Total: <Text style={{ color: colors.primary, fontWeight: '800' }}>{formatCurrency(totals.totalAmount)}</Text></Text>
+                          <Text style={styles.combinedVal}>Net: <Text style={{ color: '#10B981', fontWeight: '800' }}>{formatCurrency(totals.netPayment)}</Text></Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
-
-                {/* Shift Type */}
-                <DropdownPicker
-                  label="Shift Type *"
-                  placeholder="Select Shift Type..."
-                  options={shiftTypeOptions.length > 0 ? shiftTypeOptions : [
-                    { label: 'Morning Shift', value: 'Morning', subtitle: '06:00 AM - 02:00 PM' },
-                    { label: 'Evening Shift', value: 'Evening', subtitle: '02:00 PM - 10:00 PM' },
-                    { label: 'Night Shift', value: 'Night', subtitle: '10:00 PM - 06:00 AM' },
-                    { label: 'Full Day Shift', value: 'Full Day', subtitle: '24 Hours / Extended' },
-                  ]}
-                  value={selectedShiftType}
-                  onChange={(v) => setSelectedShiftType(v as ShiftType)}
-                  allowOther
-                  onSaveNew={(v) => setSelectedShiftType(v as ShiftType)}
-                />
-
-                {/* Select Shift Operator */}
-                <DropdownPicker
-                  label="Select Shift Operator *"
-                  placeholder="Select Shift Operator..."
-                  options={operators.map((op) => ({
-                    label: op.name,
-                    value: op.id,
-                    inactive: !op.active,
-                  } as DropdownOption))}
-                  value={selectedOperatorId}
-                  onChange={(v) => setSelectedOperatorId(v)}
-                  allowOther
-                  onSaveNew={(v) => setSelectedOperatorId(v)}
-                />
-
-                {/* Relief Operator (Optional) */}
-                <DropdownPicker
-                  label="Relief Operator (Optional)"
-                  placeholder="Select Relief Operator..."
-                  options={[
-                    { label: 'None (No Relief)', value: '' },
-                    ...operators.map((op) => ({
-                      label: op.name,
-                      value: op.id,
-                      inactive: !op.active,
-                    } as DropdownOption)),
-                  ]}
-                  value={reliefOperatorId}
-                  onChange={(v) => setReliefOperatorId(v)}
-                  allowOther
-                  onSaveNew={(v) => setReliefOperatorId(v)}
-                />
-
-                {/* Opening Cash Float */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Opening Cash Float (₹)</Text>
-                  <TextInput
-                    style={styles.simInput}
-                    value={openingCashFloat}
-                    onChangeText={setOpeningCashFloat}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.confirmOpenBtn} onPress={handleConfirmOpenShift} activeOpacity={0.8}>
-                <Play size={16} color="#FFFFFF" />
-                <Text style={styles.confirmOpenBtnText}>Start Shift & Lock Opening Meters</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Simulator Modal ──────────────────────────────────────────────── */}
-      <Modal visible={!!simNozzleId} transparent animationType="fade" onRequestClose={() => setSimNozzleId(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxWidth: 360 }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Gauge size={18} color="#3B82F6" />
-                <Text style={styles.modalTitle}>Dispenser Meter Advance</Text>
               </View>
-              <TouchableOpacity onPress={() => setSimNozzleId(null)}>
-                <X size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+            ))}
+          </View>
+        ) : viewMode === 'OPERATOR_LIST' ? (
+          /* ── VIEW 2: FLAT OPERATOR SESSIONS VIEW ─────────────────────────── */
+          <View style={styles.cardsGrid}>
+            {attributions.map((attr) => (
+              <View key={attr.id} style={styles.operatorCard}>
+                <View style={styles.operatorCardHeader}>
+                  <View style={styles.operatorHeaderLeft}>
+                    <View style={styles.pumpBadge}>
+                      <Text style={styles.pumpBadgeText}>Pump {attr.pumpNo}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.operatorName}>{attr.operatorName}</Text>
+                      <View style={styles.timeBadgeRow}>
+                        <Clock size={12} color={colors.textMuted} />
+                        <Text style={styles.timeText}>
+                          {attr.timeIn || '06:00'} → {attr.timeOut || '14:00'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
 
-            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-              <View style={styles.modalBody}>
-                <Text style={styles.simSub}>
-                  Simulate customer fueling to advance the digital totalizer meter in real time:
-                </Text>
-                <View style={styles.quickLitresRow}>
-                  {['10.00', '20.00', '50.00', '100.00'].map((l) => (
+                  <View style={styles.cardActions}>
                     <TouchableOpacity
-                      key={l}
-                      style={[styles.quickLitreBtn, simLitresToAdd === l && styles.quickLitreBtnActive]}
-                      onPress={() => setSimLitresToAdd(l)}
+                      style={styles.editBtn}
+                      onPress={() => handleOpenAssignModal(attr.pumpId, attr)}
                     >
-                      <Text style={[styles.quickLitreText, simLitresToAdd === l && styles.quickLitreTextActive]}>
-                        +{l} L
+                      <Text style={styles.editBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => {
+                        Alert.alert('Confirm Delete', 'Delete this operator attribution?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Delete', style: 'destructive', onPress: () => deleteAttribution(attr.id) },
+                        ]);
+                      }}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Operator Collections Breakdown — Split Channels */}
+                <View style={styles.breakdownGrid}>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Cash</Text>
+                    <Text style={[styles.breakdownVal, { color: '#10B981' }]}>
+                      {formatCurrency(attr.cashCollected)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Swiping POS</Text>
+                    <Text style={[styles.breakdownVal, { color: '#3B82F6' }]}>
+                      {formatCurrency(attr.cardCollected)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Gpay</Text>
+                    <Text style={[styles.breakdownVal, { color: '#4285F4' }]}>
+                      {formatCurrency(attr.gpayCollected ?? 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Phone Pay</Text>
+                    <Text style={[styles.breakdownVal, { color: '#5F259F' }]}>
+                      {formatCurrency(attr.phonePayCollected ?? 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Paytm</Text>
+                    <Text style={[styles.breakdownVal, { color: '#00BAF2' }]}>
+                      {formatCurrency(attr.paytmCollected ?? 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Fleet Card</Text>
+                    <Text style={[styles.breakdownVal, { color: '#06B6D4' }]}>
+                      {formatCurrency(attr.fleetCardCollected)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Credit Sales</Text>
+                    <Text style={[styles.breakdownVal, { color: '#F59E0B' }]}>
+                      {formatCurrency(attr.creditSales)}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Advance / Ded.</Text>
+                    <Text style={[styles.breakdownVal, { color: '#EF4444' }]}>
+                      -{formatCurrency(attr.advancePayment + attr.creditAcc)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardFooter}>
+                  <View>
+                    <Text style={styles.footerLabel}>Total Amount</Text>
+                    <Text style={styles.footerVal}>{formatCurrency(attr.totalAmount)}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.footerLabel}>Net Payment</Text>
+                    <Text style={[styles.footerVal, { color: '#10B981' }]}>
+                      {formatCurrency(attr.netPayment)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          /* ── VIEW 3: SPREADSHEET MATRIX (BLOCK H & D) ────────────────────── */
+          <ScrollView horizontal style={styles.matrixScroll}>
+            <View>
+              <View style={styles.matrixHeaderRow}>
+                <Text style={[styles.matrixHCell, { width: 90 }]}>Pump</Text>
+                <Text style={[styles.matrixHCell, { width: 140 }]}>Operator</Text>
+                <Text style={[styles.matrixHCell, { width: 110 }]}>Time (In-Out)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Cash (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Swipes (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Gpay (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>PhonePe (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Paytm (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Fleet (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 100, textAlign: 'right' }]}>Credit (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 120, textAlign: 'right' }]}>Total Amt (₹)</Text>
+                <Text style={[styles.matrixHCell, { width: 120, textAlign: 'right' }]}>Net Pay (₹)</Text>
+              </View>
+
+              {attributions.map((attr) => (
+                <View key={attr.id} style={styles.matrixDataRow}>
+                  <Text style={[styles.matrixDCell, { width: 90, fontWeight: '700' }]}>
+                    Pump {attr.pumpNo}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 140, fontWeight: '600' }]}>
+                    {attr.operatorName}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 110, color: colors.textMuted }]}>
+                    {attr.timeIn || '06:00'} - {attr.timeOut || '14:00'}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#10B981' }]}>
+                    {formatCurrency(attr.cashCollected)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#3B82F6' }]}>
+                    {formatCurrency(attr.cardCollected)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#4285F4' }]}>
+                    {formatCurrency(attr.gpayCollected ?? 0)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#5F259F' }]}>
+                    {formatCurrency(attr.phonePayCollected ?? 0)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#00BAF2' }]}>
+                    {formatCurrency(attr.paytmCollected ?? 0)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#06B6D4' }]}>
+                    {formatCurrency(attr.fleetCardCollected)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 100, textAlign: 'right', color: '#F59E0B' }]}>
+                    {formatCurrency(attr.creditSales)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 120, textAlign: 'right', fontWeight: '700' }]}>
+                    {formatCurrency(attr.totalAmount)}
+                  </Text>
+                  <Text style={[styles.matrixDCell, { width: 120, textAlign: 'right', fontWeight: '700', color: '#10B981' }]}>
+                    {formatCurrency(attr.netPayment)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+      </ScrollView>
+
+      {/* Assign / Edit Operator Modal */}
+      <Modal visible={showAssignModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <ScrollView style={styles.modalScroll} contentContainerStyle={{ padding: 20 }}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingAttr ? 'Edit Operator Session' : 'Assign Operator to Pump (Multi-Operator)'}
+                </Text>
+                <TouchableOpacity onPress={() => setShowAssignModal(false)}>
+                  <X size={20} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Pump Selection */}
+              <Text style={styles.inputLabel}>Assigned Pump</Text>
+              <View style={styles.pillsRow}>
+                {pumps.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.pillBtn, selectedPumpId === p.id && styles.pillBtnActive]}
+                    onPress={() => setSelectedPumpId(p.id)}
+                  >
+                    <Text style={[styles.pillBtnText, selectedPumpId === p.id && styles.pillBtnTextActive]}>
+                      {p.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Operator Selection */}
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Attendant / Operator</Text>
+              <View style={styles.pillsRow}>
+                {operators.map((o) => (
+                  <TouchableOpacity
+                    key={o.id}
+                    style={[styles.pillBtn, selectedOperatorId === o.id && styles.pillBtnActive]}
+                    onPress={() => setSelectedOperatorId(o.id)}
+                  >
+                    <Text style={[styles.pillBtnText, selectedOperatorId === o.id && styles.pillBtnTextActive]}>
+                      {o.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Shift Presets */}
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Shift Preset / Reporting Hours</Text>
+              <View style={styles.presetsRow}>
+                {SHIFT_PRESETS.map((preset) => {
+                  const Icon = preset.icon;
+                  const isActive = timeIn === preset.timeIn && timeOut === preset.timeOut;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      style={[styles.presetChip, isActive && styles.presetChipActive]}
+                      onPress={() => handleApplyPreset(preset)}
+                    >
+                      <Icon size={13} color={isActive ? '#FFF' : colors.textSecondary} />
+                      <Text style={[styles.presetChipText, isActive && styles.presetChipTextActive]}>
+                        {preset.label}
                       </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={[styles.formLabel, { marginTop: 12 }]}>Custom Litres to Dispense</Text>
-                <TextInput
-                  style={styles.simInput}
-                  value={simLitresToAdd}
-                  onChangeText={setSimLitresToAdd}
-                  keyboardType="numeric"
-                />
+                  );
+                })}
               </View>
-            </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.dispenseTriggerBtn} onPress={handleSimulateDispense} activeOpacity={0.8}>
-                <Fuel size={16} color="#FFFFFF" />
-                <Text style={styles.dispenseTriggerText}>Dispense & Update Closing Reading</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Edit Shift Modal ─────────────────────────────────────────────── */}
-      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Pencil size={18} color="#007DC6" />
-                <Text style={styles.modalTitle}>Edit Shift Details</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <X size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-              <View style={styles.modalBody}>
-                <DatePickerInput
-                  label="Shift Date *"
-                  value={editShiftDate}
-                  onChange={(d) => setEditShiftDate(d)}
-                  maxDate={getTodayDateString()}
-                />
-
-                <DropdownPicker
-                  label="Shift Type *"
-                  placeholder="Select Shift Type..."
-                  options={shiftTypeOptions.length > 0 ? shiftTypeOptions : [
-                    { label: 'Morning Shift', value: 'Morning' },
-                    { label: 'Evening Shift', value: 'Evening' },
-                    { label: 'Night Shift', value: 'Night' },
-                    { label: 'Full Day Shift', value: 'Full Day' },
-                  ]}
-                  value={editShiftType}
-                  onChange={(v) => setEditShiftType(v as ShiftType)}
-                />
-
-                <DropdownPicker
-                  label="Operator *"
-                  placeholder="Select Operator..."
-                  options={operators.map((op) => ({
-                    label: op.name,
-                    value: op.id,
-                  }))}
-                  value={editOperatorId}
-                  onChange={(v) => setEditOperatorId(v)}
-                />
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Notes & Remarks</Text>
+              {/* Custom Reporting Times */}
+              <View style={styles.timesRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputSubLabel}>Time In (Morning/Start)</Text>
                   <TextInput
-                    style={[styles.simInput, { height: 60 }]}
-                    value={editNotes}
-                    onChangeText={setEditNotes}
-                    multiline
-                    placeholder="Special remarks or shift notes"
+                    style={styles.timeInput}
+                    value={timeIn}
+                    onChangeText={setTimeIn}
+                    placeholder="06:00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputSubLabel}>Time Out (Evening/End)</Text>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={timeOut}
+                    onChangeText={setTimeOut}
+                    placeholder="14:00"
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
               </View>
-            </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.confirmOpenBtn} onPress={handleSaveEdit} activeOpacity={0.8}>
-                <Save size={16} color="#FFFFFF" />
-                <Text style={styles.confirmOpenBtnText}>Save Changes</Text>
-              </TouchableOpacity>
+              {/* ── Auto-Fetched Live Data Box for Selected Pump ────────── */}
+              <View style={styles.modalAutoFetchBox}>
+                <View style={styles.modalAutoFetchHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={14} color="#F59E0B" />
+                    <Text style={styles.modalAutoFetchTitle}>Auto-Fetched Data for this Pump & Date</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.modalAutoFetchBtn}
+                    onPress={() => handleAutoFetchValues(true)}
+                    activeOpacity={0.7}
+                  >
+                    <RefreshCw size={12} color="#2563EB" />
+                    <Text style={styles.modalAutoFetchBtnText}>Re-Sync / Auto-Fill</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.modalAutoFetchGrid}>
+                  <View style={styles.modalAutoFetchItem}>
+                    <Text style={styles.modalAutoFetchItemLbl}>Meter Reading</Text>
+                    <Text style={styles.modalAutoFetchItemVal}>{formatCurrency(pumpMeterSales)}</Text>
+                    <Text style={styles.modalAutoFetchItemSub}>{pumpMeterLitres.toFixed(1)} L (this pump)</Text>
+                  </View>
+
+                  <View style={styles.modalAutoFetchItem}>
+                    <Text style={styles.modalAutoFetchItemLbl}>Credit Sales</Text>
+                    <Text style={styles.modalAutoFetchItemVal}>{formatCurrency(pumpCreditSales)}</Text>
+                    <Text style={styles.modalAutoFetchItemSub}>{pumpCreditTx.length} Credit Entries</Text>
+                  </View>
+
+                  <View style={styles.modalAutoFetchItem}>
+                    <Text style={styles.modalAutoFetchItemLbl}>Staff Advance/Bata</Text>
+                    <Text style={styles.modalAutoFetchItemVal}>{formatCurrency(totalDayAdvance)}</Text>
+                    <Text style={styles.modalAutoFetchItemSub}>{dayExpenses.length} Total Expenses</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.modalAutoFetchNote}>
+                  Data auto-fetched from Nozzle Meters, Credit Ledger & Expenses. All fields below remain fully editable in case of split shifts or mismatch.
+                </Text>
+              </View>
+
+              {/* Block D Collections Form — Split Excel Channels */}
+              <Text style={[styles.sectionHeading, { marginTop: 16 }]}>
+                Collections Breakdown (Block D — Excel Channels)
+              </Text>
+
+              <View style={styles.formGrid}>
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Cash Collected (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={cashCollected}
+                    onChangeText={setCashCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Swiping Machine / POS (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={cardCollected}
+                    onChangeText={setCardCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Gpay (Google Pay) (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={gpayCollected}
+                    onChangeText={setGpayCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Phone Pay (PhonePe) (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={phonePayCollected}
+                    onChangeText={setPhonePayCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Paytm (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={paytmCollected}
+                    onChangeText={setPaytmCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Fleet Card (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={fleetCardCollected}
+                    onChangeText={setFleetCardCollected}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Credit Sales (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={creditSales}
+                    onChangeText={setCreditSales}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.inputLabel}>Advance / Bata (₹)</Text>
+                  <TextInput
+                    style={styles.moneyInput}
+                    keyboardType="numeric"
+                    value={advancePayment}
+                    onChangeText={setAdvancePayment}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
+
+
+              {/* Live Session Summary Strip */}
+              <View style={styles.modalSummaryStrip}>
+                <View>
+                  <Text style={styles.modalSummaryLbl}>Total Collection (Block D)</Text>
+                  <Text style={styles.modalSummaryVal}>{formatCurrency(modalTotal)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.modalSummaryLbl}>Net Payable (After Deductions)</Text>
+                  <Text style={[styles.modalSummaryVal, { color: '#10B981' }]}>
+                    {formatCurrency(modalNet)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Modal Actions */}
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowAssignModal(false)}
+                >
+                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={handleSave}
+                  disabled={isSaving}
+                >
+                  <Save size={16} color="#FFF" />
+                  <Text style={styles.primaryBtnText}>
+                    {isSaving ? 'Saving…' : 'Save Operator Session'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
-      {/* ── Thermal Receipt Modal ────────────────────────────────────────── */}
-      {receiptData && (
-        <ThermalReceiptModal
-          visible={showReceipt}
-          data={receiptData}
-          onClose={() => setShowReceipt(false)}
+      {/* ── Tally Session Entry Modal ───────────────────────────────── */}
+      {showTallySessionForm && (
+        <SessionEntryForm
+          visible={showTallySessionForm}
+          onClose={() => setShowTallySessionForm(false)}
+          onSave={async (formData) => {
+            await saveAttribution(formData);
+            setShowTallySessionForm(false);
+            if (selectedDate) {
+              fetchTally(selectedDate);
+            }
+          }}
+          operators={operators}
+          pumps={pumps}
+          businessDate={selectedDate}
         />
       )}
-    </ScrollView>
+    </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
-  contentContainer: {
-    padding: 20,
-    gap: 16,
-    paddingBottom: 60,
-  },
-  headerRow: {
+  header: {
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: '#7F9FE0',
+    ...(Platform.OS === 'web'
+      ? { backgroundImage: 'linear-gradient(90deg, #7F9FE0 0%, #8FD3C9 100%)' }
+      : {}),
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
-  screenTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.3,
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  screenSub: {
+  headerSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
   },
-  statusBadgeLive: {
-    backgroundColor: '#DEF7EC',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  statusBadgeLiveText: {
-    color: '#03543F',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  headerButtons: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexWrap: 'wrap',
   },
-  saveDraftBtn: {
+  dateSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dateInput: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    width: 95,
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  primaryBtnText: {
+    color: '#6F7BF5',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  kpiStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+    backgroundColor: 'transparent',
+    flexWrap: 'wrap',
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: 130,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  kpiLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  kpiValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  kpiSub: {
+    fontSize: 10,
+    color: '#9AA5B1',
+    marginTop: 2,
+  },
+  viewToggleBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+    gap: 8,
+    flexWrap: 'wrap',
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  toggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+  },
+  toggleBtnActive: {
+    borderBottomColor: colors.primary,
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+  },
+  toggleBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  toggleBtnTextActive: {
+    color: '#FFF',
+  },
+  contentScroll: {
+    flex: 1,
+    padding: 20,
+  },
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 400,
+    marginTop: 4,
+  },
+  pumpGroupContainer: {
+    gap: 20,
+  },
+  pumpSectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  pumpSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  pumpHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pumpBadgeLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  pumpBadgeLargeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  pumpSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  pumpSectionSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  pumpHeaderRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addOpToPumpBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
   },
-  saveDraftBtnSuccess: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  saveDraftBtnText: {
+  addOpToPumpBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#007DC6',
+    color: '#2563EB',
   },
-  openShiftBtn: {
-    flexDirection: 'row',
+  pumpEmptyBox: {
+    padding: 24,
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#007DC6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    shadowColor: '#007DC6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  openShiftBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  // ── Pump Filter Card ──────────────────────────────────────────────────
-  pumpFilterCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     gap: 10,
   },
-  pumpFilterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  pumpEmptyText: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
-  pumpFilterTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#475569',
-    letterSpacing: 0.5,
-  },
-  pumpTabsScroll: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  pumpTabPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  pumpTabPillActive: {
-    backgroundColor: '#007DC6',
-    borderColor: '#007DC6',
-  },
-  pumpTabHasActive: {
-    borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#F59E0B',
-  },
-  pumpTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  pumpTabTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  // ── Shifts List Bar ───────────────────────────────────────────────────
-  shiftListBar: {
-    gap: 6,
-  },
-  shiftBarLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
-  },
-  shiftPillsScroll: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  shiftPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  shiftPillActive: {
-    borderColor: '#007DC6',
-    borderWidth: 2,
+  inlineAddBtn: {
     backgroundColor: '#EFF6FF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  shiftPillInProgress: {
-    borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
+  inlineAddBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563EB',
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  opCardsUnderPump: {
+    padding: 16,
+    gap: 14,
   },
-  pillText: {
-    fontSize: 12,
+  subOperatorCard: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+  },
+  subOpHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  subOpHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFF',
   },
-  pillTextActive: {
-    color: '#007DC6',
+  subOpName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
   },
-  pillSubText: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  pillStatusTag: {
-    paddingHorizontal: 6,
+  shiftTag: {
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  pillStatusTagText: {
-    fontSize: 9,
-    fontWeight: '800',
+  shiftTagText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
-  noShiftsBanner: {
+  subOpActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    padding: 12,
-    borderRadius: 10,
   },
-  noShiftsText: {
+  combinedPumpSummary: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  combinedLabel: {
     fontSize: 12,
-    color: '#92400E',
+    fontWeight: '700',
+    color: '#334155',
+  },
+  combinedValuesRow: {
+    flexDirection: 'row',
+    gap: 14,
+    flexWrap: 'wrap',
+  },
+  combinedVal: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  cardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  operatorCard: {
+    width: '31%',
+    minWidth: 280,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  operatorCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  operatorHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pumpBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  pumpBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  operatorName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  timeBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  timeText: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  editBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  editBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  deleteBtn: {
+    padding: 4,
+  },
+  breakdownGrid: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
     fontWeight: '500',
   },
-  // ── Shift Metadata Card ───────────────────────────────────────────────
-  shiftMetaCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 12,
+  breakdownVal: {
+    fontSize: 13,
+    fontWeight: '700',
   },
-  metaCardTop: {
+  cardFooter: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  footerLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  footerVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  matrixScroll: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  matrixHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  matrixHCell: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  matrixDataRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  matrixDCell: {
+    fontSize: 13,
+    color: colors.text,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalScroll: {
+    width: '100%',
+    maxWidth: 560,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  inputSubLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginBottom: 4,
+  },
+  sectionHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 10,
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pillBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pillBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  pillBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  pillBtnTextActive: {
+    color: '#FFF',
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  presetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  presetChipActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#2563EB',
+  },
+  presetChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  presetChipTextActive: {
+    color: '#FFF',
+  },
+  timesRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 6,
+  },
+  timeInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  formGrid: {
+    flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  metaMain: {
-    gap: 4,
+  formCol: {
+    width: '48%',
+    minWidth: 180,
   },
-  metaBadgeRow: {
+  moneyInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  shiftIdText: {
-    fontSize: 18,
+  modalCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  // Auto-Fetch Cross-Module Strip Styles
+  autoFetchBanner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  autoFetchHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  autoFetchTitle: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
+    letterSpacing: 0.2,
   },
-  badgeStatus: {
+  autoFetchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-  },
-  badgeStatusText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  metaSub: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  metaActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  printBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#A7F3D0',
   },
-  printBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  editShiftBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  editShiftBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  deleteShiftBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  deleteShiftBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  closeShiftBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#16A34A',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  closeShiftBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  syncRibbon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EFF6FF',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  syncRibbonText: {
+  autoFetchBadgeText: {
     fontSize: 11,
-    color: '#1E40AF',
-    lineHeight: 16,
-    flex: 1,
+    fontWeight: '700',
+    color: '#059669',
   },
-  // ── Section Container ─────────────────────────────────────────────────
-  sectionContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
+  autoFetchGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  autoFetchCol: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 14,
   },
-  sectionTitleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
+  autoFetchColLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 4,
   },
-  titleIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionTitle: {
+  autoFetchColVal: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
-  hintTypableText: {
+  autoFetchColSub: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#007DC6',
+    color: '#94A3B8',
+    marginTop: 2,
   },
-  readingsList: {
-    gap: 12,
-  },
-  readingCard: {
+  // Modal Auto-Fetch Box Styles
+  modalAutoFetchBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
-    padding: 14,
+    padding: 12,
+    marginTop: 14,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 10,
   },
-  readingCardHeader: {
+  modalAutoFetchHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  readingTitleLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 10,
   },
-  prodDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  readingProductName: {
-    fontSize: 13,
-    fontWeight: '800',
+  modalAutoFetchTitle: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#0F172A',
   },
-  rateBadge: {
+  modalAutoFetchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    backgroundColor: '#FFFFFF',
+    borderColor: '#BFDBFE',
   },
-  rateBadgeText: {
+  modalAutoFetchBtnText: {
     fontSize: 11,
-    fontWeight: '600',
-  },
-  inputsGrid: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  inputCol: {
-    flex: 1,
-    minWidth: 120,
-    gap: 3,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  inputLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  inputSubHint: {
-    fontSize: 9,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-  inputField: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  disabledInput: {
-    backgroundColor: '#F1F5F9',
-    color: '#64748B',
-  },
-  activeInput: {
-    backgroundColor: '#FFFFFF',
-    color: '#0F172A',
-  },
-  simTriggerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  simTriggerText: {
-    fontSize: 10,
     fontWeight: '700',
-    color: '#007DC6',
+    color: '#2563EB',
   },
-  calcOutputCol: {
-    minWidth: 160,
+  modalAutoFetchGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modalAutoFetchItem: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
+    borderRadius: 6,
     padding: 8,
-    gap: 4,
-    justifyContent: 'center',
-  },
-  calcRowItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  calcLabelMini: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  calcValLitres: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  calcValAmount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#16A34A',
-  },
-  emptyNozzleNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFBEB',
-    padding: 14,
-    borderRadius: 8,
-    borderColor: '#FDE68A',
-    borderWidth: 1,
-  },
-  emptyNozzleText: {
-    fontSize: 12,
-    color: '#92400E',
-  },
-  // ── Collections Grid ──────────────────────────────────────────────────
-  collectionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  collectionCol: {
-    flex: 1,
-    minWidth: 140,
-    gap: 4,
-  },
-  collectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  collectionInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  // ── Reconciliation Summary ────────────────────────────────────────────
-  settlementBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 12,
   },
-  settlementTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#475569',
-    letterSpacing: 0.5,
-  },
-  settlementRows: {
-    gap: 8,
-  },
-  settleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  settleRowHighlight: {
-    borderBottomWidth: 0,
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  settleLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  settleVal: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  settleLabelBold: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  settleValBold: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  verificationBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 8,
-  },
-  verificationText: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '500',
-  },
-  // ── Modal Styles ──────────────────────────────────────────────────────
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 480,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#F8FAFC',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalBody: {
-    padding: 20,
-    gap: 12,
-  },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    backgroundColor: '#F8FAFC',
-  },
-  formGroup: {
-    gap: 4,
-    marginBottom: 8,
-  },
-  formLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  simInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  confirmOpenBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#007DC6',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  confirmOpenBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  nozzlePreviewCard: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-    marginBottom: 8,
-  },
-  nozzlePreviewTitle: {
+  modalAutoFetchItemLbl: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#475569',
+    fontWeight: '600',
+    color: '#64748B',
     marginBottom: 2,
   },
-  nozzlePreviewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  nozzlePreviewName: {
-    fontSize: 11,
-    color: '#334155',
-  },
-  nozzlePreviewMeter: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#007DC6',
-  },
-  simSub: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 18,
-  },
-  quickLitresRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  quickLitreBtn: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  quickLitreBtnActive: {
-    backgroundColor: '#007DC6',
-    borderColor: '#007DC6',
-  },
-  quickLitreText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  quickLitreTextActive: {
-    color: '#FFFFFF',
-  },
-  dispenseTriggerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#007DC6',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  dispenseTriggerText: {
-    color: '#FFFFFF',
+  modalAutoFetchItemVal: {
     fontSize: 13,
-    fontWeight: '800',
-  },
-  // ── Highlights Banner & Inactive Badges ──
-  shiftHighlightsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  shiftHighlightPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  shiftHighlightPillBold: {
-    fontSize: 12,
     fontWeight: '800',
     color: '#0F172A',
   },
-  shiftHighlightPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
+  modalAutoFetchItemSub: {
+    fontSize: 10,
+    color: '#94A3B8',
   },
-  microInactiveBadge: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#CBD5E1',
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  modalAutoFetchNote: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
   },
-  microInactiveBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  tabInactiveBadge: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#CBD5E1',
-    borderWidth: 1,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  tabInactiveBadgeText: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  tabMaintBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  tabMaintBadgeText: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  pumpTabInactive: {
-    opacity: 0.75,
-    borderColor: '#CBD5E1',
-  },
-  lockedNozzleBar: {
+  // Modal Summary Strip
+  modalSummaryStrip: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F1F5F9',
-    borderColor: '#CBD5E1',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
     borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginTop: 4,
-    marginBottom: 4,
+    borderColor: colors.border,
   },
-  lockedNozzleBarText: {
+  modalSummaryLbl: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#475569',
-    flex: 1,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  modalSummaryVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    marginTop: 2,
   },
 });
+
+const tallyStyles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 4,
+    paddingBottom: 24,
+  },
+  grandTotalRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  grandTotalLabel: {
+    color: '#6F7BF5',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  grandTotal: {
+    color: '#0D63B8',
+    fontSize: 32,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  tabContent: {
+    marginTop: 12,
+    minHeight: 220,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  loadingText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});
+
+

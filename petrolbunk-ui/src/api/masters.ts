@@ -35,13 +35,16 @@ export interface DropdownOption {
 
 // ─── Core fetch function ──────────────────────────────────────────────────────
 
-/**
- * Fetch all active rows from a master table.
- * @param table  URL slug, e.g. "shift-types", "payment-modes"
- */
 export async function fetchMasterItems(table: string): Promise<MasterItem[]> {
-  return apiFetch(`/api/masters/${table}`);
+  try {
+    const res = await apiFetch(`/api/masters/${table}`);
+    if (Array.isArray(res)) return res;
+    return [];
+  } catch {
+    return [];
+  }
 }
+
 
 /**
  * Convert master items to { label, value, subtitle?, color? } for dropdowns.

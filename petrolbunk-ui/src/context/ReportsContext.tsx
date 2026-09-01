@@ -1,23 +1,24 @@
 import React, { createContext, useContext } from 'react';
-import { Shift, CreditCustomer, Expense, Product, CreditTransaction, CreditPayment } from '../types';
-import { useMastersContext } from './MastersContext';
+import { CreditCustomer, Expense, Product, CreditTransaction, CreditPayment } from '../types';
+import { useMasters } from './MastersContext';
 import { useShiftOperationsContext } from './ShiftOperationsContext';
 import { useExpensesContext } from './ExpensesContext';
 import { useCreditLedgerContext } from './CreditLedgerContext';
 
 export interface ReportsContextType {
-  shifts: Shift[];
+  shifts: any[];
   customers: CreditCustomer[];
   expenses: Expense[];
   products: Product[];
   creditTransactions: CreditTransaction[];
   creditPayments: CreditPayment[];
+  generateReport: () => void;
 }
 
 const ReportsContext = createContext<ReportsContextType | undefined>(undefined);
 
 export const ReportsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { products, customers } = useMastersContext();
+  const { products, customers } = useMasters();
   const { shifts } = useShiftOperationsContext();
   const { expenses } = useExpensesContext();
   const { creditTransactions, creditPayments } = useCreditLedgerContext();
@@ -31,6 +32,7 @@ export const ReportsProvider: React.FC<{ children: React.ReactNode }> = ({ child
         products,
         creditTransactions,
         creditPayments,
+        generateReport: () => {},
       }}
     >
       {children}

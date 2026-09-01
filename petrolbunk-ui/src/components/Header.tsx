@@ -8,9 +8,10 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  TouchableWithoutFeedback,
+  Pressable,
   useWindowDimensions,
 } from 'react-native';
+
 import {
   Fuel,
   ShieldCheck,
@@ -31,8 +32,9 @@ import {
 } from 'lucide-react';
 import { useBunk } from '../context/BunkContext';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatRate } from '../utils/formatters';
 import { UserRole } from '../types';
+
 import { changePassword as apiChangePassword } from '../api/auth';
 
 export const Header: React.FC = () => {
@@ -191,11 +193,12 @@ export const Header: React.FC = () => {
               </View>
               {products.slice(0, 4).map((prod) => (
                 <View key={prod.id} style={styles.ratePill}>
-                  <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#3B82F6' }]} />
+                  <View style={[styles.rateColorTag, { backgroundColor: prod.code === 'HSD' ? '#D97706' : '#059669' }]} />
                   <Text style={styles.rateProdName}>{prod.code}:</Text>
-                  <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+                  <Text style={styles.rateValue}>{formatRate(prod.currentRate)}/L</Text>
                 </View>
               ))}
+
             </ScrollView>
           </View>
         )}
@@ -291,7 +294,7 @@ export const Header: React.FC = () => {
                     style={styles.popoverItem}
                     onPress={() => {
                       setShowProfileMenu(false);
-                      returnToBunkSelection();
+                      setShowBranchModal(true);
                     }}
                     activeOpacity={0.7}
                   >
@@ -299,11 +302,12 @@ export const Header: React.FC = () => {
                       <Building2 size={15} color="#3B82F6" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.popoverItemTitle}>All Stations Portal</Text>
-                      <Text style={styles.popoverItemSub}>Switch or manage bunks</Text>
+                      <Text style={styles.popoverItemTitle}>Switch Station Branch</Text>
+                      <Text style={styles.popoverItemSub}>Select active bunk outlet</Text>
                     </View>
                   </TouchableOpacity>
                 )}
+
 
                 <TouchableOpacity
                   style={styles.popoverItem}
@@ -346,11 +350,12 @@ export const Header: React.FC = () => {
             </View>
             {products.slice(0, 4).map((prod) => (
               <View key={prod.id} style={styles.ratePill}>
-                <View style={[styles.rateColorTag, { backgroundColor: prod.color || '#3B82F6' }]} />
+                <View style={[styles.rateColorTag, { backgroundColor: prod.code === 'HSD' ? '#D97706' : '#059669' }]} />
                 <Text style={styles.rateProdName}>{prod.code}:</Text>
-                <Text style={styles.rateValue}>{formatCurrency(prod.currentRate)}/L</Text>
+                <Text style={styles.rateValue}>{formatRate(prod.currentRate)}/L</Text>
               </View>
             ))}
+
           </ScrollView>
         </View>
       )}
@@ -366,47 +371,42 @@ export const Header: React.FC = () => {
 
       {/* ─── LOGOUT CONFIRMATION MODAL ─────────────────────────────────────── */}
       <Modal visible={showLogoutModal} transparent animationType="fade" onRequestClose={() => setShowLogoutModal(false)}>
-        <TouchableWithoutFeedback onPress={() => setShowLogoutModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.confirmModalBox}>
-                <View style={styles.confirmModalIcon}>
-                  <AlertTriangle size={28} color="#EF4444" />
-                </View>
-                <Text style={styles.confirmModalTitle}>Confirm Sign Out</Text>
-                <Text style={styles.confirmModalMessage}>
-                  Are you sure you want to log out of petrol bunk? Any unsaved shift entries should be saved before exiting.
-                </Text>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowLogoutModal(false)}>
+          <Pressable style={styles.confirmModalBox} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.confirmModalIcon}>
+              <AlertTriangle size={28} color="#EF4444" />
+            </View>
+            <Text style={styles.confirmModalTitle}>Confirm Sign Out</Text>
+            <Text style={styles.confirmModalMessage}>
+              Are you sure you want to log out of petrol bunk? Any unsaved shift entries should be saved before exiting.
+            </Text>
 
-                <View style={styles.confirmModalActions}>
-                  <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => setShowLogoutModal(false)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.confirmLogoutBtn}
-                    onPress={handleConfirmLogout}
-                    activeOpacity={0.8}
-                  >
-                    <LogOut size={16} color="#FFFFFF" />
-                    <Text style={styles.confirmLogoutBtnText}>Yes, Log Out</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+            <View style={styles.confirmModalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setShowLogoutModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmLogoutBtn}
+                onPress={handleConfirmLogout}
+                activeOpacity={0.8}
+              >
+                <LogOut size={16} color="#FFFFFF" />
+                <Text style={styles.confirmLogoutBtnText}>Yes, Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ─── CHANGE PASSWORD MODAL ─────────────────────────────────────────── */}
       <Modal visible={showPasswordModal} transparent animationType="fade" onRequestClose={() => setShowPasswordModal(false)}>
-        <TouchableWithoutFeedback onPress={() => setShowPasswordModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.passwordModalBox}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowPasswordModal(false)}>
+          <Pressable style={styles.passwordModalBox} onPress={(e) => e.stopPropagation()}>
+
                 <View style={styles.passwordModalHeader}>
                   <View style={styles.passwordModalTitleRow}>
                     <View style={styles.keyIconWrapper}>
@@ -426,76 +426,83 @@ export const Header: React.FC = () => {
                   </TouchableOpacity>
                 </View>
 
-                {passwordError && (
-                  <View style={styles.alertError}>
-                    <AlertTriangle size={15} color="#EF4444" />
-                    <Text style={styles.alertErrorText}>{passwordError}</Text>
-                  </View>
-                )}
+                <ScrollView
+                  style={{ flexShrink: 1, maxHeight: 420 }}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                  contentContainerStyle={{ paddingBottom: 12 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {passwordError && (
+                    <View style={styles.alertError}>
+                      <AlertTriangle size={15} color="#EF4444" />
+                      <Text style={styles.alertErrorText}>{passwordError}</Text>
+                    </View>
+                  )}
 
-                {passwordSuccess && (
-                  <View style={styles.alertSuccess}>
-                    <CheckCircle2 size={15} color="#10B981" />
-                    <Text style={styles.alertSuccessText}>{passwordSuccess}</Text>
-                  </View>
-                )}
+                  {passwordSuccess && (
+                    <View style={styles.alertSuccess}>
+                      <CheckCircle2 size={15} color="#10B981" />
+                      <Text style={styles.alertSuccessText}>{passwordSuccess}</Text>
+                    </View>
+                  )}
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Current Password *</Text>
-                  <View style={styles.inputWrap}>
-                    <TextInput
-                      style={styles.input}
-                      secureTextEntry={!showOldPass}
-                      value={oldPassword}
-                      onChangeText={setOldPassword}
-                      placeholder="Enter current password"
-                      placeholderTextColor="#94A3B8"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowOldPass(!showOldPass)}
-                      style={styles.eyeBtn}
-                      activeOpacity={0.7}
-                    >
-                      {showOldPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
-                    </TouchableOpacity>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Current Password *</Text>
+                    <View style={styles.inputWrap}>
+                      <TextInput
+                        style={styles.input}
+                        secureTextEntry={!showOldPass}
+                        value={oldPassword}
+                        onChangeText={setOldPassword}
+                        placeholder="Enter current password"
+                        placeholderTextColor="#94A3B8"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowOldPass(!showOldPass)}
+                        style={styles.eyeBtn}
+                        activeOpacity={0.7}
+                      >
+                        {showOldPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
 
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>New Password *</Text>
-                  <View style={styles.inputWrap}>
-                    <TextInput
-                      style={styles.input}
-                      secureTextEntry={!showNewPass}
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      placeholder="At least 4 characters"
-                      placeholderTextColor="#94A3B8"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowNewPass(!showNewPass)}
-                      style={styles.eyeBtn}
-                      activeOpacity={0.7}
-                    >
-                      {showNewPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
-                    </TouchableOpacity>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>New Password *</Text>
+                    <View style={styles.inputWrap}>
+                      <TextInput
+                        style={styles.input}
+                        secureTextEntry={!showNewPass}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="At least 4 characters"
+                        placeholderTextColor="#94A3B8"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowNewPass(!showNewPass)}
+                        style={styles.eyeBtn}
+                        activeOpacity={0.7}
+                      >
+                        {showNewPass ? <EyeOff size={16} color="#64748B" /> : <Eye size={16} color="#64748B" />}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Confirm New Password *</Text>
-                  <View style={styles.inputWrap}>
-                    <TextInput
-                      style={styles.input}
-                      secureTextEntry={!showNewPass}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      placeholder="Re-enter new password"
-                      placeholderTextColor="#94A3B8"
-                    />
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Confirm New Password *</Text>
+                    <View style={styles.inputWrap}>
+                      <TextInput
+                        style={styles.input}
+                        secureTextEntry={!showNewPass}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Re-enter new password"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
                   </View>
-                </View>
+                </ScrollView>
 
                 <View style={styles.passwordModalActions}>
                   <TouchableOpacity
@@ -519,11 +526,10 @@ export const Header: React.FC = () => {
                     )}
                   </TouchableOpacity>
                 </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+              </Pressable>
+            </Pressable>
+          </Modal>
+
 
       {/* ─── BRANCH SELECTION MODAL ────────────────────────────────────────── */}
       <Modal visible={showBranchModal} transparent animationType="fade" onRequestClose={() => setShowBranchModal(false)}>
@@ -542,7 +548,13 @@ export const Header: React.FC = () => {
                 <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 300 }}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 360 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 10 }}
+            >
+
               {branches?.map((b: any) => (
                 <TouchableOpacity
                   key={b.id}
@@ -566,27 +578,8 @@ export const Header: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-
-            {role === 'Owner' && (
-              <TouchableOpacity
-                style={{
-                  marginTop: 12,
-                  paddingVertical: 10,
-                  backgroundColor: '#F1F5F9',
-                  borderRadius: 8,
-                  alignItems: 'center',
-                }}
-                onPress={() => {
-                  setShowBranchModal(false);
-                  returnToBunkSelection();
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>
-                  Open All Stations Portal →
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
+
         </View>
       </Modal>
     </View>
@@ -897,14 +890,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bpBadgeTicker: {
-    backgroundColor: '#FFDE00',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 2,
+    backgroundColor: '#6F7BF5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    marginRight: 4,
+    shadowColor: '#6F7BF5',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   bpBadgeTickerText: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -912,14 +909,19 @@ const styles = StyleSheet.create({
   ratePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#EEF1F5',
     gap: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
   },
+
   rateColorTag: {
     width: 6,
     height: 6,
@@ -1046,12 +1048,16 @@ const styles = StyleSheet.create({
     padding: 22,
     width: '100%',
     maxWidth: 420,
+    maxHeight: '90%',
+    display: 'flex',
+    flexDirection: 'column',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 25,
   },
+
   passwordModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

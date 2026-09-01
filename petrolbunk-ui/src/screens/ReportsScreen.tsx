@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   TextInput,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
+
 import Svg, {
   Path,
   Line,
@@ -45,6 +47,8 @@ import {
   BarChart2,
   CalendarDays,
   Percent,
+  X,
+  UserCheck,
 } from 'lucide-react';
 import { useReportsContext } from '../context/ReportsContext';
 import { colors, typography } from '../theme/colors';
@@ -53,15 +57,18 @@ import { exportToCSV } from '../utils/exportHelpers';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
 import { useReportTypes } from '../hooks/useMasters';
+import { OperatorCollectionReport } from '../components/reports/OperatorCollectionReport';
 
 type ReportCategory =
   | 'bi_analytics'
+  | 'operator_collection'
   | 'all_parties'
   | 'sale'
   | 'purchase'
   | 'all_transactions'
   | 'cashflow'
   | 'pnl';
+
 
 type TimeRangeFilter = 'ALL' | '7DAYS' | 'MONTH';
 
@@ -315,9 +322,10 @@ const GenericLineGraph: React.FC<GenericLineGraphProps> = ({
               <Text style={styles.pointTooltipDate}>
                 {fullDates && fullDates[selectedIdx] ? formatDate(fullDates[selectedIdx]) : labels[selectedIdx]}
               </Text>
-              <TouchableOpacity onPress={() => setSelectedIdx(null)}>
-                <Text style={styles.pointTooltipClose}>✕</Text>
+              <TouchableOpacity onPress={() => setSelectedIdx(null)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <X size={14} color="#64748B" />
               </TouchableOpacity>
+
             </View>
             <View style={styles.pointTooltipGrid}>
               {series.map((s) => (
@@ -352,32 +360,32 @@ export const ReportsScreen: React.FC = () => {
 
   // Time-filtered shifts
   const filteredShifts = useMemo(() => {
+    const list = shifts || [];
     if (selectedDateFilter) {
-      return shifts.filter((s) => s.shiftDate === selectedDateFilter);
+      return list.filter((s: any) => (s.attributionDate || s.shiftDate) === selectedDateFilter);
     }
     if (timeRange === '7DAYS') {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      return shifts.filter((s) => s.shiftDate >= sevenDaysAgo);
+      return list.filter((s: any) => (s.attributionDate || s.shiftDate || '') >= sevenDaysAgo);
     }
     if (timeRange === 'MONTH') {
-      return shifts.filter((s) => s.shiftDate.startsWith(currentMonthStr));
+      return list.filter((s: any) => (s.attributionDate || s.shiftDate || '').startsWith(currentMonthStr));
     }
-    return shifts;
+    return list;
   }, [shifts, selectedDateFilter, timeRange, currentMonthStr]);
 
   // Aggregates
-  const totalFuelSales = filteredShifts.reduce((sum, s) => sum + s.totalSalesAmount, 0);
-  const totalFuelLitres = filteredShifts.reduce((sum, s) => sum + s.totalLitresSold, 0);
-  const totalCash = filteredShifts.reduce((sum, s) => sum + s.collections.cash, 0);
-  const totalUPI = filteredShifts.reduce((sum, s) => sum + s.collections.upiGpay, 0);
-  const totalCard = filteredShifts.reduce((sum, s) => sum + s.collections.card, 0);
-  const totalFleetCard = filteredShifts.reduce((sum, s) => sum + s.collections.fleetCard, 0);
-  const totalCreditSales = filteredShifts.reduce((sum, s) => sum + s.collections.creditSales, 0);
-  const totalExpenses = expenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
-  const totalReceivable = customers.reduce((sum, c) => sum + c.outstandingBalance, 0);
-  const totalCreditLimit = customers.reduce((sum, c) => sum + c.creditLimit, 0);
-  const totalCreditTxAmount = creditTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-  const totalCreditTxLitres = creditTransactions.reduce((sum, tx) => sum + tx.litres, 0);
+  const totalFuelSales = filteredShifts.reduce((sum: number, s: any) => sum + (s.totalAmount || s.totalSalesAmount || 0), 0);
+  const totalFuelLitres = filteredShifts.reduce((sum: number, s: any) => sum + (s.totalLitresSold || 0), 0);
+  const totalCash = filteredShifts.reduce((sum: number, s: any) => sum + (s.cashCollected || 0), 0);
+  const totalUPI = filteredShifts.reduce((sum: number, s: any) => sum + (s.upiGpayCollected || 0), 0);
+  const totalCard = filteredShifts.reduce((sum: number, s: any) => sum + (s.cardCollected || 0), 0);
+  const totalFleetCard = filteredShifts.reduce((sum: number, s: any) => sum + (s.fleetCardCollected || 0), 0);
+  const totalCreditSales = filteredShifts.reduce((sum: number, s: any) => sum + (s.creditSales || 0), 0);
+  const totalExpenses = (expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0);
+  const totalReceivable = (customers || []).reduce((sum, c) => sum + (c.outstandingBalance || 0), 0);
+  const totalCreditTxAmount = (creditTransactions || []).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  const totalCreditTxLitres = (creditTransactions || []).reduce((sum, tx) => sum + (tx.litres || 0), 0);
 
   const totalNonZeroSales = totalFuelSales || 1;
   const estimatedFuelMargin = totalFuelLitres * 3.50;
@@ -386,20 +394,19 @@ export const ReportsScreen: React.FC = () => {
   // ── 1. Daily Sales Time Series ─────────────────────────────────────────────
   const salesTimeSeries = useMemo(() => {
     const map = new Map<string, { date: string; display: string; msL: number; hsdL: number; totalL: number; rev: number }>();
-    const sorted = [...filteredShifts].sort((a, b) => a.shiftDate.localeCompare(b.shiftDate));
+    const sorted = [...filteredShifts].sort((a: any, b: any) =>
+      String(a.attributionDate || a.shiftDate || '').localeCompare(String(b.attributionDate || b.shiftDate || ''))
+    );
 
-    sorted.forEach((s) => {
-      const d = s.shiftDate;
+    sorted.forEach((s: any) => {
+      const d = s.attributionDate || s.shiftDate || '';
+      if (!d) return;
       if (!map.has(d)) {
-        map.set(d, { date: d, display: d.substring(5), msL: 0, hsdL: 0, totalL: 0, rev: 0 });
+        map.set(d, { date: d, display: d.length >= 5 ? d.substring(5) : d, msL: 0, hsdL: 0, totalL: 0, rev: 0 });
       }
       const item = map.get(d)!;
-      item.totalL += s.totalLitresSold;
-      item.rev += s.totalSalesAmount;
-      s.meterReadings.forEach((m) => {
-        if (m.fuelCode === 'MS' || m.productName.includes('Petrol')) item.msL += m.litresSold || 0;
-        else if (m.fuelCode === 'HSD' || m.productName.includes('Diesel')) item.hsdL += m.litresSold || 0;
-      });
+      item.totalL += s.totalLitresSold || 0;
+      item.rev += s.totalAmount || s.totalSalesAmount || 0;
     });
 
     return Array.from(map.values());
@@ -408,15 +415,18 @@ export const ReportsScreen: React.FC = () => {
   // ── 2. Daily Expenses Time Series ──────────────────────────────────────────
   const expensesTimeSeries = useMemo(() => {
     const map = new Map<string, { date: string; display: string; amount: number; count: number }>();
-    const sorted = [...expenses].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...(expenses || [])].sort((a, b) =>
+      String(a.date || '').localeCompare(String(b.date || ''))
+    );
 
     sorted.forEach((e) => {
-      const d = e.date;
+      const d = e.date || '';
+      if (!d) return;
       if (!map.has(d)) {
-        map.set(d, { date: d, display: d.substring(5), amount: 0, count: 0 });
+        map.set(d, { date: d, display: d.length >= 5 ? d.substring(5) : d, amount: 0, count: 0 });
       }
       const item = map.get(d)!;
-      item.amount += e.isCreditNote ? -e.amount : e.amount;
+      item.amount += e.amount || 0;
       item.count += 1;
     });
 
@@ -426,16 +436,19 @@ export const ReportsScreen: React.FC = () => {
   // ── 3. Daily Credit Chits Time Series ──────────────────────────────────────
   const creditTimeSeries = useMemo(() => {
     const map = new Map<string, { date: string; display: string; amount: number; litres: number; count: number }>();
-    const sorted = [...creditTransactions].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...(creditTransactions || [])].sort((a, b) =>
+      String(a.date || '').localeCompare(String(b.date || ''))
+    );
 
     sorted.forEach((tx) => {
-      const d = tx.date;
+      const d = tx.date || '';
+      if (!d) return;
       if (!map.has(d)) {
-        map.set(d, { date: d, display: d.substring(5), amount: 0, litres: 0, count: 0 });
+        map.set(d, { date: d, display: d.length >= 5 ? d.substring(5) : d, amount: 0, litres: 0, count: 0 });
       }
       const item = map.get(d)!;
-      item.amount += tx.amount;
-      item.litres += tx.litres;
+      item.amount += tx.amount || 0;
+      item.litres += tx.litres || 0;
       item.count += 1;
     });
 
@@ -445,18 +458,21 @@ export const ReportsScreen: React.FC = () => {
   // ── 4. Daily Payment Collections Time Series ───────────────────────────────
   const cashflowTimeSeries = useMemo(() => {
     const map = new Map<string, { date: string; display: string; cash: number; upi: number; card: number; credit: number }>();
-    const sorted = [...filteredShifts].sort((a, b) => a.shiftDate.localeCompare(b.shiftDate));
+    const sorted = [...filteredShifts].sort((a: any, b: any) =>
+      String(a.attributionDate || a.shiftDate || '').localeCompare(String(b.attributionDate || b.shiftDate || ''))
+    );
 
-    sorted.forEach((s) => {
-      const d = s.shiftDate;
+    sorted.forEach((s: any) => {
+      const d = s.attributionDate || s.shiftDate || '';
+      if (!d) return;
       if (!map.has(d)) {
-        map.set(d, { date: d, display: d.substring(5), cash: 0, upi: 0, card: 0, credit: 0 });
+        map.set(d, { date: d, display: d.length >= 5 ? d.substring(5) : d, cash: 0, upi: 0, card: 0, credit: 0 });
       }
       const item = map.get(d)!;
-      item.cash += s.collections.cash;
-      item.upi += s.collections.upiGpay;
-      item.card += s.collections.card;
-      item.credit += s.collections.creditSales;
+      item.cash += s.cashCollected ?? s.collections?.cash ?? 0;
+      item.upi += s.upiGpayCollected ?? s.collections?.upiGpay ?? 0;
+      item.card += s.cardCollected ?? s.collections?.card ?? 0;
+      item.credit += s.creditSales ?? s.collections?.creditSales ?? 0;
     });
 
     return Array.from(map.values());
@@ -465,22 +481,25 @@ export const ReportsScreen: React.FC = () => {
   // ── 5. Daily Profit & Loss Time Series (Net Profit per Day) ────────────────
   const pnlTimeSeries = useMemo(() => {
     const allDates = Array.from(
-      new Set([...filteredShifts.map((s) => s.shiftDate), ...expenses.map((e) => e.date)])
+      new Set([
+        ...filteredShifts.map((s: any) => s.attributionDate || s.shiftDate || '').filter(Boolean),
+        ...(expenses || []).map((e) => e.date || '').filter(Boolean),
+      ])
     ).sort();
 
     return allDates.map((d) => {
-      const dayShifts = filteredShifts.filter((s) => s.shiftDate === d);
-      const dayExpenses = expenses.filter((e) => e.date === d);
+      const dayShifts = filteredShifts.filter((s: any) => (s.attributionDate || s.shiftDate) === d);
+      const dayExpenses = (expenses || []).filter((e) => e.date === d);
 
-      const dayLitres = dayShifts.reduce((sum, s) => sum + s.totalLitresSold, 0);
-      const dayRevenue = dayShifts.reduce((sum, s) => sum + s.totalSalesAmount, 0);
+      const dayLitres = dayShifts.reduce((sum: number, s: any) => sum + (s.totalLitresSold || 0), 0);
+      const dayRevenue = dayShifts.reduce((sum: number, s: any) => sum + (s.totalAmount || s.totalSalesAmount || 0), 0);
       const dayMargin = dayLitres * 3.50;
-      const dayExp = dayExpenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
+      const dayExp = dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
       const dayNetProfit = dayMargin - dayExp;
 
       return {
         date: d,
-        display: d.substring(5),
+        display: d.length >= 5 ? d.substring(5) : d,
         revenue: dayRevenue,
         dealerMargin: dayMargin,
         expenses: dayExp,
@@ -525,7 +544,6 @@ export const ReportsScreen: React.FC = () => {
     return customers.filter((c) => {
       const match =
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.phone && c.phone.includes(searchQuery));
       return match;
     });
@@ -535,8 +553,7 @@ export const ReportsScreen: React.FC = () => {
     return expenses.filter((e) => {
       const match =
         e.expenseTypeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.voucherNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (e.paidTo && e.paidTo.toLowerCase().includes(searchQuery.toLowerCase()));
+        (e.remarks && e.remarks.toLowerCase().includes(searchQuery.toLowerCase()));
       return match;
     });
   }, [expenses, searchQuery]);
@@ -544,10 +561,9 @@ export const ReportsScreen: React.FC = () => {
   const filteredTransactions = useMemo(() => {
     return creditTransactions.filter((tx) => {
       const match =
-        tx.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.slipNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (tx.vehicleNo && tx.vehicleNo.toLowerCase().includes(searchQuery.toLowerCase()));
+        (tx.customerName && tx.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (tx.productName && tx.productName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (tx.remarks && tx.remarks.toLowerCase().includes(searchQuery.toLowerCase()));
       return match;
     });
   }, [creditTransactions, searchQuery]);
@@ -574,6 +590,13 @@ export const ReportsScreen: React.FC = () => {
           { id: 'bi_analytics', label: 'Power BI Multi-Line Dashboard', icon: LineChart, badge: 'PRO BI' },
         ],
       },
+      {
+        title: 'Operations & Staff Tally',
+        items: [
+          { id: 'operator_collection', label: 'Operator Collections', icon: UserCheck, badge: 'TALLY' },
+        ],
+      },
+
       {
         title: 'Party & Ledger Reports',
         items: [
@@ -616,7 +639,7 @@ export const ReportsScreen: React.FC = () => {
                       {item.label}
                     </Text>
                     {item.badge && (
-                      <View style={[styles.proBadge, item.badge === 'GRAPH' && { backgroundColor: '#10B981' }]}>
+                      <View style={[styles.proBadge, item.badge === 'GRAPH' && { backgroundColor: '#10B981' }, item.badge === 'TALLY' && { backgroundColor: '#2563EB' }]}>
                         <Text style={styles.proBadgeText}>{item.badge}</Text>
                       </View>
                     )}
@@ -632,9 +655,14 @@ export const ReportsScreen: React.FC = () => {
 
   const renderContent = () => {
     switch (activeReport) {
+      // ── OPERATOR COLLECTION REPORT ──────────────────────────────────────────
+      case 'operator_collection':
+        return <OperatorCollectionReport />;
+
       // ── 0. EXECUTIVE POWER BI DASHBOARD ────────────────────────────────────
       case 'bi_analytics':
         return (
+
           <View style={styles.registerPageContainer}>
             <View style={styles.biHeaderRibbon}>
               <View style={{ flex: 1, minWidth: 260 }}>
@@ -853,11 +881,9 @@ export const ReportsScreen: React.FC = () => {
                   ) : (
                     filteredExpenses.map((exp) => (
                       <View key={exp.id} style={styles.tableRow}>
-                        <Text style={[styles.tdText, { width: 90 }]}>{formatDate(exp.date)}</Text>
-                        <Text style={[styles.tdTextMono, { width: 100, color: '#3B82F6' }]}>{exp.voucherNo}</Text>
-                        <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{exp.expenseTypeName}</Text>
-                        <Text style={[styles.tdText, { width: 120, color: '#64748B' }]}>{exp.paidTo || '-'}</Text>
-                        <Text style={[styles.tdText, { width: 100, color: '#64748B' }]}>{exp.paidBy || '-'}</Text>
+                        <Text style={[styles.tdText, { width: 100 }]}>{formatDate(exp.date)}</Text>
+                        <Text style={[styles.tdTextBold, { flex: 2 }]}>{exp.expenseTypeName}</Text>
+                        <Text style={[styles.tdText, { flex: 1.5, color: '#64748B' }]}>{exp.remarks || '-'}</Text>
                         <Text style={[styles.tdTextMono, { width: 120, textAlign: 'right', color: '#EF4444', fontWeight: '700' }]}>
                           {formatCurrency(exp.amount)}
                         </Text>
@@ -931,12 +957,10 @@ export const ReportsScreen: React.FC = () => {
 
               <View style={styles.tableWrapper}>
                 <View style={styles.tableHeaderRow}>
-                  <Text style={[styles.thText, { width: 85 }]}>DATE</Text>
-                  <Text style={[styles.thText, { width: 95 }]}>SLIP NO</Text>
+                  <Text style={[styles.thText, { width: 90 }]}>DATE</Text>
                   <Text style={[styles.thText, { flex: 1.5 }]}>CUSTOMER</Text>
-                  <Text style={[styles.thText, { width: 100 }]}>VEHICLE</Text>
-                  <Text style={[styles.thText, { width: 80 }]}>PRODUCT</Text>
-                  <Text style={[styles.thText, { width: 80, textAlign: 'right' }]}>LITRES</Text>
+                  <Text style={[styles.thText, { width: 110 }]}>PRODUCT</Text>
+                  <Text style={[styles.thText, { width: 90, textAlign: 'right' }]}>LITRES</Text>
                   <Text style={[styles.thText, { width: 110, textAlign: 'right' }]}>AMOUNT</Text>
                 </View>
 
@@ -948,12 +972,10 @@ export const ReportsScreen: React.FC = () => {
                   ) : (
                     filteredTransactions.map((tx) => (
                       <View key={tx.id} style={styles.tableRow}>
-                        <Text style={[styles.tdText, { width: 85 }]}>{formatDate(tx.date)}</Text>
-                        <Text style={[styles.tdTextMono, { width: 95, color: '#3B82F6' }]}>{tx.slipNo}</Text>
-                        <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{tx.customerName}</Text>
-                        <Text style={[styles.tdTextMono, { width: 100, color: '#64748B' }]}>{tx.vehicleNo || '-'}</Text>
-                        <Text style={[styles.tdText, { width: 80 }]}>{tx.productName}</Text>
-                        <Text style={[styles.tdTextMono, { width: 80, textAlign: 'right', color: '#0284C7' }]}>
+                        <Text style={[styles.tdText, { width: 90 }]}>{formatDate(tx.date)}</Text>
+                        <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{tx.customerName || 'Customer'}</Text>
+                        <Text style={[styles.tdText, { width: 110 }]}>{tx.productName || 'Fuel'}</Text>
+                        <Text style={[styles.tdTextMono, { width: 90, textAlign: 'right', color: '#0284C7' }]}>
                           {formatLitres(tx.litres)}
                         </Text>
                         <Text style={[styles.tdTextMono, { width: 110, textAlign: 'right', color: '#EA580C', fontWeight: '700' }]}>
@@ -1169,14 +1191,10 @@ export const ReportsScreen: React.FC = () => {
                   filteredCustomers.map((cust, index) => (
                     <View key={cust.id} style={styles.tableRow}>
                       <Text style={[styles.tdTextMuted, { width: 50 }]}>{index + 1}</Text>
-                      <Text style={[styles.tdTextBold, { flex: 1.5 }]}>{cust.name}</Text>
-                      <Text style={[styles.tdTextMono, { width: 100, color: '#3B82F6' }]}>{cust.code}</Text>
-                      <Text style={[styles.tdText, { width: 120, color: '#64748B' }]}>{cust.phone || '-'}</Text>
-                      <Text style={[styles.tdTextMono, { width: 150, textAlign: 'right', color: cust.outstandingBalance > 0 ? '#EA580C' : '#16A34A', fontWeight: '700' }]}>
+                      <Text style={[styles.tdTextBold, { flex: 2 }]}>{cust.name}</Text>
+                      <Text style={[styles.tdText, { width: 140, color: '#64748B' }]}>{cust.phone || '-'}</Text>
+                      <Text style={[styles.tdTextMono, { width: 160, textAlign: 'right', color: cust.outstandingBalance > 0 ? '#EA580C' : '#16A34A', fontWeight: '700' }]}>
                         {formatCurrency(cust.outstandingBalance)}
-                      </Text>
-                      <Text style={[styles.tdTextMono, { width: 130, textAlign: 'right', color: '#64748B' }]}>
-                        {formatCurrency(cust.creditLimit)}
                       </Text>
                     </View>
                   ))
@@ -1189,11 +1207,6 @@ export const ReportsScreen: React.FC = () => {
                 <Text style={styles.summaryLabel}>Total Receivable:</Text>
                 <Text style={[styles.summaryVal, { color: '#EA580C' }]}>{formatCurrency(totalReceivable)}</Text>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Credit Limit:</Text>
-                <Text style={[styles.summaryVal, { color: '#3B82F6' }]}>{formatCurrency(totalCreditLimit)}</Text>
-              </View>
             </View>
           </View>
         );
@@ -1201,15 +1214,12 @@ export const ReportsScreen: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    const headers = ['S.NO', 'PARTY NAME', 'CODE', 'PHONE', 'RECEIVABLE BALANCE (₹)', 'CREDIT LIMIT (₹)', 'UTILIZATION %'];
+    const headers = ['S.NO', 'PARTY NAME', 'PHONE', 'RECEIVABLE BALANCE (₹)'];
     const rows = filteredCustomers.map((c, i) => [
       i + 1,
       c.name,
-      c.code,
       c.phone || '-',
       c.outstandingBalance,
-      c.creditLimit,
-      `${Math.round((c.outstandingBalance / (c.creditLimit || 1)) * 100)}%`,
     ]);
     exportToCSV(`Party_Ledger_Report_${getTodayDateString()}`, headers, rows);
   };
@@ -1303,23 +1313,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#7F9FE0',
+    ...(Platform.OS === 'web'
+      ? { backgroundImage: 'linear-gradient(90deg, #7F9FE0 0%, #8FD3C9 100%)' }
+      : {}),
     padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
   biScreenTitle: {
-    color: '#0F172A',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   biScreenSubtitle: {
-    color: '#64748B',
-    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
     marginTop: 2,
   },
+
   liveStreamPill: {
     flexDirection: 'row',
     alignItems: 'center',

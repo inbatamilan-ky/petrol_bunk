@@ -47,11 +47,13 @@ export async function getToken(): Promise<string | null> {
 }
 
 export async function setToken(token: string): Promise<void> {
+  const tokenStr = token || '';
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem('access_token', token);
+    window.localStorage.setItem('access_token', tokenStr);
   }
-  await AsyncStorage.setItem('access_token', token);
+  await AsyncStorage.setItem('access_token', tokenStr);
 }
+
 
 export async function clearToken(): Promise<void> {
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -106,17 +108,22 @@ export async function setStoredSelectedBunk(selected: boolean): Promise<void> {
 }
 
 export async function saveAuthSession(user: any, token: string): Promise<void> {
+  const tokenStr = token || '';
+  const userStr = user != null ? JSON.stringify(user) : '{}';
+  const loginTimeStr = String(Date.now());
+
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      window.localStorage.setItem('access_token', token);
-      window.localStorage.setItem('auth_user', JSON.stringify(user));
-      window.localStorage.setItem('session_login_time', String(Date.now()));
+      window.localStorage.setItem('access_token', tokenStr);
+      window.localStorage.setItem('auth_user', userStr);
+      window.localStorage.setItem('session_login_time', loginTimeStr);
     } catch {}
   }
-  await AsyncStorage.setItem('access_token', token);
-  await AsyncStorage.setItem('auth_user', JSON.stringify(user));
-  await AsyncStorage.setItem('session_login_time', String(Date.now()));
+  await AsyncStorage.setItem('access_token', tokenStr);
+  await AsyncStorage.setItem('auth_user', userStr);
+  await AsyncStorage.setItem('session_login_time', loginTimeStr);
 }
+
 
 export async function getAuthSession(): Promise<{ user: any; token: string; remainingMs: number } | null> {
   const syncSess = getSyncAuthSession();
@@ -230,7 +237,9 @@ export async function apiFetch(
     
     return data;
   } catch (err: any) {
-    logError(`API ${options.method || 'GET'} ${path}`, err);
+    if (!err?.message?.startsWith('API ')) {
+      logError(`API Network ${options.method || 'GET'} ${path}`, err);
+    }
     throw err;
   }
-}
+}

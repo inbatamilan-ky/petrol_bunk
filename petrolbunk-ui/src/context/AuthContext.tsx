@@ -10,7 +10,7 @@ import {
   clearActiveBranch,
 } from '../api/client';
 import { AuthUser, getMe, logout as apiLogout } from '../api/auth';
-import { mapBranch, DEFAULT_BRANCHES } from './mappers';
+import { mapBranch } from './mappers';
 
 export interface AuthContextType {
   currentUser: AuthUser | null;
@@ -73,11 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   const [activeBranchId, setActiveBranchId] = useState<string>('B-01');
-  const [branches, setBranches] = useState<Branch[]>(DEFAULT_BRANCHES);
-
-  const [bunkProfile, setBunkProfile] = useState<Branch | null>(
-    DEFAULT_BRANCHES.find((b) => b.id === 'B-01') || DEFAULT_BRANCHES[0]
-  );
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [bunkProfile, setBunkProfile] = useState<Branch | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -122,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } else {
       setRole('Manager');
-      setHasSelectedBunk(true); // Manager bypasses Bunk Selection screen directly
+      setHasSelectedBunk(true);
       setStoredSelectedBunk(true);
       if (user.branch_id || user.assigned_branch_id) {
         const branchId = user.branch_id || user.assigned_branch_id || 'B-01';
@@ -177,82 +174,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [login, logout]);
 
-  const toggleMobileView = useCallback(() => setIsMobileView((prev) => !prev), []);
+  const toggleMobileView = useCallback(() => {
+    setIsMobileView((prev) => !prev);
+  }, []);
 
-  const switchBranch = useCallback(async (id: string) => {
-    const { setActiveBranch } = require('../api/client');
-    await setActiveBranch(id);
-    setActiveBranchId(id);
-    const match = branches.find((b) => b.id === id);
-    if (match) setBunkProfile(match);
-  }, [branches]);
+  const switchBranch = useCallback(
+    async (branchId: string) => {
+      setActiveBranchId(branchId);
+      setStoredSelectedBunk(true);
+      const match = branches.find((b) => b.id === branchId);
+      if (match) setBunkProfile(match);
+      try {
+        await apiFetch(`/api/branches/${branchId}/select`, { method: 'POST' });
+      } catch {
+        // ignore
+      }
+    },
+    [branches]
+  );
 
-  const selectBunk = useCallback(async (id: string) => {
-    await switchBranch(id);
-    setHasSelectedBunk(true);
-    await setStoredSelectedBunk(true);
-  }, [switchBranch]);
+  const selectBunk = useCallback(
+    async (branchId: string) => {
+      setActiveBranchId(branchId);
+      setStoredSelectedBunk(true);
+      const match = branches.find((b) => b.id === branchId);
+      if (match) setBunkProfile(match);
+      setHasSelectedBunk(true);
+      try {
+        await apiFetch(`/api/branches/${branchId}/select`, { method: 'POST' });
+      } catch {
+        // ignore
+      }
+    },
+    [branches]
+  );
 
   const returnToBunkSelection = useCallback(() => {
-    if (role === 'Owner') {
-      setHasSelectedBunk(false);
-      setStoredSelectedBunk(false);
-    }
-  }, [role]);
+    setHasSelectedBunk(false);
+  }, []);
 
-  const addBranch = useCallback(async (branchData: Partial<Branch>) => {
-    const payload = {
-      name: branchData.name || (branchData as any).bunk_name,
-      omc_brand: branchData.omc_brand || 'BPCL',
-      dealer_code: branchData.dealer_code || '',
-      location: branchData.location || (branchData as any).city || '',
-      is_active: branchData.is_active !== false,
-      manager_name: branchData.manager_name || '',
-      manager_phone: branchData.manager_phone || '',
-      manager_email: branchData.manager_email || '',
-      manager_access: branchData.manager_access || 'Full Operational Access',
-    };
-    try {
-      const created = await apiFetch('/api/branches', { method: 'POST', body: JSON.stringify(payload) });
-      setBranches((prev) => [...prev, mapBranch(created)]);
-    } catch {
-      const newBunk: Branch = {
-        id: `B-${String(branches.length + 1).padStart(2, '0')}`,
-        name: payload.name || 'New Petrol Station',
-        omc_brand: payload.omc_brand as any,
-        dealer_code: payload.dealer_code,
-        location: payload.location || 'Tamil Nadu',
-        is_active: payload.is_active,
-        manager_name: payload.manager_name || 'Station Manager',
-        manager_phone: payload.manager_phone,
-        manager_email: payload.manager_email,
-        manager_access: payload.manager_access,
-        bunk_name: payload.name || 'New Petrol Station',
-        city: payload.location,
-        auto_fetch_enabled: true,
-        auto_apply_enabled: true,
+  const addBranch = useCallback(
+    async (branchData: Partial<Branch>) => {
+      const payload = {
+        name: branchData.name || 'New Petrol Station',
+        omc_brand: branchData.omc_brand || 'BPCL',
+        dealer_code: branchData.dealer_code || '',
+        location: branchData.location || '',
+        is_active: branchData.is_active !== false,
       };
-      setBranches((prev) => [...prev, newBunk]);
-    }
-  }, [branches.length]);
+      try {
+        const created = await apiFetch('/api/branches', { method: 'POST', body: JSON.stringify(payload) });
+        setBranches((prev) => [...prev, mapBranch(created)]);
+      } catch {
+        const newBunk: Branch = {
+          id: `B-${String(branches.length + 1).padStart(2, '0')}`,
+          name: payload.name,
+          omc_brand: payload.omc_brand as any,
+          dealer_code: payload.dealer_code,
+          location: payload.location || 'Tamil Nadu',
+          is_active: payload.is_active,
+        };
+        setBranches((prev) => [...prev, newBunk]);
+      }
+    },
+    [branches.length]
+  );
 
   const updateBranch = useCallback(async (profileUpdates: Partial<Branch>) => {
     try {
       const payload: any = {};
-      if (profileUpdates.name !== undefined) payload.bunk_name = profileUpdates.name;
-      if (profileUpdates.bunk_name !== undefined) payload.bunk_name = profileUpdates.bunk_name;
+      if (profileUpdates.name !== undefined) payload.name = profileUpdates.name;
       if (profileUpdates.omc_brand !== undefined) payload.omc_brand = profileUpdates.omc_brand;
       if (profileUpdates.dealer_code !== undefined) payload.dealer_code = profileUpdates.dealer_code;
-      if (profileUpdates.location !== undefined) payload.state = profileUpdates.location;
-      if (profileUpdates.city !== undefined) payload.city = profileUpdates.city;
-      if (profileUpdates.manager_name !== undefined) payload.manager_name = profileUpdates.manager_name;
-      if (profileUpdates.manager_phone !== undefined) payload.manager_phone = profileUpdates.manager_phone;
-      if (profileUpdates.manager_email !== undefined) payload.manager_email = profileUpdates.manager_email;
-      if (profileUpdates.manager_access !== undefined) payload.manager_access = profileUpdates.manager_access;
-      if (profileUpdates.auto_fetch_enabled !== undefined) payload.auto_fetch_enabled = profileUpdates.auto_fetch_enabled;
-      if (profileUpdates.auto_apply_enabled !== undefined) payload.auto_apply_enabled = profileUpdates.auto_apply_enabled;
+      if (profileUpdates.location !== undefined) payload.location = profileUpdates.location;
 
-      const updated = await apiFetch('/api/bunk-profile', {
+      const targetId = profileUpdates.id || activeBranchId;
+      const updated = await apiFetch(`/api/branches/${targetId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
@@ -265,7 +262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.map((b) => (b.id === profileUpdates.id ? { ...b, ...profileUpdates } : b))
       );
     }
-  }, []);
+  }, [activeBranchId]);
 
   const deleteBranch = useCallback(async (id: string) => {
     try {

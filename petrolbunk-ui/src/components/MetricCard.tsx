@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { colors, typography } from '../theme/colors';
 
 interface MetricCardProps {
@@ -42,10 +43,16 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       {(subtitle || trend) && (
         <View style={styles.footer}>
           {trend && (
-            <Text style={[styles.trend, { color: trendPositive ? '#10B981' : '#EF4444' }]}>
-              {trendPositive ? '▲ ' : '▼ '}
-              {trend}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              {trendPositive ? (
+                <TrendingUp size={12} color="#10B981" />
+              ) : (
+                <TrendingDown size={12} color="#EF4444" />
+              )}
+              <Text style={[styles.trend, { color: trendPositive ? '#10B981' : '#EF4444' }]}>
+                {trend}
+              </Text>
+            </View>
           )}
           {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>

@@ -9,4 +9,6 @@ export * from './RateManagementContext';
 export * from './CashBankContext';
 export * from './DashboardContext';
 export * from './ReportsContext';
+export * from './PermissionsContext';
 export * from './BunkContext';
+

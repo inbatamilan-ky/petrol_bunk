@@ -1,819 +1,832 @@
-import React, { useState, useMemo } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-} from 'react-native';
-import {
-  Banknote,
-  PlusCircle,
   Building,
+  Calendar,
   CheckCircle2,
-  Calculator,
-  ArrowUpRight,
-  Printer,
-  FileSpreadsheet,
-  X,
-  Lock,
-  QrCode,
-  CreditCard,
-  Truck,
-  ArrowDownRight,
-  Layers,
-  RefreshCw,
-  Clock,
-  ShieldCheck,
-  AlertTriangle,
-  Receipt,
-  FileText,
-  Building2,
-  Smartphone,
+  PlusCircle,
+  Save,
+  Trash2,
   Wallet,
+  X
 } from 'lucide-react';
-import { useCashBankContext } from '../context/CashBankContext';
-import { ThermalReceiptModal, ThermalReceiptData } from '../components/ThermalReceiptModal';
-import { DropdownPicker, DropdownOption } from '../components/DropdownPicker';
-import { DatePickerInput } from '../components/DatePickerInput';
-import { NoDataView } from '../components/NoDataView';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  useBankAccountTypes,
-  useSettlementChannels,
-  useSettlementStatuses,
-  useBankDepositStatuses,
-} from '../hooks/useMasters';
-import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatDate, getTodayDateString, formatDateTime } from '../utils/formatters';
-import { CashDenomination, BankDeposit } from '../types';
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Platform,
+} from 'react-native';
+
+import { useCashBankContext } from '../context/CashBankContext';
+import { colors } from '../theme/colors';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const CashBankScreen: React.FC = () => {
-  const { shifts, expenses, bankDeposits, bankAccounts, creditPayments, recordBankDeposit, role, bunkProfile } = useCashBankContext();
+  const {
+    bankDeposits,
+    settlements,
+    dailyReconciliation,
+    masterBanks,
+    masterChannels,
+    selectedDate,
+    setSelectedDate,
+    recordBankDeposit,
+    deleteBankDeposit,
+    saveReconciliation,
+    saveSettlementsBatch,
+    syncCashBank,
+    role,
+  } = useCashBankContext();
 
-  const { options: bankAccountTypeOptions } = useBankAccountTypes();
-  const { options: settlementChannelOptions } = useSettlementChannels();
-  const { options: settlementStatusOptions } = useSettlementStatuses();
-  const { options: bankDepositStatusOptions } = useBankDepositStatuses();
-
+  const [activeTab, setActiveTab] = useState<'CASH_BALANCE' | 'DEPOSITS'>('CASH_BALANCE');
   const [showDepositModal, setShowDepositModal] = useState(false);
-  const [receiptData, setReceiptData] = useState<ThermalReceiptData | null>(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'MONTH'>('ALL');
-  const [selectedDepositDate, setSelectedDepositDate] = useState<string>('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositDate, setDepositDate] = useState(selectedDate);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Bank Deposit Form State
-  const [bankName, setBankName] = useState('State Bank of India (Main Branch)');
-  const [accountNo, setAccountNo] = useState('30982245109 (Current A/c)');
-  const [depositedBy, setDepositedBy] = useState('Manager');
-  const [refNo, setRefNo] = useState('SBI-DEP-');
-  const [notes, setNotes] = useState('Daily cash deposit');
+  // Cash Reconciliation Form State
+  const [openingBalance, setOpeningBalance] = useState('0');
+  const [morningCollection, setMorningCollection] = useState('0');
+  const [oilDw, setOilDw] = useState('0');
+  const [cashForCardSwipe, setCashForCardSwipe] = useState('0');
+  const [cashDepositInBank, setCashDepositInBank] = useState('0');
+  const [inNote, setInNote] = useState('0');
 
-  // Denomination State
-  const [denoms, setDenoms] = useState<CashDenomination>({
-    note2000: 0,
-    note500: 0,
-    note200: 0,
-    note100: 0,
-    note50: 0,
-    note20: 0,
-    note10: 0,
-    coins: 0,
-  });
+  // Settlement Matrix State: bankCode_channelCode -> string amount
+  const [matrixValues, setMatrixValues] = useState<{ [key: string]: string }>({});
 
-  const totalDenominationAmount =
-    (denoms.note2000 || 0) * 0 +
-    (denoms.note500 || 0) * 0 +
-    (denoms.note200 || 0) * 0 +
-    (denoms.note100 || 0) * 0 +
-    (denoms.note50 || 0) * 0 +
-    (denoms.note20 || 0) * 0 +
-    (denoms.note10 || 0) * 0 +
-    (denoms.coins || 0);
+  // Sync reconciliation data when dailyReconciliation changes
+  useEffect(() => {
+    if (dailyReconciliation) {
+      setOpeningBalance(String(dailyReconciliation.openingBalance || '0'));
+      setMorningCollection(String(dailyReconciliation.morningCollection || '0'));
+      setOilDw(String(dailyReconciliation.oilDw || '0'));
+      setCashForCardSwipe(String(dailyReconciliation.cashForCardSwipe || '0'));
+      setCashDepositInBank(String(dailyReconciliation.cashDepositInBank || '0'));
+      setInNote(String(dailyReconciliation.physicallyCountedNote || '0'));
+    } else {
+      setOpeningBalance('0');
+      setMorningCollection('0');
+      setOilDw('0');
+      setCashForCardSwipe('0');
+      setCashDepositInBank('0');
+      setInNote('0');
+    }
+  }, [dailyReconciliation]);
 
-  // Filter shifts, credit payments, expenses, deposits based on date filter
-  const todayStr = getTodayDateString();
-  const currentMonthStr = todayStr.substring(0, 7);
-
-  const filteredShifts = useMemo(() => {
-    if (dateFilter === 'TODAY') return shifts.filter((s) => s.shiftDate === todayStr);
-    if (dateFilter === 'MONTH') return shifts.filter((s) => s.shiftDate.startsWith(currentMonthStr));
-    return shifts;
-  }, [shifts, dateFilter, todayStr, currentMonthStr]);
-
-  const filteredExpenses = useMemo(() => {
-    if (dateFilter === 'TODAY') return expenses.filter((e) => e.date === todayStr);
-    if (dateFilter === 'MONTH') return expenses.filter((e) => e.date.startsWith(currentMonthStr));
-    return expenses;
-  }, [expenses, dateFilter, todayStr, currentMonthStr]);
-
-  const filteredDeposits = useMemo(() => {
-    if (selectedDepositDate) return bankDeposits.filter((d) => d.depositDate === selectedDepositDate);
-    if (dateFilter === 'TODAY') return bankDeposits.filter((d) => d.depositDate === todayStr);
-    if (dateFilter === 'MONTH') return bankDeposits.filter((d) => d.depositDate.startsWith(currentMonthStr));
-    return bankDeposits;
-  }, [bankDeposits, selectedDepositDate, dateFilter, todayStr, currentMonthStr]);
-
-  const filteredCreditPayments = useMemo(() => {
-    if (dateFilter === 'TODAY') return creditPayments.filter((p) => p.date === todayStr);
-    if (dateFilter === 'MONTH') return creditPayments.filter((p) => p.date.startsWith(currentMonthStr));
-    return creditPayments;
-  }, [creditPayments, dateFilter, todayStr, currentMonthStr]);
-
-  // Financial Aggregates
-  const totalShiftCash = filteredShifts.reduce((sum, s) => sum + s.collections.cash, 0);
-  const totalUpiCollected = filteredShifts.reduce((sum, s) => sum + s.collections.upiGpay, 0);
-  const totalCardCollected = filteredShifts.reduce((sum, s) => sum + s.collections.card, 0);
-  const totalFleetCardCollected = filteredShifts.reduce((sum, s) => sum + s.collections.fleetCard, 0);
-  const totalCreditSales = filteredShifts.reduce((sum, s) => sum + s.collections.creditSales, 0);
-  const totalChequeCollected = filteredShifts.reduce((sum, s) => sum + s.collections.cheque, 0);
-
-  // Credit Customer Cash Repayments
-  const totalCreditCashRecovered = filteredCreditPayments
-    .filter((p) => p.paymentMode === 'Cash')
-    .reduce((sum, p) => sum + p.amount, 0);
-
-  const totalCreditOnlineRecovered = filteredCreditPayments
-    .filter((p) => p.paymentMode !== 'Cash')
-    .reduce((sum, p) => sum + p.amount, 0);
-
-
-  // Expenses & Bank Deposits
-  const totalExpenses = filteredExpenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0);
-  const totalDeposited = filteredDeposits.reduce((sum, d) => sum + d.amount, 0);
-
-  // Net Physical Cash In Safe (Vault)
-  const expectedCashInHand = Math.max(0, totalShiftCash + totalCreditCashRecovered - totalExpenses - totalDeposited);
-
-  // Digital Online Grand Total
-  const totalDigitalOnline = totalUpiCollected + totalCardCollected + totalFleetCardCollected + totalCreditOnlineRecovered;
-
-  // Vault Cash Discrepancy (Physical Count vs Expected System Safe Balance)
-  const vaultVariance = totalDenominationAmount - expectedCashInHand;
-
-  // Handle Denomination count change
-  const handleDenomChange = (key: keyof CashDenomination, val: string) => {
-    const numVal = parseInt(val, 10) || 0;
-    setDenoms((prev) => ({ ...prev, [key]: numVal }));
-  };
-
-  // Auto-Match Denominations to Expected Cash in Safe
-  const handleAutoFillDenominations = () => {
-    let remaining = Math.round(expectedCashInHand);
-    const n500 = Math.floor(remaining / 500);
-    remaining %= 500;
-    const n200 = Math.floor(remaining / 200);
-    remaining %= 200;
-    const n100 = Math.floor(remaining / 100);
-    remaining %= 100;
-    const n50 = Math.floor(remaining / 50);
-    remaining %= 50;
-    const n20 = Math.floor(remaining / 20);
-    remaining %= 20;
-    const n10 = Math.floor(remaining / 10);
-    remaining %= 10;
-    const coins = remaining;
-
-    setDenoms({
-      note2000: 0,
-      note500: n500,
-      note200: n200,
-      note100: n100,
-      note50: n50,
-      note20: n20,
-      note10: n10,
-      coins: coins,
+  // Sync settlement matrix values
+  useEffect(() => {
+    const map: { [key: string]: string } = {};
+    settlements.forEach(s => {
+      map[`${s.bankCode}_${s.channelCode}`] = String(s.amount);
     });
+    setMatrixValues(map);
+  }, [settlements]);
+
+  // Live Calculations
+  const numOpening = parseFloat(openingBalance) || 0;
+  const numMorning = parseFloat(morningCollection) || 0;
+  const numOil = parseFloat(oilDw) || 0;
+  const numSwipe = parseFloat(cashForCardSwipe) || 0;
+  const numBankDep = parseFloat(cashDepositInBank) || 0;
+  const numNote = parseFloat(inNote) || 0;
+
+  const totalCash = numOpening + numMorning + numOil;
+  const inSheet = totalCash - numSwipe - numBankDep;
+  const difference = inSheet - numNote;
+  const netCashForTheDay = inSheet; // Net Cash in safe
+
+  // Default banks and channels if masters not yet loaded
+  const banks = useMemo(() => {
+    if (masterBanks && masterBanks.length > 0) return masterBanks;
+    return [
+      { id: 1, code: 'ICICI', name: 'ICICI Bank', sortOrder: 1, isActive: true },
+      { id: 2, code: 'SBI', name: 'SBI', sortOrder: 2, isActive: true },
+      { id: 3, code: 'HDFC', name: 'HDFC Bank', sortOrder: 3, isActive: true },
+      { id: 4, code: 'Paytm', name: 'Paytm Bank', sortOrder: 4, isActive: true },
+    ];
+  }, [masterBanks]);
+
+  const channels = useMemo(() => {
+    if (masterChannels && masterChannels.length > 0) return masterChannels;
+    return [
+      { id: 1, code: 'Swiping Machine', name: 'Swiping Machine', sortOrder: 1, isActive: true },
+      { id: 2, code: 'Gpay', name: 'Gpay (Google Pay)', sortOrder: 2, isActive: true },
+      { id: 3, code: 'Phone Pay', name: 'Phone Pay (PhonePe)', sortOrder: 3, isActive: true },
+      { id: 4, code: 'Paytm', name: 'Paytm QR/Soundbox', sortOrder: 4, isActive: true },
+      { id: 5, code: 'Fleet Card', name: 'Fleet Card', sortOrder: 5, isActive: true },
+    ];
+  }, [masterChannels]);
+
+  // Settlement Matrix Totals
+  const getCellAmount = (bCode: string, cCode: string) => {
+    return parseFloat(matrixValues[`${bCode}_${cCode}`] || '0') || 0;
   };
 
-  // Submit Bank Deposit
-  const handleSaveDeposit = () => {
-    if (totalDenominationAmount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter denominations for the deposit.');
+  const channelTotals = useMemo(() => {
+    const totals: { [channelCode: string]: number } = {};
+    channels.forEach(ch => {
+      let sum = 0;
+      banks.forEach(b => {
+        sum += getCellAmount(b.code, ch.code);
+      });
+      totals[ch.code] = sum;
+    });
+    return totals;
+  }, [channels, banks, matrixValues]);
+
+  const bankTotals = useMemo(() => {
+    const totals: { [bankCode: string]: number } = {};
+    banks.forEach(b => {
+      let sum = 0;
+      channels.forEach(ch => {
+        sum += getCellAmount(b.code, ch.code);
+      });
+      totals[b.code] = sum;
+    });
+    return totals;
+  }, [banks, channels, matrixValues]);
+
+  const grandSettlementTotal = useMemo(() => {
+    return Object.values(bankTotals).reduce((sum, v) => sum + v, 0);
+  }, [bankTotals]);
+
+  // Handlers
+  const handleSaveReconciliation = async () => {
+    try {
+      setIsSaving(true);
+      await saveReconciliation({
+        reconDate: selectedDate,
+        openingBalance: numOpening,
+        morningCollection: numMorning,
+        oilDw: numOil,
+        totalCash,
+        cashForCardSwipe: numSwipe,
+        cashDepositInBank: numBankDep,
+        systemTotalInSheet: inSheet,
+        physicallyCountedNote: numNote,
+        netCashForTheDay,
+      });
+      Alert.alert('Success', `Cash Reconciliation for ${selectedDate} saved!`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save reconciliation');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSettlements = async () => {
+    try {
+      setIsSaving(true);
+      const items: { bankCode: string; channelCode: string; amount: number }[] = [];
+      banks.forEach(b => {
+        channels.forEach(ch => {
+          const amt = getCellAmount(b.code, ch.code);
+          if (amt > 0) {
+            items.push({
+              bankCode: b.code,
+              channelCode: ch.code,
+              amount: amt,
+            });
+          }
+        });
+      });
+      await saveSettlementsBatch(selectedDate, items);
+      Alert.alert('Success', `Settlements matrix for ${selectedDate} saved!`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save settlements');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    try {
+      setIsSaving(true);
+      const items: { bankCode: string; channelCode: string; amount: number }[] = [];
+      banks.forEach(b => {
+        channels.forEach(ch => {
+          const amt = getCellAmount(b.code, ch.code);
+          if (amt > 0) {
+            items.push({
+              bankCode: b.code,
+              channelCode: ch.code,
+              amount: amt,
+            });
+          }
+        });
+      });
+
+      await Promise.all([
+        saveSettlementsBatch(selectedDate, items),
+        saveReconciliation({
+          reconDate: selectedDate,
+          openingBalance: numOpening,
+          morningCollection: numMorning,
+          oilDw: numOil,
+          totalCash,
+          cashForCardSwipe: numSwipe,
+          cashDepositInBank: numBankDep,
+          systemTotalInSheet: inSheet,
+          physicallyCountedNote: numNote,
+          netCashForTheDay,
+        }),
+      ]);
+
+      Alert.alert('Success', `Cash & Balance statement for ${selectedDate} saved successfully!`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save cash and balance data');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddDeposit = async () => {
+    const amt = parseFloat(depositAmount);
+    if (isNaN(amt) || amt <= 0) {
+      Alert.alert('Error', 'Please enter a valid deposit amount');
       return;
     }
-
-    recordBankDeposit({
-      bankName,
-      accountNo,
-      amount: totalDenominationAmount,
-      denominations: denoms,
-      depositedBy,
-      referenceNo: refNo || `SBI-DEP-${Date.now()}`,
-      notes,
-    });
-
-    setShowDepositModal(false);
-  };
-
-  // Print Bank Deposit Slip
-  const handlePrintDepositSlip = (dep: BankDeposit) => {
-    const d = dep.denominations;
-    setReceiptData({
-      title: 'BANK CASH DEPOSIT CHALLAN',
-      receiptNo: dep.referenceNo,
-      dateStr: formatDate(dep.depositDate),
-      operatorName: dep.depositedBy,
-      remarks: `${dep.bankName} (${dep.accountNo})\nNotes: ${dep.notes || 'Counter Cash Drop'}`,
-      items: [
-        { name: '₹500 Notes', qty: String(d.note500 || 0), rate: '500', amount: (d.note500 || 0) * 500 },
-        { name: '₹200 Notes', qty: String(d.note200 || 0), rate: '200', amount: (d.note200 || 0) * 200 },
-        { name: '₹100 Notes', qty: String(d.note100 || 0), rate: '100', amount: (d.note100 || 0) * 100 },
-        { name: '₹50 Notes', qty: String(d.note50 || 0), rate: '50', amount: (d.note50 || 0) * 50 },
-        { name: '₹20 Notes', qty: String(d.note20 || 0), rate: '20', amount: (d.note20 || 0) * 20 },
-        { name: '₹10 Notes', qty: String(d.note10 || 0), rate: '10', amount: (d.note10 || 0) * 10 },
-        { name: 'Coins', qty: '—', rate: '1', amount: d.coins || 0 },
-      ].filter((x) => x.amount > 0),
-      subtotal: dep.amount,
-      netPayable: dep.amount,
-      paymentMode: 'PHYSICAL CASH DEPOSIT',
-      footerNote: 'Bank Counter Stamped Copy • Verified by KY FuelPulse',
-    });
-    setShowReceiptModal(true);
-  };
-
-  // Print Cash Day Book Summary
-  const handlePrintDayBook = () => {
-    setReceiptData({
-      title: 'DAILY CASH & SETTLEMENT RECONCILIATION',
-      receiptNo: `DAYBOOK-${todayStr.replace(/-/g, '')}`,
-      dateStr: todayStr,
-      operatorName: role,
-      items: [
-        { name: '(+) Shift Cash Collections', amount: totalShiftCash },
-        { name: '(+) Credit Customer Cash Inflow', amount: totalCreditCashRecovered },
-        { name: '(-) Pump Station Cash Expenses Deducted', amount: -totalExpenses },
-        { name: '(-) Total Deposited in Bank Accounts', amount: -totalDeposited },
-        { name: '=== EXPECTED SAFE CASH ===', amount: expectedCashInHand },
-        { name: '(*) Total UPI / QR Collections', amount: totalUpiCollected },
-        { name: '(*) Total POS Card Swipes', amount: totalCardCollected },
-        { name: '(*) Fleet Card Digital Settled', amount: totalFleetCardCollected },
-      ],
-      subtotal: expectedCashInHand + totalDigitalOnline,
-      netPayable: expectedCashInHand,
-      paymentMode: 'VAULT AUDIT REPORT',
-      remarks: `Vault Physical Count: ${formatCurrency(totalDenominationAmount)}\nVariance: ${formatCurrency(vaultVariance)}`,
-      footerNote: 'KY Technologies • Petrol Bunk Management System',
-    });
-    setShowReceiptModal(true);
+    try {
+      await recordBankDeposit(amt, depositDate || selectedDate);
+      setShowDepositModal(false);
+      setDepositAmount('');
+      Alert.alert('Success', `Bank deposit of ₹${amt.toLocaleString()} recorded!`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to record deposit');
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-      {/* ── Top Bar ───────────────────────────────────────────────────────── */}
-      <View style={styles.topBar}>
-        <View style={{ flex: 1, minWidth: 260 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.screenTitle}>Cash & Digital Settlements</Text>
-          </View>
-           
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Cash & Balance</Text>
+          <Text style={styles.headerSubtitle}>
+            Daily Bank Settlements & Safe Cash Reconciliation
+          </Text>
         </View>
 
-        {/* Top Actions */}
-        <View style={styles.topActionsRow}>
-          {/* Date Filter Tabs */}
-          <View style={styles.dateFilterContainer}>
-            {(['ALL', 'TODAY', 'MONTH'] as const).map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[styles.dateFilterTab, dateFilter === filter && styles.dateFilterTabActive]}
-                onPress={() => setDateFilter(filter)}
-              >
-                <Text style={[styles.dateFilterTabText, dateFilter === filter && styles.dateFilterTabTextActive]}>
-                  {filter === 'ALL' ? 'All Time' : filter === 'TODAY' ? 'Today' : 'This Month'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        <View style={styles.headerActionsRow}>
+          {/* Date Selector */}
+          <View style={styles.dateSelectorRow}>
+            <Calendar size={16} color={colors.primary} />
+            <TextInput
+              style={styles.dateInput}
+              value={selectedDate}
+              onChangeText={t => {
+                setSelectedDate(t);
+                setDepositDate(t);
+              }}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+            />
           </View>
 
           <TouchableOpacity
-            style={styles.dayBookBtn}
-            onPress={handlePrintDayBook}
-            activeOpacity={0.8}
+            style={styles.primaryBtn}
+            onPress={handleSaveAll}
+            disabled={isSaving}
           >
-            <Printer size={15} color={colors.textPrimary} />
-            <Text style={styles.dayBookBtnText}>Print Cash Day Book</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.depositBtn}
-            onPress={() => setShowDepositModal(true)}
-            activeOpacity={0.8}
-          >
-            <PlusCircle size={15} color="#FFFFFF" />
-            <Text style={styles.depositBtnText}>New Bank Cash Deposit</Text>
+            <Save size={16} color="#FFF" />
+            <Text style={styles.primaryBtnText}>
+              {isSaving ? 'Saving...' : ' Save Cash & Balance'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Cash & Settlement Matrix (4 Key Cards) ────────────────────────── */}
-      <View style={styles.matrixGrid}>
-        {/* Net Physical Cash In Safe */}
-        <View style={[styles.matrixCard, { borderLeftColor: colors.cashGreen }]}>
-          <View style={styles.matrixCardHeader}>
-            <Text style={styles.matrixLabel}>NET PHYSICAL CASH IN SAFE (VAULT)</Text>
-            <Banknote size={18} color={colors.cashGreen} />
-          </View>
-          <Text style={[styles.matrixValue, { color: colors.cashGreen }]}>
-            {formatCurrency(expectedCashInHand)}
+      {/* Unified KPI Top Strip */}
+      <View style={styles.kpiStrip}>
+        <View style={[styles.kpiCard, { borderColor: '#3B82F6' }]}>
+          <Text style={styles.kpiLabel}>Total Cash Available</Text>
+          <Text style={[styles.kpiValue, { color: '#3B82F6' }]}>{formatCurrency(totalCash)}</Text>
+          <Text style={styles.kpiSub}>Opening + Morning + Oil</Text>
+        </View>
+        <View style={[styles.kpiCard, { borderColor: '#8B5CF6' }]}>
+          <Text style={styles.kpiLabel}>Bank Settled Total</Text>
+          <Text style={[styles.kpiValue, { color: '#8B5CF6' }]}>{formatCurrency(grandSettlementTotal)}</Text>
+          <Text style={styles.kpiSub}>Cards, Gpay, PhonePe, Paytm</Text>
+        </View>
+        <View style={[styles.kpiCard, { borderColor: '#10B981' }]}>
+          <Text style={styles.kpiLabel}>In Excel Sheet</Text>
+          <Text style={[styles.kpiValue, { color: '#10B981' }]}>{formatCurrency(inSheet)}</Text>
+          <Text style={styles.kpiSub}>Safe Target Balance</Text>
+        </View>
+        <View style={[styles.kpiCard, { borderColor: '#06B6D4' }]}>
+          <Text style={styles.kpiLabel}>In Note (Physical)</Text>
+          <Text style={[styles.kpiValue, { color: '#06B6D4' }]}>{formatCurrency(numNote)}</Text>
+          <Text style={styles.kpiSub}>Counted in Drawer</Text>
+        </View>
+        <View
+          style={[
+            styles.kpiCard,
+            { borderColor: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+          ]}
+        >
+          <Text style={styles.kpiLabel}>Difference</Text>
+          <Text
+            style={[
+              styles.kpiValue,
+              { color: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+            ]}
+          >
+            {difference >= 0 ? '+' : ''}
+            {formatCurrency(difference)}
           </Text>
+          <Text style={styles.kpiSub}>Sheet vs Physical Count</Text>
         </View>
+      </View>
 
-        {/* Digital Online Collections (UPI + POS + Fleet) */}
-        <View style={[styles.matrixCard, { borderLeftColor: colors.upiPurple }]}>
-          <View style={styles.matrixCardHeader}>
-            <Text style={styles.matrixLabel}>DIGITAL & ONLINE SETTLEMENTS</Text>
-            <QrCode size={18} color={colors.upiPurple} />
-          </View>
-          <Text style={[styles.matrixValue, { color: colors.upiPurple }]}>
-            {formatCurrency(totalDigitalOnline)}
+      {/* Tab Selector */}
+      <View style={styles.tabNav}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'CASH_BALANCE' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('CASH_BALANCE')}
+        >
+          <Wallet size={16} color={activeTab === 'CASH_BALANCE' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.tabBtnText, activeTab === 'CASH_BALANCE' && styles.tabBtnTextActive]}>
+            Cash and Balance
           </Text>
-        </View>
+        </TouchableOpacity>
 
-        {/* Total Bank Deposits */}
-        <View style={[styles.matrixCard, { borderLeftColor: colors.primary }]}>
-          <View style={styles.matrixCardHeader}>
-            <Text style={styles.matrixLabel}>TOTAL DEPOSITED IN BANK</Text>
-            <Building size={18} color={colors.primary} />
-          </View>
-          <Text style={styles.matrixValue}>{formatCurrency(totalDeposited)}</Text>
-        </View>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'DEPOSITS' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('DEPOSITS')}
+        >
+          <Building size={16} color={activeTab === 'DEPOSITS' ? '#FFF' : colors.textMuted} />
+          <Text style={[styles.tabBtnText, activeTab === 'DEPOSITS' && styles.tabBtnTextActive]}>
+            Bank Deposits
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Denomination Counter Tally & Discrepancy */}
-        <View style={[styles.matrixCard, { borderLeftColor: vaultVariance === 0 ? colors.success : colors.danger }]}>
-          <View style={styles.matrixCardHeader}>
-            <Text style={styles.matrixLabel}>PHYSICAL COUNT VS EXPECTED</Text>
-            <Calculator size={18} color={vaultVariance === 0 ? colors.success : colors.danger} />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-            <Text style={[styles.matrixValue, { color: vaultVariance === 0 ? colors.success : colors.danger }]}>
-              {formatCurrency(totalDenominationAmount)}
-            </Text>
-            {vaultVariance === 0 ? (
-              <View style={styles.matchedPill}>
-                <CheckCircle2 size={12} color={colors.success} />
-                <Text style={styles.matchedPillText}>BALANCED</Text>
+      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* ── TAB 1: CASH AND BALANCE UNIFIED VIEW ───────────────────────── */}
+        {activeTab === 'CASH_BALANCE' && (
+          <View style={{ gap: 20 }}>
+            {/* Unified Statement Cross-Check Banner */}
+            <View style={styles.crossCheckBanner}>
+              <View style={styles.crossCheckHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Wallet size={16} color="#3B82F6" />
+                  <Text style={styles.crossCheckTitle}>
+                    Daily Cash & Balance Statement — {selectedDate}
+                  </Text>
+                </View>
+                <View style={styles.crossCheckBadge}>
+                  <CheckCircle2 size={12} color="#10B981" />
+                  <Text style={styles.crossCheckBadgeText}>Daily Reconciliation</Text>
+                </View>
               </View>
-            ) : vaultVariance > 0 ? (
-              <View style={styles.excessPill}>
-                <Text style={styles.excessPillText}>+{formatCurrency(vaultVariance)} (Excess)</Text>
+
+              <View style={styles.crossCheckGrid}>
+                <View style={styles.crossCheckCol}>
+                  <Text style={styles.crossCheckColLbl}>Total Available Cash</Text>
+                  <Text style={styles.crossCheckColVal}>{formatCurrency(totalCash)}</Text>
+                  <Text style={styles.crossCheckColSub}>Opening + Morning + Oil</Text>
+                </View>
+                <View style={styles.crossCheckCol}>
+                  <Text style={styles.crossCheckColLbl}>Total Bank Settled</Text>
+                  <Text style={styles.crossCheckColVal}>{formatCurrency(grandSettlementTotal)}</Text>
+                  <Text style={styles.crossCheckColSub}>Cards, Gpay, PhonePe, Paytm</Text>
+                </View>
+                <View style={styles.crossCheckCol}>
+                  <Text style={styles.crossCheckColLbl}>Cash in Safe (Sheet Target)</Text>
+                  <Text style={styles.crossCheckColVal}>{formatCurrency(inSheet)}</Text>
+                  <Text style={styles.crossCheckColSub}>After Swipe & Deposit</Text>
+                </View>
+                <View style={styles.crossCheckCol}>
+                  <Text style={styles.crossCheckColLbl}>Reconciliation Variance</Text>
+                  <Text
+                    style={[
+                      styles.crossCheckColVal,
+                      { color: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {difference >= 0 ? '+' : ''}
+                    {formatCurrency(difference)}
+                  </Text>
+                  <Text style={styles.crossCheckColSub}>
+                    {Math.abs(difference) < 0.01 ? 'Balanced Exact' : 'Physical Mismatch'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+
+            {/* SECTION 1: BANK SETTLEMENT MATRIX */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>
+                    1. Bank Settlement Matrix
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Multi-bank routing for Cards, Gpay, PhonePe, Paytm, and Fleet Cards
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={handleSaveSettlements}
+                  disabled={isSaving}
+                >
+                  <Save size={14} color={colors.primary} />
+                  <Text style={styles.secondaryBtnText}>Save Settlements</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView horizontal style={styles.matrixScroll}>
+                <View>
+                  {/* Header Row: Bank Names */}
+                  <View style={styles.matrixHeaderRow}>
+                    <View style={[styles.matrixCell, styles.matrixHeaderCol]}>
+                      <Text style={styles.matrixHeaderColText}>Channel / Mode</Text>
+                    </View>
+                    {banks.map(b => (
+                      <View key={b.code} style={[styles.matrixCell, styles.matrixBankHeader]}>
+                        <Building size={14} color="#FFF" style={{ marginBottom: 4 }} />
+                        <Text style={styles.matrixBankHeaderText}>{b.name}</Text>
+                      </View>
+                    ))}
+                    <View style={[styles.matrixCell, styles.matrixTotalHeader]}>
+                      <Text style={styles.matrixTotalHeaderText}>Total (₹)</Text>
+                    </View>
+                  </View>
+
+                  {/* Data Rows: One per Channel */}
+                  {channels.map(ch => (
+                    <View key={ch.code} style={styles.matrixRow}>
+                      <View style={[styles.matrixCell, styles.matrixChannelCol]}>
+                        <Text style={styles.matrixChannelText}>{ch.name}</Text>
+                      </View>
+                      {banks.map(b => {
+                        const key = `${b.code}_${ch.code}`;
+                        return (
+                          <View key={key} style={styles.matrixCell}>
+                            <TextInput
+                              style={styles.matrixInput}
+                              keyboardType="numeric"
+                              value={matrixValues[key] || ''}
+                              onChangeText={val => {
+                                setMatrixValues(prev => ({ ...prev, [key]: val }));
+                              }}
+                              placeholder="0"
+                              placeholderTextColor={colors.textMuted}
+                            />
+                          </View>
+                        );
+                      })}
+                      {/* Row Total */}
+                      <View style={[styles.matrixCell, styles.matrixRowTotalCell]}>
+                        <Text style={styles.matrixRowTotalText}>
+                          {formatCurrency(channelTotals[ch.code] || 0)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Footer Row: Bank Totals */}
+                  <View style={[styles.matrixRow, styles.matrixFooterRow]}>
+                    <View style={[styles.matrixCell, styles.matrixChannelCol]}>
+                      <Text style={[styles.matrixChannelText, { fontWeight: '700', color: '#FFF' }]}>
+                        Bank Total
+                      </Text>
+                    </View>
+                    {banks.map(b => (
+                      <View key={b.code} style={[styles.matrixCell, styles.matrixBankTotalCell]}>
+                        <Text style={styles.matrixBankTotalText}>
+                          {formatCurrency(bankTotals[b.code] || 0)}
+                        </Text>
+                      </View>
+                    ))}
+                    {/* Grand Total */}
+                    <View style={[styles.matrixCell, styles.matrixGrandTotalCell]}>
+                      <Text style={styles.matrixGrandTotalText}>
+                        {formatCurrency(grandSettlementTotal)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* SECTION 2: DAILY CASH RECONCILIATION */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>
+                    2. Daily Cash Reconciliation & Drawer Count
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Safe opening cash, morning collection, deductions & physical drawer count
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={handleSaveReconciliation}
+                  disabled={isSaving}
+                >
+                  <Save size={14} color={colors.primary} />
+                  <Text style={styles.secondaryBtnText}>Save Cash Recon</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGrid}>
+                {/* Row 1 */}
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>1. Opening Balance (₹)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    value={openingBalance}
+                    onChangeText={setOpeningBalance}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Safe opening cash at start of day</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>2. Morning Collection (₹)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    value={morningCollection}
+                    onChangeText={setMorningCollection}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Incl. oil, excl. operator bata</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>3. Oil / D.W (₹)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    value={oilDw}
+                    onChangeText={setOilDw}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Lubricant & distilled water cash</Text>
+                </View>
+
+                {/* Total Cash Computed */}
+                <View style={[styles.formCard, styles.computedCard]}>
+                  <Text style={styles.computedLabel}>4. Total Cash (₹)</Text>
+                  <Text style={styles.computedValue}>{formatCurrency(totalCash)}</Text>
+                  <Text style={styles.computedFormula}>= (1) + (2) + (3)</Text>
+                </View>
+
+                {/* Row 2 */}
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>5. Cash for Card Swipe (₹)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    value={cashForCardSwipe}
+                    onChangeText={setCashForCardSwipe}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Cash given against customer card swipe</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>6. Cash Deposit in Bank (₹)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    value={cashDepositInBank}
+                    onChangeText={setCashDepositInBank}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Actual cash sent to bank</Text>
+                </View>
+
+                {/* In Sheet Computed */}
+                <View style={[styles.formCard, styles.computedCard, { borderColor: '#10B981' }]}>
+                  <Text style={[styles.computedLabel, { color: '#10B981' }]}>
+                    7. In Excel Sheet (₹)
+                  </Text>
+                  <Text style={[styles.computedValue, { color: '#10B981' }]}>
+                    {formatCurrency(inSheet)}
+                  </Text>
+                  <Text style={styles.computedFormula}>= Total Cash - Swipe - Deposit</Text>
+                </View>
+
+                {/* In Note Physical */}
+                <View style={[styles.formCard, { borderColor: '#8B5CF6' }]}>
+                  <Text style={[styles.inputLabel, { color: '#8B5CF6' }]}>
+                    8. In Note (Physical Count) (₹)
+                  </Text>
+                  <TextInput
+                    style={[styles.textInput, { borderColor: '#8B5CF6', color: '#8B5CF6' }]}
+                    keyboardType="numeric"
+                    value={inNote}
+                    onChangeText={setInNote}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Text style={styles.fieldHelper}>Physically counted cash in drawer</Text>
+                </View>
+
+                {/* Difference */}
+                <View
+                  style={[
+                    styles.formCard,
+                    styles.computedCard,
+                    { borderColor: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.computedLabel,
+                      { color: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    9. Difference (₹)
+                  </Text>
+                  <Text
+                    style={[
+                      styles.computedValue,
+                      { color: Math.abs(difference) < 0.01 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {difference >= 0 ? '+' : ''}
+                    {formatCurrency(difference)}
+                  </Text>
+                  <Text style={styles.computedFormula}>= In Excel Sheet - In Note</Text>
+                </View>
+
+                {/* Net Cash for Day */}
+                <View style={[styles.formCard, styles.computedCard, { borderColor: '#3B82F6' }]}>
+                  <Text style={[styles.computedLabel, { color: '#3B82F6' }]}>
+                    10. Net Cash for the Day (₹)
+                  </Text>
+                  <Text style={[styles.computedValue, { color: '#3B82F6' }]}>
+                    {formatCurrency(netCashForTheDay)}
+                  </Text>
+                  <Text style={styles.computedFormula}>Final net safe cash</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Master Combined Save Banner */}
+            <View style={styles.combinedSaveCard}>
+              <View>
+                <Text style={styles.combinedSaveTitle}>Save Cash & Balance Statement</Text>
+                <Text style={styles.combinedSaveSub}>
+                  Commit all bank settlement figures and cash drawer reconciliation for {selectedDate} in one action.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={handleSaveAll}
+                disabled={isSaving}
+              >
+                <Save size={16} color="#FFF" />
+                <Text style={styles.primaryBtnText}>
+                  {isSaving ? 'Saving...' : 'Save Cash & Balance'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── TAB 2: BANK DEPOSITS ───────────────────────────────────────── */}
+        {activeTab === 'DEPOSITS' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeaderRow}>
+              <View>
+                <Text style={styles.sectionTitle}>Bank Cash Deposits</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Simple date + amount records matching daily bank drop line
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => setShowDepositModal(true)}
+              >
+                <PlusCircle size={16} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Add Deposit</Text>
+              </TouchableOpacity>
+            </View>
+
+            {bankDeposits.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Building size={40} color={colors.textMuted} style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyTitle}>No Bank Deposits Recorded</Text>
+                <Text style={styles.emptySub}>
+                  Record daily cash dropped to the bank using the button above.
+                </Text>
               </View>
             ) : (
-              <View style={styles.shortagePill}>
-                <Text style={styles.shortagePillText}>{formatCurrency(vaultVariance)} (Shortage)</Text>
+              <View style={styles.depositList}>
+                {bankDeposits.map(dep => (
+                  <View key={dep.id} style={styles.depositCard}>
+                    <View style={styles.depositLeft}>
+                      <View style={styles.depositIconBox}>
+                        <Building size={20} color={colors.primary} />
+                      </View>
+                      <View>
+                        <Text style={styles.depositDate}>{formatDate(dep.depositDate)}</Text>
+                        <Text style={styles.depositSub}>Cash Bank Deposit</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.depositRight}>
+                      <Text style={styles.depositAmount}>{formatCurrency(dep.amount)}</Text>
+                      <TouchableOpacity
+                        style={styles.deleteDepositBtn}
+                        onPress={() => {
+                          Alert.alert('Confirm Delete', 'Delete this bank deposit record?', [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: () => deleteBankDeposit(dep.id),
+                            },
+                          ]);
+                        }}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
               </View>
             )}
           </View>
-        </View>
-      </View>
-
-      {/* ── Multi-Channel Digital Online Breakdown ─────────────────────────── */}
-      <View style={styles.digitalSectionCard}>
-        <View style={styles.digitalHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Smartphone size={18} color={colors.primary} />
-            <Text style={styles.digitalTitle}>Digital, Online UPI & POS Settlement Channels</Text>
-          </View>
-          <Text style={styles.digitalTotalTag}>
-            Total Online: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{formatCurrency(totalDigitalOnline)}</Text>
-          </Text>
-        </View>
-
-        <View style={styles.digitalChannelsGrid}>
-          {/* UPI / QR Channel */}
-          <View style={styles.channelCard}>
-            <View style={styles.channelTop}>
-              <View style={[styles.channelIconCircle, { backgroundColor: colors.upiPurple + '15' }]}>
-                <QrCode size={18} color={colors.upiPurple} />
-              </View>
-              <View style={styles.settledBadge}>
-                <Text style={styles.settledBadgeText}>Auto-Settled to Bank</Text>
-              </View>
-            </View>
-            <Text style={styles.channelName}>UPI / Dynamic QR</Text>
-            <Text style={[styles.channelVal, { color: colors.upiPurple }]}>
-              {formatCurrency(totalUpiCollected)}
-            </Text>
-          </View>
-
-          {/* POS Card Machine Channel */}
-          <View style={styles.channelCard}>
-            <View style={styles.channelTop}>
-              <View style={[styles.channelIconCircle, { backgroundColor: colors.cardBlue + '15' }]}>
-                <CreditCard size={18} color={colors.cardBlue} />
-              </View>
-              <View style={styles.settledBadge}>
-                <Text style={styles.settledBadgeText}>T+1 Bank Batch</Text>
-              </View>
-            </View>
-            <Text style={styles.channelName}>POS Card Swipes</Text>
-            <Text style={[styles.channelVal, { color: colors.cardBlue }]}>
-              {formatCurrency(totalCardCollected)}
-            </Text>
-          </View>
-
-          {/* OMC Fleet Card Channel */}
-          <View style={styles.channelCard}>
-            <View style={styles.channelTop}>
-              <View style={[styles.channelIconCircle, { backgroundColor: colors.diesel + '15' }]}>
-                <Truck size={18} color={colors.diesel} />
-              </View>
-              <View style={styles.omcWalletBadge}>
-                <Text style={styles.omcWalletBadgeText}>OMC Dealer Credit</Text>
-              </View>
-            </View>
-            <Text style={styles.channelName}>OMC Fleet Cards</Text>
-            <Text style={[styles.channelVal, { color: colors.diesel }]}>
-              {formatCurrency(totalFleetCardCollected)}
-            </Text>
-          </View>
-
-          {/* Credit Repayments Online Channel */}
-          <View style={styles.channelCard}>
-            <View style={styles.channelTop}>
-              <View style={[styles.channelIconCircle, { backgroundColor: colors.accent + '15' }]}>
-                <Building2 size={18} color={colors.accent} />
-              </View>
-              <View style={styles.settledBadge}>
-                <Text style={styles.settledBadgeText}>NEFT / RTGS</Text>
-              </View>
-            </View>
-            <Text style={styles.channelName}>Customer Online Repayments</Text>
-            <Text style={[styles.channelVal, { color: colors.accent }]}>
-              {formatCurrency(totalCreditOnlineRecovered + totalChequeCollected)}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* ── Cash Flow Waterfall Ledger (Day Book Summary) ──────────────────── */}
-      <View style={styles.waterfallCard}>
-        <View style={styles.waterfallHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <FileText size={18} color={colors.primary} />
-            <Text style={styles.waterfallTitle}>Cash Balance Verification</Text>
-          </View>
-          <Text style={styles.waterfallMeta}>{dateFilter === 'TODAY' ? "Today's Ledger" : 'Aggregated View'}</Text>
-        </View>
-
-        <View style={styles.waterfallList}>
-          {/* Row 1: Shift Cash Collections */}
-          <View style={styles.waterfallRow}>
-            <View style={styles.waterfallLabelRow}>
-              <View style={[styles.stepDot, { backgroundColor: colors.success }]} />
-              <View>
-                <Text style={styles.waterfallRowTitle}>(+) Total Shift Cash Collected</Text>
-              </View>
-            </View>
-            <Text style={[styles.waterfallAmount, { color: colors.success }]}>
-              +{formatCurrency(totalShiftCash)}
-            </Text>
-          </View>
-
-          {/* Row 2: Customer Cash Repayments */}
-          <View style={styles.waterfallRow}>
-            <View style={styles.waterfallLabelRow}>
-              <View style={[styles.stepDot, { backgroundColor: colors.success }]} />
-              <View>
-                <Text style={styles.waterfallRowTitle}>(+) Credit Customer Cash Inflow</Text>
-              </View>
-            </View>
-            <Text style={[styles.waterfallAmount, { color: colors.success }]}>
-              +{formatCurrency(totalCreditCashRecovered)}
-            </Text>
-          </View>
-
-          {/* Row 3: Cash Expenses Deducted */}
-          <View style={styles.waterfallRow}>
-            <View style={styles.waterfallLabelRow}>
-              <View style={[styles.stepDot, { backgroundColor: colors.danger }]} />
-              <View>
-                <Text style={styles.waterfallRowTitle}>(-)Cash Expenses Paid</Text>
-              </View>
-            </View>
-            <Text style={[styles.waterfallAmount, { color: colors.danger }]}>
-              -{formatCurrency(totalExpenses)}
-            </Text>
-          </View>
-
-          {/* Row 4: Bank Deposits Handed Over */}
-          <View style={styles.waterfallRow}>
-            <View style={styles.waterfallLabelRow}>
-              <View style={[styles.stepDot, { backgroundColor: colors.primary }]} />
-              <View>
-                <Text style={styles.waterfallRowTitle}>(-) Total Bank Deposits & Cash Drops</Text>
-              </View>
-            </View>
-            <Text style={[styles.waterfallAmount, { color: colors.primary }]}>
-              -{formatCurrency(totalDeposited)}
-            </Text>
-          </View>
-
-          {/* Total Closing Safe Cash */}
-          <View style={styles.waterfallTotalRow}>
-            <View>
-              <Text style={styles.waterfallTotalTitle}>= NET EXPECTED CASH IN SAFE (VAULT)</Text>
-            </View>
-            <Text style={styles.waterfallTotalAmount}>
-              {formatCurrency(expectedCashInHand)}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* ── Interactive Denomination Counter Widget ──────────────────────── */}
-      <View style={styles.denomSection}>
-        <View style={styles.denomHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Calculator size={18} color={colors.primary} />
-            <Text style={styles.denomTitle}>Cash Denomination & Counting Verification</Text>
-          </View>
-
-          <View style={styles.denomActionsRow}>
-            <TouchableOpacity
-              style={styles.autoFillBtn}
-              onPress={handleAutoFillDenominations}
-              activeOpacity={0.7}
-            >
-              <Calculator size={13} color={colors.accent} />
-              <Text style={styles.autoFillBtnText}>Auto-Match Safe Cash</Text>
-            </TouchableOpacity>
-
-            <View style={styles.totalBadge}>
-              <Text style={styles.totalBadgeLabel}>COUNTED CASH:</Text>
-              <Text style={styles.totalBadgeVal}>{formatCurrency(totalDenominationAmount)}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.denomGrid}>
-          {[
-            { key: 'note2000', label: '₹2000 Notes', mult: 2000, val: denoms.note2000 },
-            { key: 'note500', label: '₹500 Notes', mult: 500, val: denoms.note500 },
-            { key: 'note200', label: '₹200 Notes', mult: 200, val: denoms.note200 },
-            { key: 'note100', label: '₹100 Notes', mult: 100, val: denoms.note100 },
-            { key: 'note50', label: '₹50 Notes', mult: 50, val: denoms.note50 },
-            { key: 'note20', label: '₹20 Notes', mult: 20, val: denoms.note20 },
-            { key: 'note10', label: '₹10 Notes', mult: 10, val: denoms.note10 },
-            { key: 'coins', label: 'Coins (₹)', mult: 1, val: denoms.coins },
-          ].map((item) => (
-            <View key={item.key} style={styles.denomRow}>
-              <View style={styles.denomLabelCol}>
-                <Text style={styles.denomLabel}>{item.label}</Text>
-              </View>
-              <Text style={styles.denomTimes}>×</Text>
-              <TextInput
-                style={styles.denomInput}
-                value={String(item.val || '')}
-                onChangeText={(val) => handleDenomChange(item.key as keyof CashDenomination, val)}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-              />
-              <Text style={styles.denomEquals}>=</Text>
-              <Text style={styles.denomRowTotal}>
-                {formatCurrency((item.val || 0) * item.mult)}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Quick Deposit Trigger from Denomination */}
-        <View style={styles.denomFooter}>
-          <TouchableOpacity
-            style={styles.depositCountedBtn}
-            onPress={() => setShowDepositModal(true)}
-            activeOpacity={0.8}
-          >
-            <ArrowUpRight size={15} color="#000" />
-            <Text style={styles.depositCountedBtnText}>Deposit Counted Cash ({formatCurrency(totalDenominationAmount)})</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Bank Settlement Challans & Proofs ─────────────────────────────── */}
-      <View style={styles.depositsCard}>
-        <View style={styles.depositsHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' }}>
-            <Building size={18} color={colors.primary} />
-            <Text style={styles.depositsTitle}>Bank Settlement Challans & Receipts ({filteredDeposits.length})</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ minWidth: 160 }}>
-              <DatePickerInput
-                value={selectedDepositDate}
-                onChange={(d) => setSelectedDepositDate(d)}
-                placeholder="Filter by date..."
-                maxDate={getTodayDateString()}
-                allowClear
-                onClear={() => setSelectedDepositDate('')}
-              />
-            </View>
-            <TouchableOpacity
-              style={styles.newDepositMiniBtn}
-              onPress={() => setShowDepositModal(true)}
-            >
-              <PlusCircle size={13} color={colors.primary} />
-              <Text style={styles.newDepositMiniBtnText}>Record Deposit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {filteredDeposits.length === 0 ? (
-          <NoDataView
-            title="No Deposits Recorded"
-            selectedDate={selectedDepositDate || undefined}
-            message={
-              selectedDepositDate
-                ? `No bank deposit entries found for ${formatDate(selectedDepositDate)}.`
-                : 'No bank deposit records found.'
-            }
-            onResetDate={selectedDepositDate ? () => setSelectedDepositDate('') : undefined}
-            actionLabel="Record Deposit"
-            onAction={() => setShowDepositModal(true)}
-          />
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={true}
-            style={{ marginTop: 4 }}
-            contentContainerStyle={{ minWidth: '100%' }}
-          >
-            <View style={{ width: '100%', minWidth: 620 }}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableCol, { width: 90 }]}>DATE</Text>
-                <Text style={[styles.tableCol, { width: 220 }]}>BANK & ACCOUNT</Text>
-                <Text style={[styles.tableCol, { width: 130 }]}>REFERENCE NO</Text>
-                <Text style={[styles.tableCol, { width: 100 }]}>DEPOSITED BY</Text>
-                <Text style={[styles.tableCol, { width: 110, textAlign: 'right' }]}>AMOUNT (₹)</Text>
-                <Text style={[styles.tableCol, { width: 70, textAlign: 'center' }]}>ACTION</Text>
-              </View>
-
-              {filteredDeposits.map((dep) => (
-                <View key={dep.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, { width: 90 }]}>{formatDate(dep.depositDate)}</Text>
-                  <View style={{ width: 220 }}>
-                    <Text style={styles.bankName}>{dep.bankName}</Text>
-                    <Text style={styles.bankAcc}>{dep.accountNo}</Text>
-                  </View>
-                  <Text style={[styles.tableCellMono, { width: 130 }]}>{dep.referenceNo}</Text>
-                  <Text style={[styles.tableCell, { width: 100 }]}>{dep.depositedBy}</Text>
-                  <Text style={[styles.depositAmount, { width: 110, textAlign: 'right' }]}>
-                    {formatCurrency(dep.amount)}
-                  </Text>
-                  <View style={{ width: 70, alignItems: 'center' }}>
-                    <TouchableOpacity
-                      style={styles.printSlipBtn}
-                      onPress={() => handlePrintDepositSlip(dep)}
-                    >
-                      <Printer size={13} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
         )}
-      </View>
+      </ScrollView>
 
-      {/* ── New Bank Deposit Modal ────────────────────────────────────────── */}
-      <Modal visible={showDepositModal} transparent animationType="slide" onRequestClose={() => setShowDepositModal(false)}>
+      {/* Add Deposit Modal */}
+      <Modal visible={showDepositModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Building size={18} color={colors.primary} />
-                <Text style={styles.modalTitle}>Record Bank Cash Deposit Entry</Text>
-              </View>
+              <Text style={styles.modalTitle}>Record Bank Deposit</Text>
               <TouchableOpacity onPress={() => setShowDepositModal(false)}>
-                <X size={20} color={colors.textSecondary} />
+                <X size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+            <ScrollView
+              style={{ flexShrink: 1, maxHeight: 520 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalBody}>
-                {/* Bank Account Dropdown */}
-                <DropdownPicker
-                  label="Bank Account *"
-                  placeholder="Select Bank Account..."
-                  options={
-                    bankAccounts.length > 0
-                      ? bankAccounts.map((acc) => ({
-                          label: acc.bankName,
-                          value: acc.bankName,
-                          subtitle: `${acc.accountType} A/c: ${acc.accountNumber}${acc.branchName ? ' (' + acc.branchName + ')' : ''}`,
-                        }))
-                      : [
-                          { label: 'State Bank of India (Main Branch)', value: 'State Bank of India (Main Branch)', subtitle: 'Current A/c: 30982245109' },
-                          { label: 'HDFC Bank (Commercial Branch)', value: 'HDFC Bank (Commercial Branch)', subtitle: 'Current A/c: 50200088194' },
-                          { label: 'ICICI Bank (Town Branch)', value: 'ICICI Bank (Town Branch)', subtitle: 'Current A/c: 01420500339' },
-                        ]
-                  }
-                  value={bankName}
-                  onChange={(v, l) => {
-                    const matched = bankAccounts.find((a) => a.bankName === (l || v));
-                    setBankName(l || v);
-                    if (matched) {
-                      setAccountNo(`${matched.accountNumber} (${matched.accountType} A/c)`);
-                    } else if (v.includes('30982245109') || l.includes('State Bank')) {
-                      setAccountNo('30982245109 (Current A/c)');
-                    }
-                  }}
-                  allowOther
-                  onSaveNew={(customName) => setBankName(customName)}
+                <Text style={styles.inputLabel}>Deposit Date</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={depositDate}
+                  onChangeText={setDepositDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textMuted}
                 />
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Account Number</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={accountNo}
-                    onChangeText={setAccountNo}
-                    placeholder="Account Number"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.dualFormRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Deposit Slip Ref No</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={refNo}
-                      onChangeText={setRefNo}
-                      placeholder="e.g. SBI-DEP-1049"
-                      placeholderTextColor={colors.textMuted}
-                    />
-                  </View>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <DropdownPicker
-                      label="Deposited By *"
-                      placeholder="Select staff..."
-                      options={[
-                        { label: 'Manager', value: 'Manager' },
-                        { label: 'Cashier', value: 'Cashier' },
-                        { label: 'Owner', value: 'Owner' },
-                        { label: 'Supervisor', value: 'Supervisor' },
-                      ]}
-                      value={depositedBy}
-                      onChange={(v, l) => setDepositedBy(l || v)}
-                      allowOther
-                      onSaveNew={(customName) => setDepositedBy(customName)}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.depositAmountBox}>
-                  <Text style={styles.depositAmountLabel}>TOTAL DEPOSIT AMOUNT FROM COUNTER:</Text>
-                  <Text style={styles.depositAmountVal}>
-                    {formatCurrency(totalDenominationAmount)}
-                  </Text>
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Notes / Reason</Text>
-                  <TextInput
-                    style={[styles.textInput, { height: 60 }]}
-                    value={notes}
-                    onChangeText={setNotes}
-                    placeholder="e.g. Morning shift cash drop"
-                    placeholderTextColor={colors.textMuted}
-                    multiline
-                  />
-                </View>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Amount (₹)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="numeric"
+                  value={depositAmount}
+                  onChangeText={setDepositAmount}
+                  placeholder="Enter deposit amount"
+                  placeholderTextColor={colors.textMuted}
+                  autoFocus
+                />
               </View>
             </ScrollView>
 
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={styles.cancelBtn}
+                style={styles.modalCancelBtn}
                 onPress={() => setShowDepositModal(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.saveDepositBtn}
-                onPress={handleSaveDeposit}
-              >
-                <CheckCircle2 size={16} color="#FFFFFF" />
-                <Text style={styles.saveDepositText}>Confirm & Print Slip</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleAddDeposit}>
+                <Save size={16} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Save Deposit</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
-      {/* ── Thermal Receipt Modal Preview ─────────────────────────────────── */}
-      <ThermalReceiptModal
-        visible={showReceiptModal}
-        onClose={() => setShowReceiptModal(false)}
-        data={receiptData}
-      />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -822,696 +835,581 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  contentContainer: {
+  header: {
     padding: 16,
-    paddingBottom: 50,
-    gap: 18,
-  },
-  topBar: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: '#7F9FE0',
+    ...(Platform.OS === 'web'
+      ? { backgroundImage: 'linear-gradient(90deg, #7F9FE0 0%, #8FD3C9 100%)' }
+      : {}),
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
-  screenTitle: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  screenSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  vaultPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.success + '18',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  vaultPillText: {
-    color: colors.success,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  topActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  dateFilterContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 8,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateFilterTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  dateFilterTabActive: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateFilterTabText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  dateFilterTabTextActive: {
-    color: colors.primary,
+  headerTitle: {
+    fontSize: 16,
     fontWeight: '700',
-  },
-  dayBookBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dayBookBtnText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  depositBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    gap: 6,
-  },
-  depositBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // ── Matrix Grid Styles ─────────────────────────────────────────────────────
-  matrixGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-  },
-  matrixCard: {
-    flex: 1,
-    minWidth: 240,
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    padding: 16,
-    gap: 6,
-  },
-  matrixCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  matrixLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '800',
     letterSpacing: 0.5,
   },
-  matrixValue: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
   },
-  matrixSub: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  matchedPill: {
+  dateSelectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.success + '18',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  matchedPillText: {
-    color: colors.success,
-    fontSize: 10,
+  dateInput: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '600',
+    minWidth: 95,
+    padding: 0,
+  },
+  kpiStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+    backgroundColor: 'transparent',
+    flexWrap: 'wrap',
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  kpiLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  kpiValue: {
+    fontSize: 17,
     fontWeight: '800',
+    marginTop: 4,
   },
-  excessPill: {
-    backgroundColor: colors.danger + '15',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  excessPillText: {
-    color: colors.danger,
+  kpiSub: {
     fontSize: 10,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
+    color: '#9AA5B1',
+    marginTop: 2,
   },
-  shortagePill: {
-    backgroundColor: '#D9770620',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  tabNav: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+    gap: 8,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  shortagePillText: {
-    color: '#D97706',
-    fontSize: 10,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
+  tabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+  },
+  tabBtnActive: {
+    borderColor: '#6F7BF5',
+    backgroundColor: '#6F7BF5',
+    shadowColor: '#6F7BF5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  tabBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
-  // ── Digital Channels Section ───────────────────────────────────────────────
-  digitalSectionCard: {
+  contentScroll: {
+    flex: 1,
+    padding: 20,
+  },
+  sectionContainer: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
-    gap: 14,
+    padding: 20,
   },
-  digitalHeader: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  digitalTitle: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  digitalTotalTag: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  digitalChannelsGrid: {
-    flexDirection: 'row',
+    marginBottom: 20,
     flexWrap: 'wrap',
     gap: 12,
   },
-  channelCard: {
-    flex: 1,
-    minWidth: 200,
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 10,
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  primaryBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  formGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  formCard: {
+    width: '48%',
+    minWidth: 260,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
-    gap: 4,
+    borderRadius: 10,
+    padding: 14,
   },
-  channelTop: {
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  textInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  fieldHelper: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  computedCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: '#3B82F6',
+  },
+  computedLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3B82F6',
+    marginBottom: 4,
+  },
+  computedValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#3B82F6',
+  },
+  computedFormula: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  matrixScroll: {
+    marginTop: 8,
+  },
+  matrixHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CBD5E1',
+  },
+  matrixRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  matrixFooterRow: {
+    backgroundColor: '#EFF6FF',
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    borderTopWidth: 2,
+    borderTopColor: '#BFDBFE',
+  },
+  matrixCell: {
+    width: 140,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+  matrixHeaderCol: {
+    width: 160,
+    backgroundColor: '#F8FAFC',
+  },
+  matrixHeaderColText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  matrixBankHeader: {
+    alignItems: 'center',
+  },
+  matrixBankHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  matrixTotalHeader: {
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  matrixTotalHeaderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  matrixChannelCol: {
+    width: 160,
+    backgroundColor: colors.background,
+  },
+  matrixChannelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  matrixInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    color: colors.text,
+    textAlign: 'right',
+  },
+  matrixInputFilled: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+  },
+  matrixRowTotalCell: {
+    alignItems: 'flex-end',
+    backgroundColor: colors.surfaceHighlight,
+  },
+  matrixRowTotalText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  matrixBankTotalCell: {
+    alignItems: 'flex-end',
+  },
+  matrixBankTotalText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  matrixGrandTotalCell: {
+    alignItems: 'flex-end',
+    backgroundColor: '#DBEAFE',
+  },
+  matrixGrandTotalText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  depositList: {
+    gap: 10,
+  },
+  depositCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    padding: 14,
   },
-  channelIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  depositLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  depositIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settledBadge: {
-    backgroundColor: colors.success + '15',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  settledBadgeText: {
-    color: colors.success,
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  omcWalletBadge: {
-    backgroundColor: colors.diesel + '18',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  omcWalletBadgeText: {
-    color: colors.dieselDark,
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  channelName: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  channelSub: {
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  channelVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    fontFamily: typography.monoFont,
-    marginTop: 4,
-  },
-
-  // ── Waterfall Ledger Section ───────────────────────────────────────────────
-  waterfallCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 12,
-  },
-  waterfallHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 10,
-  },
-  waterfallTitle: {
-    color: '#000',
+  depositDate: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: colors.text,
   },
-  waterfallMeta: {
+  depositSub: {
+    fontSize: 12,
     color: colors.textMuted,
-    fontSize: 11,
   },
-  waterfallList: {
-    gap: 10,
-  },
-  waterfallRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  waterfallLabelRow: {
+  depositRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  stepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  waterfallRowTitle: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  waterfallRowSub: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  waterfallAmount: {
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-  },
-  waterfallTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    padding: 12,
-    borderRadius: 8,
-    borderTopWidth: 2,
-    borderTopColor: colors.border,
-    marginTop: 4,
-  },
-  waterfallTotalTitle: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  waterfallTotalSub: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  waterfallTotalAmount: {
-    color: colors.cashGreen,
-    fontSize: 17,
-    fontWeight: '900',
-    fontFamily: typography.monoFont,
-  },
-
-  // ── Denomination Section ───────────────────────────────────────────────────
-  denomSection: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 14,
-  },
-  denomHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  denomTitle: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  denomActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  autoFillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  autoFillBtnText: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  totalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    gap: 6,
-  },
-  totalBadgeLabel: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  totalBadgeVal: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '900',
-    fontFamily: typography.monoFont,
-  },
-  denomGrid: {
-    gap: 8,
-  },
-  denomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  denomLabelCol: {
-    width: 110,
-  },
-  denomLabel: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  denomTimes: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginHorizontal: 8,
-  },
-  denomInput: {
-    backgroundColor: '#e3e6ef',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-    width: 70,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  denomEquals: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginHorizontal: 8,
-  },
-  denomRowTotal: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
-    marginLeft: 'auto',
-  },
-  denomFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 10,
-  },
-  denomFooterSub: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    flex: 1,
-    minWidth: 200,
-  },
-  depositCountedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  depositCountedBtnText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  // ── Deposits History Table ─────────────────────────────────────────────────
-  depositsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 12,
-  },
-  depositsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  depositsTitle: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  newDepositMiniBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  newDepositMiniBtnText: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  tableCol: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border + '60',
-  },
-  tableCell: {
-    color: colors.textPrimary,
-    fontSize: 12,
-  },
-  tableCellMono: {
-    color: colors.textPrimary,
-    fontSize: 11,
-    fontFamily: typography.monoFont,
-    fontWeight: '600',
-  },
-  bankName: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  bankAcc: {
-    color: colors.textMuted,
-    fontSize: 10,
+    gap: 16,
   },
   depositAmount: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: typography.monoFont,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10B981',
   },
-  printSlipBtn: {
-    backgroundColor: colors.surfaceElevated,
+  deleteDepositBtn: {
     padding: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-
-  // ── Deposit Modal ──────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   modalCard: {
     width: '100%',
-    maxWidth: 540,
+    maxWidth: 440,
+    maxHeight: '90%',
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 20,
-    gap: 16,
+    display: 'flex',
+    flexDirection: 'column',
   },
+
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 12,
+    marginBottom: 16,
   },
   modalTitle: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
   },
   modalBody: {
-    gap: 12,
-  },
-  formGroup: {
-    gap: 4,
-  },
-  formLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  textInput: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#000',
-    fontSize: 12,
-  },
-  dualFormRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  depositAmountBox: {
-    backgroundColor: colors.primary + '15',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    alignItems: 'center',
-    gap: 4,
-  },
-  depositAmountLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  depositAmountVal: {
-    color: '#000',
-    fontSize: 20,
-    fontWeight: '900',
-    fontFamily: typography.monoFont,
+    marginBottom: 20,
   },
   modalFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
+    justifyContent: 'flex-end',
+    gap: 10,
   },
-  cancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  cancelBtnText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  saveDepositBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
+  modalCancelBtn: {
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 8,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  saveDepositText: {
-    color: '#000',
+  modalCancelBtnText: {
     fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  secondaryBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  crossCheckBanner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  crossCheckHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  crossCheckTitle: {
+    fontSize: 14,
     fontWeight: '800',
+    color: '#0F172A',
+  },
+  crossCheckBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  crossCheckBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  crossCheckGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  crossCheckCol: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  crossCheckColLbl: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  crossCheckColVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  crossCheckColSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+
+  combinedSaveCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    padding: 16,
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  combinedSaveTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  combinedSaveSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+    maxWidth: 450,
   },
 });

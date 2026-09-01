@@ -1,17 +1,15 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { Product, Pump, Shift, CreditCustomer, Expense, UserRole } from '../types';
+import { Product, Pump, CreditCustomer, Expense, UserRole } from '../types';
 import { useAuthContext } from './AuthContext';
-import { useMastersContext } from './MastersContext';
+import { useMasters } from './MastersContext';
 import { useShiftOperationsContext } from './ShiftOperationsContext';
 import { useExpensesContext } from './ExpensesContext';
 
 export interface DashboardContextType {
   products: Product[];
   pumps: Pump[];
-  shifts: Shift[];
   customers: CreditCustomer[];
   expenses: Expense[];
-  activeShift: Shift | null;
   role: UserRole;
 
   totalSalesToday: number;
@@ -20,30 +18,32 @@ export interface DashboardContextType {
   totalExpenses: number;
   totalCreditOutstanding: number;
   netCashOnHand: number;
+  shifts: any[];
+  activeShift: any;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { role } = useAuthContext();
-  const { products, pumps, customers } = useMastersContext();
-  const { shifts, activeShift } = useShiftOperationsContext();
+  const { products, pumps, customers } = useMasters();
+  const { attributions, nozzleMeters } = useShiftOperationsContext();
   const { expenses } = useExpensesContext();
 
   const totalSalesToday = useMemo(
-    () => shifts.reduce((sum: number, s) => sum + s.totalSalesAmount, 0),
-    [shifts]
+    () => nozzleMeters.reduce((sum, m) => sum + m.grossAmount, 0),
+    [nozzleMeters]
   );
   const totalLitresToday = useMemo(
-    () => shifts.reduce((sum, s) => sum + s.totalLitresSold, 0),
-    [shifts]
+    () => nozzleMeters.reduce((sum, m) => sum + m.litresSold, 0),
+    [nozzleMeters]
   );
   const totalCashCollected = useMemo(
-    () => shifts.reduce((sum, s) => sum + s.collections.cash, 0),
-    [shifts]
+    () => attributions.reduce((sum, a) => sum + a.cashCollected, 0),
+    [attributions]
   );
   const totalExpenses = useMemo(
-    () => expenses.reduce((sum, e) => (e.isCreditNote ? sum - e.amount : sum + e.amount), 0),
+    () => expenses.reduce((sum, e) => sum + e.amount, 0),
     [expenses]
   );
   const totalCreditOutstanding = useMemo(
@@ -60,10 +60,8 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         products,
         pumps,
-        shifts,
         customers,
         expenses,
-        activeShift,
         role,
         totalSalesToday,
         totalLitresToday,
@@ -71,6 +69,8 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         totalExpenses,
         totalCreditOutstanding,
         netCashOnHand,
+        shifts: attributions,
+        activeShift: attributions[0] || null,
       }}
     >
       {children}
@@ -86,4 +86,5 @@ export const useDashboardContext = () => {
   return context;
 };
 
+export const useDashboard = useDashboardContext;
 export { DashboardContext };

@@ -6,23 +6,33 @@ export const colors = {
   surface: '#FFFFFF',
   surfaceElevated: '#F1F5F9',
   surfaceCard: '#FFFFFF',
-  surfaceHighlight: '#F8FAFC',
-  border: '#E2E8F0',
+  surfaceHighlight: '#FAFBFC',
+  border: '#EEF1F5',
   borderLight: '#F1F5F9',
-  borderDark: '#CBD5E1',
+  borderDark: '#D6DCE6',
+  inputBorder: '#D6DCE6',
+  inputFocus: '#7AA6FF',
 
   // Text
-  textPrimary: '#0F172A',
-  textSecondary: '#475569',
-  textMuted: '#94A3B8',
+  text: '#1F2937',
+  textPrimary: '#1F2937',
+  textSecondary: '#4B5563',
+  textMuted: '#9AA5B1',
   textInverse: '#FFFFFF',
 
-  // Lighter Modern Blue Brand Tokens
-  primary: '#3B82F6',          // Clean Lighter Blue (Blue 500)
-  primaryHover: '#2563EB',     // Blue 600
-  primaryLight: '#EFF6FF',     // Light Blue Tint (Blue 50)
-  primaryBorder: '#BFDBFE',    // Blue 200
-  accent: '#0EA5E9',           // Sky Blue
+  // Modern SaaS Brand Tokens
+  primary: '#0D63B8',          // Deep Royal Blue (#0d63b8)
+  primaryHover: '#0b5299',
+  primaryLight: '#EFF6FF',
+  primaryBorder: '#BFDBFE',
+  accent: '#6F7BF5',           // Soft Indigo Accent (#6f7bf5 / #6174ff)
+  brandViolet: '#6174FF',
+
+  // Gradients
+  gradientStart: '#7F9FE0',    // Header Gradient Start (#7f9fe0)
+  gradientEnd: '#8FD3C9',      // Header Gradient End (#8fd3c9)
+  gradientSoftStart: '#B7C6F5',
+  gradientSoftEnd: '#BDF5C5',
 
   // Fuel Category Accents
   diesel: '#D97706',           // Warm Amber / Golden Diesel
@@ -45,30 +55,36 @@ export const colors = {
   lpgLight: '#E0F2FE',
   lpgDark: '#0369A1',
 
-  // Status & Utility
-  success: '#10B981',          // Success Green
-  successLight: '#ECFDF5',
+  // Status & Utility (with custom status buttons)
+  success: '#22C55E',          // Active Green (#22c55e)
+  successLight: '#E4E7EE',     // Status Active Pill Background (#e4e7ee)
   warning: '#F59E0B',          // Warning Amber
   warningLight: '#FFFBEB',
-  danger: '#EF4444',           // Danger Red
-  dangerLight: '#FEF2F2',
-  info: '#3B82F6',             // Info Blue
+  danger: '#EF4444',           // Danger / Inactive Red (#ef4444)
+  dangerLight: '#F1E4E4',      // Status Inactive Pill Background (#f1e4e4)
+  info: '#2563EB',             // View Link / Info Blue (#2563eb)
   infoLight: '#EFF6FF',
+
+  // Action Links
+  editLink: '#4F5BD5',
+  viewLink: '#2563EB',
+  deleteLink: '#EF4444',
 
   // Cash & Financials
   cashGreen: '#16A34A',
   upiPurple: '#8B5CF6',
-  cardBlue: '#3B82F6',
+  cardBlue: '#0D63B8',
   creditOrange: '#EA580C',
 
   // Dark Deep Grey & Inactive / Unusable States
-  inactiveGrey: '#334155',     // Dark deep slate grey
-  inactiveText: '#64748B',     // Deep grey text for inactive rows/items
-  inactiveMuted: '#94A3B8',    // Muted deep grey
-  inactiveBg: '#F8FAFC',       // Deep grey tinted background
-  inactiveBorder: '#CBD5E1',   // Deep grey border
-  inactiveDarkBg: '#1E293B',   // Deep dark slate background
+  inactiveGrey: '#334155',
+  inactiveText: '#64748B',
+  inactiveMuted: '#9AA5B1',
+  inactiveBg: '#F8FAFC',
+  inactiveBorder: '#D6DCE6',
+  inactiveDarkBg: '#1E293B',
 };
+
 
 export const typography = {
   monoFont: "'JetBrains Mono', 'Fira Code', monospace",

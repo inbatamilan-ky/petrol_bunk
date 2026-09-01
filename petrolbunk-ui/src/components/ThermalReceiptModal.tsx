@@ -141,6 +141,8 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
                     <Text style={styles.itemQtyRate}>{item.qty || ''}</Text>
                     {item.rate && <Text style={styles.itemQtyRate}>@{item.rate}</Text>}
+
+
                   </View>
                   <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
                     <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>

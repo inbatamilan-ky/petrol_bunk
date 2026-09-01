@@ -3,8 +3,6 @@ import { Product, Pump, Operator, CreditCustomer, ExpenseType, Branch, UserRole 
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
 import {
-  DEFAULT_PRODUCTS,
-  DEFAULT_PUMPS,
   mapProduct,
   mapPump,
   mapOperator,
@@ -24,8 +22,11 @@ export interface MastersContextType {
   expenseTypes: ExpenseType[];
   setExpenseTypes: React.Dispatch<React.SetStateAction<ExpenseType[]>>;
   branches: Branch[];
+  bunks: Branch[];
+  bunkProfile: Branch | null;
   addBranch: (b: Partial<Branch>) => Promise<void>;
   updateBranch: (profile: Partial<Branch>) => Promise<void>;
+  updateBunkProfile: (profile: Partial<Branch>) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
   role: UserRole;
 
@@ -55,10 +56,10 @@ export interface MastersContextType {
 const MastersContext = createContext<MastersContextType | undefined>(undefined);
 
 export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isLoggedIn, role, branches, addBranch, updateBranch, deleteBranch, activeBranchId } = useAuthContext();
+  const { isLoggedIn, role, branches, bunkProfile, addBranch, updateBranch, deleteBranch, activeBranchId } = useAuthContext();
 
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
-  const [pumps, setPumps] = useState<Pump[]>(DEFAULT_PUMPS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [pumps, setPumps] = useState<Pump[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [customers, setCustomers] = useState<CreditCustomer[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
@@ -70,7 +71,7 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
         apiFetch('/api/pumps').catch(() => []),
         apiFetch('/api/operators').catch(() => []),
         apiFetch('/api/customers').catch(() => []),
-        apiFetch('/api/expense-types').catch(() => []),
+        apiFetch('/api/masters/expense-types').catch(() => []),
       ]);
 
       const prodMap = new Map(((prodData as any[]) || []).map((p: any) => [p.id, p]));
@@ -81,268 +82,282 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return {
             ...noz,
             product_name: prod?.name ?? '',
-            fuel_code: prod?.code ?? noz.product_id,
-            color: prod?.color ?? '#94A3B8',
           };
         }),
       }));
 
-      if (Array.isArray(prodData)) setProducts(prodData.map(mapProduct));
-      if (Array.isArray(pumpData)) setPumps(enrichedPumps.map(mapPump));
-      if (Array.isArray(opData)) setOperators(opData.map(mapOperator));
-      if (Array.isArray(custData)) setCustomers(custData.map(mapCustomer));
-      if (Array.isArray(etData)) setExpenseTypes(etData.map(mapExpenseType));
-    } catch (e) {
-      console.error('syncMasters error:', e);
+      setProducts(Array.isArray(prodData) ? prodData.map(mapProduct) : []);
+      setPumps(Array.isArray(pumpData) ? enrichedPumps.map(mapPump) : []);
+      setOperators(Array.isArray(opData) ? (opData as any[]).map(mapOperator) : []);
+      setCustomers(Array.isArray(custData) ? (custData as any[]).map(mapCustomer) : []);
+      setExpenseTypes(Array.isArray(etData) ? (etData as any[]).map(mapExpenseType) : []);
+    } catch {
+      // Offline / error state
     }
   }, []);
 
   useEffect(() => {
     if (isLoggedIn) {
       syncMasters();
-    } else {
-      setProducts([]);
-      setPumps([]);
-      setOperators([]);
-      setCustomers([]);
-      setExpenseTypes([]);
     }
   }, [isLoggedIn, activeBranchId, syncMasters]);
 
-  const addProduct = useCallback(async (prodData: Omit<Product, 'id'>) => {
-    const newProd: Product = {
-      ...prodData,
-      id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      active: prodData.active !== false,
-    };
-    try {
-      const payload = {
-        code: prodData.code,
-        name: prodData.name,
-        category: prodData.category,
-        unit: prodData.unit,
-        color: prodData.color,
-        current_rate: prodData.currentRate,
-        density_min: prodData.standardDensityRange?.min ?? null,
-        density_max: prodData.standardDensityRange?.max ?? null,
-        active: prodData.active !== false,
-      };
-      const created = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) });
-      setProducts((prev) => [...prev, mapProduct(created)]);
-    } catch {
-      setProducts((prev) => [...prev, newProd]);
-    }
-  }, []);
-
-  const updateProduct = useCallback(async (prod: Product) => {
-    try {
-      const payload = {
+  const addProduct = async (prod: Omit<Product, 'id'>) => {
+    const created = await apiFetch('/api/products', {
+      method: 'POST',
+      body: JSON.stringify({
         code: prod.code,
         name: prod.name,
-        category: prod.category,
-        unit: prod.unit,
-        color: prod.color,
+        category: prod.category || 'FUEL',
         current_rate: prod.currentRate,
-        density_min: prod.standardDensityRange?.min ?? null,
-        density_max: prod.standardDensityRange?.max ?? null,
         active: prod.active !== false,
-      };
-      await apiFetch(`/api/products/${prod.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    } catch {}
+        color: prod.color,
+        unit: prod.unit,
+        hsn_code: prod.hsnCode,
+        gst_rate: prod.gstRate,
+        tank_capacity: prod.tankCapacity,
+        density_standard_at_15c: prod.densityStandardAt15C,
+        density_min: prod.standardDensityRange?.min,
+        density_max: prod.standardDensityRange?.max,
+        short_name: prod.shortName,
+      }),
+    });
+    setProducts(prev => [...prev, mapProduct(created)]);
+  };
 
-    setProducts((prev) => prev.map((p) => (p.id === prod.id ? prod : p)));
-    setPumps((prevPumps) =>
-      prevPumps.map((pump) => ({
-        ...pump,
-        nozzles: pump.nozzles.map((noz) =>
-          noz.productId === prod.id
-            ? {
-                ...noz,
-                productName: prod.name,
-                fuelCode: prod.code,
-                color: prod.color,
-              }
-            : noz
-        ),
-      }))
-    );
-  }, []);
+  const updateProduct = async (prod: Product) => {
+    const updated = await apiFetch(`/api/products/${prod.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: prod.name,
+        category: prod.category,
+        current_rate: prod.currentRate,
+        active: prod.active,
+        color: prod.color,
+        unit: prod.unit,
+        hsn_code: prod.hsnCode,
+        gst_rate: prod.gstRate,
+        tank_capacity: prod.tankCapacity,
+        density_standard_at_15c: prod.densityStandardAt15C,
+        density_min: prod.standardDensityRange?.min,
+        density_max: prod.standardDensityRange?.max,
+        short_name: prod.shortName,
+      }),
+    });
+    setProducts(prev => prev.map(p => (p.id === prod.id ? mapProduct(updated) : p)));
+  };
 
-  const deleteProduct = useCallback(async (id: string) => {
-    try {
-      await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
-    } catch {}
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  const deleteProduct = async (id: string) => {
+    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
 
-  const addPump = useCallback(async (pumpData: Omit<Pump, 'id'>) => {
-    try {
-      const payload = {
-        pump_no: pumpData.pumpNo,
-        name: pumpData.name,
-        status: pumpData.status,
-      };
-      const created = await apiFetch('/api/pumps', { method: 'POST', body: JSON.stringify(payload) });
-      for (const n of pumpData.nozzles || []) {
-        const nozPayload = {
-          pump_id: created.id,
-          nozzle_no: n.nozzleNo,
-          product_id: n.productId,
-          current_meter_reading: n.currentMeterReading,
-        };
-        await apiFetch(`/api/pumps/${created.id}/nozzles`, { method: 'POST', body: JSON.stringify(nozPayload) });
-      }
-      await syncMasters();
-    } catch (e) {
-      console.error('addPump error:', e);
-    }
-  }, [syncMasters]);
-
-  const updatePump = useCallback(async (pump: Pump) => {
-    try {
-      const payload = {
+  const addPump = async (pump: Omit<Pump, 'id'>) => {
+    await apiFetch('/api/pumps', {
+      method: 'POST',
+      body: JSON.stringify({
         pump_no: pump.pumpNo,
         name: pump.name,
-        status: pump.status,
-        nozzles: (pump.nozzles || []).map((n) => ({
-          id: n.id,
+        model: pump.model,
+        serial_number: pump.serialNumber,
+        make_model: pump.makeModel,
+        installation_date: pump.installationDate,
+        tank_id: pump.tankId,
+        side: pump.side,
+        status: pump.status || 'ACTIVE',
+        nozzles: (pump.nozzles || []).map(n => ({
           nozzle_no: n.nozzleNo,
           product_id: n.productId,
-          current_meter_reading: n.currentMeterReading,
+          current_meter_reading: n.currentMeterReading || 0,
+          color: n.color,
+          fuel_code: n.fuelCode,
         })),
-      };
-      await apiFetch(`/api/pumps/${pump.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      }),
+    });
+    await syncMasters();
+  };
 
-      const existingPump = pumps.find((p) => p.id === pump.id);
-      const existingNozzles = existingPump ? existingPump.nozzles : [];
-
-      for (const n of pump.nozzles || []) {
-        const isNew = !existingNozzles.some((en) => en.id === n.id);
-        const nozPayload = {
-          pump_id: pump.id,
+  const updatePump = async (pump: Pump) => {
+    await apiFetch(`/api/pumps/${pump.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        pump_no: pump.pumpNo,
+        name: pump.name,
+        model: pump.model,
+        serial_number: pump.serialNumber,
+        make_model: pump.makeModel,
+        installation_date: pump.installationDate,
+        tank_id: pump.tankId,
+        side: pump.side,
+        status: pump.status,
+        nozzles: (pump.nozzles || []).map(n => ({
           nozzle_no: n.nozzleNo,
           product_id: n.productId,
-          current_meter_reading: n.currentMeterReading,
-        };
-        if (isNew) {
-          await apiFetch(`/api/pumps/${pump.id}/nozzles`, { method: 'POST', body: JSON.stringify(nozPayload) });
-        } else {
-          await apiFetch(`/api/pumps/nozzles/${n.id}`, { method: 'PUT', body: JSON.stringify(nozPayload) });
-        }
-      }
+          current_meter_reading: n.currentMeterReading || 0,
+          color: n.color,
+          fuel_code: n.fuelCode,
+        })),
+      }),
+    });
+    await syncMasters();
+  };
 
-      const keepIds = pump.nozzles.map((n) => n.id);
-      for (const old of existingNozzles) {
-        if (!keepIds.includes(old.id)) {
-          await apiFetch(`/api/pumps/nozzles/${old.id}`, { method: 'DELETE' }).catch(() => {});
-        }
-      }
-
-      await syncMasters();
-    } catch (e) {
-      console.error('updatePump error:', e);
-    }
-  }, [pumps, syncMasters]);
-
-  const deletePump = useCallback(async (id: string) => {
+  const deletePump = async (id: string) => {
     try {
       await apiFetch(`/api/pumps/${id}`, { method: 'DELETE' });
-    } catch {}
-    setPumps((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+    } catch (err: any) {
+      if (!err?.message?.includes('404')) {
+        console.warn('deletePump warning:', err);
+      }
+    }
+    setPumps(prev => prev.filter(p => p.id !== id));
+  };
 
-  const addOperator = useCallback(async (opData: Omit<Operator, 'id'>) => {
-    const payload = { name: opData.name, phone: opData.phone, daily_bata: opData.dailyBata, active: opData.active };
-    const created = await apiFetch('/api/operators', { method: 'POST', body: JSON.stringify(payload) });
-    setOperators((prev) => [...prev, mapOperator(created)]);
-  }, []);
-
-  const updateOperator = useCallback(async (op: Operator) => {
-    try {
-      const payload = {
+  const addOperator = async (op: Omit<Operator, 'id'>) => {
+    const created = await apiFetch('/api/operators', {
+      method: 'POST',
+      body: JSON.stringify({
         name: op.name,
         phone: op.phone,
-        daily_bata: op.dailyBata,
-        active: op.active,
-      };
-      await apiFetch(`/api/operators/${op.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    } catch {}
-    setOperators((prev) => prev.map((o) => (o.id === op.id ? op : o)));
-  }, []);
+        active: op.active !== false,
+        employee_code: op.employeeCode,
+        aadhaar_no: op.aadhaarNo,
+        monthly_salary: op.monthlySalary,
+        joining_date: op.joiningDate,
+        emergency_contact: op.emergencyContact,
+        assigned_shift: op.assignedShift,
+        status: op.status || 'ACTIVE',
+      }),
+    });
+    setOperators(prev => [...prev, mapOperator(created)]);
+  };
 
-  const deleteOperator = useCallback(async (id: string) => {
+  const updateOperator = async (op: Operator) => {
+    const updated = await apiFetch(`/api/operators/${op.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: op.name,
+        phone: op.phone,
+        active: op.active,
+        employee_code: op.employeeCode,
+        aadhaar_no: op.aadhaarNo,
+        monthly_salary: op.monthlySalary,
+        joining_date: op.joiningDate,
+        emergency_contact: op.emergencyContact,
+        assigned_shift: op.assignedShift,
+        status: op.status,
+      }),
+    });
+    setOperators(prev => prev.map(o => (o.id === op.id ? mapOperator(updated) : o)));
+  };
+
+  const deleteOperator = async (id: string) => {
     try {
       await apiFetch(`/api/operators/${id}`, { method: 'DELETE' });
-    } catch {}
-    setOperators((prev) => prev.filter((o) => o.id !== id));
-  }, []);
-
-  const addCustomer = useCallback(async (custData: Omit<CreditCustomer, 'id' | 'outstandingBalance'>) => {
-    const payload = {
-      code: custData.code,
-      name: custData.name,
-      contact_person: custData.contactPerson,
-      phone: custData.phone,
-      vehicle_numbers: custData.vehicleNumbers,
-      credit_limit: custData.creditLimit,
-      opening_balance: custData.openingBalance,
-      status: custData.status,
-      address: custData.address,
-    };
-    const created = await apiFetch('/api/customers', { method: 'POST', body: JSON.stringify(payload) });
-    setCustomers((prev) => [...prev, mapCustomer(created)]);
-  }, []);
-
-  const updateCustomer = useCallback(async (cust: CreditCustomer) => {
-    try {
-      const payload = {
-        code: cust.code,
-        name: cust.name,
-        contact_person: cust.contactPerson,
-        phone: cust.phone,
-        vehicle_numbers: cust.vehicleNumbers,
-        credit_limit: cust.creditLimit,
-        status: cust.status,
-        address: cust.address,
-      };
-      const updated = await apiFetch(`/api/customers/${cust.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-      setCustomers((prev) => prev.map((c) => (c.id === cust.id ? mapCustomer(updated) : c)));
-    } catch {
-      setCustomers((prev) => prev.map((c) => (c.id === cust.id ? cust : c)));
+    } catch (err: any) {
+      if (!err?.message?.includes('404')) {
+        console.warn('deleteOperator warning:', err);
+      }
     }
-  }, []);
+    setOperators(prev => prev.filter(o => o.id !== id));
+  };
 
-  const deleteCustomer = useCallback(async (id: string) => {
+  const addCustomer = async (cust: Omit<CreditCustomer, 'id' | 'outstandingBalance'>) => {
+    const created = await apiFetch('/api/customers', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: cust.name,
+        phone: cust.phone,
+        code: cust.code,
+        contact_person: cust.contactPerson,
+        email: cust.email,
+        gstin: cust.gstin,
+        pan_number: cust.panNumber,
+        credit_limit: cust.creditLimit,
+        opening_balance: cust.openingBalance,
+        credit_period_days: cust.creditPeriodDays,
+        discount_per_litre: cust.discountPerLitre,
+        max_vehicles_allowed: cust.maxVehiclesAllowed,
+        vehicle_numbers: Array.isArray(cust.vehicleNumbers) ? cust.vehicleNumbers.join(', ') : cust.vehicleNumbers,
+        address: cust.address,
+        billing_address: cust.billingAddress,
+        status: cust.status || 'ACTIVE',
+      }),
+    });
+    setCustomers(prev => [...prev, mapCustomer(created)]);
+  };
+
+  const updateCustomer = async (cust: CreditCustomer) => {
+    const updated = await apiFetch(`/api/customers/${cust.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: cust.name,
+        phone: cust.phone,
+        code: cust.code,
+        contact_person: cust.contactPerson,
+        email: cust.email,
+        gstin: cust.gstin,
+        pan_number: cust.panNumber,
+        credit_limit: cust.creditLimit,
+        opening_balance: cust.openingBalance,
+        credit_period_days: cust.creditPeriodDays,
+        discount_per_litre: cust.discountPerLitre,
+        max_vehicles_allowed: cust.maxVehiclesAllowed,
+        vehicle_numbers: Array.isArray(cust.vehicleNumbers) ? cust.vehicleNumbers.join(', ') : cust.vehicleNumbers,
+        address: cust.address,
+        billing_address: cust.billingAddress,
+        status: cust.status,
+      }),
+    });
+    setCustomers(prev => prev.map(c => (c.id === cust.id ? mapCustomer(updated) : c)));
+  };
+
+  const deleteCustomer = async (id: string) => {
     try {
       await apiFetch(`/api/customers/${id}`, { method: 'DELETE' });
-    } catch {}
-    setCustomers((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+    } catch (err: any) {
+      if (!err?.message?.includes('404')) {
+        console.warn('deleteCustomer warning:', err);
+      }
+    }
+    setCustomers(prev => prev.filter(c => c.id !== id));
+  };
 
-  const addExpenseType = useCallback(async (et: Omit<ExpenseType, 'id'>) => {
-    const created = await apiFetch('/api/expense-types', {
+  const addExpenseType = async (et: Omit<ExpenseType, 'id'>) => {
+    const created = await apiFetch('/api/masters/expense-types', {
       method: 'POST',
-      body: JSON.stringify({ name: et.name, category: et.category, active: et.active !== false }),
+      body: JSON.stringify({
+        name: et.name,
+        category: et.category || 'OPERATIONAL',
+        active: et.active !== false,
+      }),
     });
-    setExpenseTypes((prev) => [...prev, mapExpenseType(created)]);
-  }, []);
+    setExpenseTypes(prev => [...prev, mapExpenseType(created)]);
+  };
 
-  const updateExpenseType = useCallback(async (et: ExpenseType) => {
-    try {
-      await apiFetch(`/api/expense-types/${et.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name: et.name, category: et.category, active: et.active !== false }),
-      });
-    } catch {}
-    setExpenseTypes((prev) => prev.map((item) => (item.id === et.id ? et : item)));
-  }, []);
+  const updateExpenseType = async (et: ExpenseType) => {
+    const updated = await apiFetch(`/api/masters/expense-types/${et.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: et.name,
+        category: et.category,
+        active: et.active,
+      }),
+    });
+    setExpenseTypes(prev => prev.map(e => (e.id === et.id ? mapExpenseType(updated) : e)));
+  };
 
-  const deleteExpenseType = useCallback(async (id: string) => {
+  const deleteExpenseType = async (id: string) => {
     try {
-      await apiFetch(`/api/expense-types/${id}`, { method: 'DELETE' });
-    } catch {}
-    setExpenseTypes((prev) => prev.filter((item) => item.id !== id));
-  }, []);
+      await apiFetch(`/api/masters/expense-types/${id}`, { method: 'DELETE' });
+    } catch (err: any) {
+      if (!err?.message?.includes('404')) {
+        console.warn('deleteExpenseType warning:', err);
+      }
+    }
+    setExpenseTypes(prev => prev.filter(e => e.id !== id));
+  };
+
 
   return (
     <MastersContext.Provider
@@ -358,8 +373,11 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
         expenseTypes,
         setExpenseTypes,
         branches,
+        bunks: branches,
+        bunkProfile,
         addBranch,
         updateBranch,
+        updateBunkProfile: updateBranch,
         deleteBranch,
         role,
         addProduct,
@@ -385,12 +403,11 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
-export const useMastersContext = () => {
-  const context = useContext(MastersContext);
-  if (!context) {
-    throw new Error('useMastersContext must be used within a MastersProvider');
-  }
-  return context;
+export const useMasters = () => {
+  const ctx = useContext(MastersContext);
+  if (!ctx) throw new Error('useMasters must be used within MastersProvider');
+  return ctx;
 };
 
-export { MastersContext };
+export const useMastersContext = useMasters;
+

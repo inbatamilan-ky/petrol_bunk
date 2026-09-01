@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   BankDeposit,
-  BankAccount,
-  CashSafeLedger,
-  Shift,
+  Settlement,
+  DailyCashReconciliation,
+  MasterBank,
+  MasterChannel,
+  MasterPaymentMode,
   Expense,
   CreditPayment,
   Branch,
@@ -11,164 +13,191 @@ import {
 } from '../types';
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
-import { useShiftOperationsContext } from './ShiftOperationsContext';
 import { useExpensesContext } from './ExpensesContext';
 import { useCreditLedgerContext } from './CreditLedgerContext';
-import { mapBankAccount, mapBankDeposit } from './mappers';
+import {
+  mapBankDeposit,
+  mapSettlement,
+  mapDailyCashReconciliation,
+  mapMasterBank,
+  mapMasterChannel,
+  mapMasterPaymentMode,
+} from './mappers';
 
 export interface CashBankContextType {
   bankDeposits: BankDeposit[];
-  setBankDeposits: React.Dispatch<React.SetStateAction<BankDeposit[]>>;
-  bankAccounts: BankAccount[];
-  setBankAccounts: React.Dispatch<React.SetStateAction<BankAccount[]>>;
-  shifts: Shift[];
+  settlements: Settlement[];
+  dailyReconciliation: DailyCashReconciliation | null;
+  masterBanks: MasterBank[];
+  masterChannels: MasterChannel[];
+  masterPaymentModes: MasterPaymentMode[];
+  selectedDate: string;
+  setSelectedDate: (d: string) => void;
   expenses: Expense[];
   creditPayments: CreditPayment[];
   bunkProfile: Branch | null;
   role: UserRole;
 
-  recordBankDeposit: (deposit: Omit<BankDeposit, 'id' | 'depositDate'>) => Promise<BankDeposit>;
-  addBankAccount: (acc: Omit<BankAccount, 'id'>) => Promise<void>;
-  updateBankAccount: (acc: BankAccount) => Promise<void>;
-  deleteBankAccount: (id: string) => Promise<void>;
-  saveCashSafeLedger: (ledger: Omit<CashSafeLedger, 'id'>) => Promise<void>;
-  syncCashBank: () => Promise<void>;
+  recordBankDeposit: (amount: number, date?: string) => Promise<BankDeposit>;
+  deleteBankDeposit: (id: string) => Promise<void>;
+  saveReconciliation: (data: Omit<DailyCashReconciliation, 'id' | 'difference'>) => Promise<DailyCashReconciliation>;
+  saveSettlementsBatch: (settlementDate: string, items: { bankCode: string; channelCode: string; amount: number }[]) => Promise<Settlement[]>;
+  syncCashBank: (date?: string) => Promise<void>;
+
+  // Backwards compatibility
+  bankAccounts: any[];
+  shifts: any[];
+  addBankAccount: any;
+  updateBankAccount: any;
+  deleteBankAccount: any;
+  saveCashSafeLedger: any;
 }
 
 const CashBankContext = createContext<CashBankContextType | undefined>(undefined);
 
 export const CashBankProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, role, bunkProfile, activeBranchId } = useAuthContext();
-  const { shifts } = useShiftOperationsContext();
   const { expenses } = useExpensesContext();
   const { creditPayments } = useCreditLedgerContext();
 
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
   const [bankDeposits, setBankDeposits] = useState<BankDeposit[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [dailyReconciliation, setDailyReconciliation] = useState<DailyCashReconciliation | null>(null);
 
-  const syncCashBank = useCallback(async () => {
+  const [masterBanks, setMasterBanks] = useState<MasterBank[]>([]);
+  const [masterChannels, setMasterChannels] = useState<MasterChannel[]>([]);
+  const [masterPaymentModes, setMasterPaymentModes] = useState<MasterPaymentMode[]>([]);
+
+  const syncCashBank = useCallback(async (date?: string) => {
+    const targetDate = date || selectedDate;
     try {
-      const [bdData, baData] = await Promise.all([
+      const [bdData, stData, reconData, banksData, channelsData, payModesData] = await Promise.all([
         apiFetch('/api/bank-deposits').catch(() => []),
-        apiFetch('/api/bank-accounts').catch(() => []),
+        apiFetch(`/api/settlements?settlement_date=${targetDate}`).catch(() => []),
+        apiFetch(`/api/cash-reconciliation/${targetDate}`).catch(() => null),
+        apiFetch('/api/masters/banks').catch(() => []),
+        apiFetch('/api/masters/channels').catch(() => []),
+        apiFetch('/api/masters/payment-modes').catch(() => []),
       ]);
 
       if (Array.isArray(bdData)) setBankDeposits(bdData.map(mapBankDeposit));
-      if (Array.isArray(baData)) setBankAccounts(baData.map(mapBankAccount));
+      if (Array.isArray(stData)) setSettlements(stData.map(mapSettlement));
+      if (reconData && typeof reconData === 'object' && reconData.recon_date) {
+        setDailyReconciliation(mapDailyCashReconciliation(reconData));
+      } else {
+        setDailyReconciliation(null);
+      }
+      if (Array.isArray(banksData)) setMasterBanks(banksData.map(mapMasterBank));
+      if (Array.isArray(channelsData)) setMasterChannels(channelsData.map(mapMasterChannel));
+      if (Array.isArray(payModesData)) setMasterPaymentModes(payModesData.map(mapMasterPaymentMode));
     } catch (e) {
       console.error('syncCashBank error:', e);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     if (isLoggedIn) {
-      syncCashBank();
+      syncCashBank(selectedDate);
     } else {
       setBankDeposits([]);
-      setBankAccounts([]);
+      setSettlements([]);
+      setDailyReconciliation(null);
     }
-  }, [isLoggedIn, activeBranchId, syncCashBank]);
+  }, [isLoggedIn, activeBranchId, selectedDate, syncCashBank]);
 
-  const recordBankDeposit = useCallback(
-    async (depositData: Omit<BankDeposit, 'id' | 'depositDate'>): Promise<BankDeposit> => {
-      const d = depositData.denominations;
-      const payload = {
-        bank_name: depositData.bankName,
-        account_no: depositData.accountNo,
-        amount: depositData.amount,
-        note_2000: d?.note2000 ?? 0,
-        note_500: d?.note500 ?? 0,
-        note_200: d?.note200 ?? 0,
-        note_100: d?.note100 ?? 0,
-        note_50: d?.note50 ?? 0,
-        note_20: d?.note20 ?? 0,
-        note_10: d?.note10 ?? 0,
-        coins: d?.coins ?? 0,
-        deposited_by: depositData.depositedBy,
-        reference_no: depositData.referenceNo,
-        notes: depositData.notes,
-      };
-      const created = await apiFetch('/api/bank-deposits', { method: 'POST', body: JSON.stringify(payload) });
-      const newDeposit = mapBankDeposit(created);
-      setBankDeposits((prev) => [newDeposit, ...prev]);
-      return newDeposit;
-    },
-    []
-  );
+  const recordBankDeposit = async (amount: number, date?: string): Promise<BankDeposit> => {
+    const depDate = date || selectedDate;
+    const created = await apiFetch('/api/bank-deposits', {
+      method: 'POST',
+      body: JSON.stringify({
+        deposit_date: depDate,
+        amount,
+      }),
+    });
+    const mapped = mapBankDeposit(created);
+    setBankDeposits(prev => [mapped, ...prev]);
+    return mapped;
+  };
 
-  const addBankAccount = useCallback(async (accData: Omit<BankAccount, 'id'>) => {
+  const deleteBankDeposit = async (id: string) => {
+    await apiFetch(`/api/bank-deposits/${id}`, { method: 'DELETE' });
+    setBankDeposits(prev => prev.filter(b => b.id !== id));
+  };
+
+  const saveReconciliation = async (
+    data: Omit<DailyCashReconciliation, 'id' | 'difference'>
+  ): Promise<DailyCashReconciliation> => {
     const payload = {
-      bank_name: accData.bankName,
-      account_number: accData.accountNumber,
-      account_type: accData.accountType,
-      branch_name: accData.branchName,
-      ifsc_code: accData.ifscCode,
-      opening_balance: accData.openingBalance,
-      current_balance: accData.currentBalance,
-      is_primary: accData.isPrimary,
-      is_active: accData.isActive,
+      recon_date: data.reconDate,
+      opening_balance: data.openingBalance,
+      morning_collection: data.morningCollection,
+      oil_dw: data.oilDw,
+      total_cash: data.totalCash,
+      cash_for_card_swipe: data.cashForCardSwipe,
+      cash_deposit_in_bank: data.cashDepositInBank,
+      system_total_in_sheet: data.systemTotalInSheet,
+      physically_counted_note: data.physicallyCountedNote,
+      net_cash_for_the_day: data.netCashForTheDay,
     };
-    const created = await apiFetch('/api/bank-accounts', { method: 'POST', body: JSON.stringify(payload) });
-    setBankAccounts((prev) => [...prev, mapBankAccount(created)]);
-  }, []);
+    const res = await apiFetch('/api/cash-reconciliation', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const mapped = mapDailyCashReconciliation(res);
+    setDailyReconciliation(mapped);
+    return mapped;
+  };
 
-  const updateBankAccount = useCallback(async (acc: BankAccount) => {
+  const saveSettlementsBatch = async (
+    settlementDate: string,
+    items: { bankCode: string; channelCode: string; amount: number }[]
+  ): Promise<Settlement[]> => {
     const payload = {
-      bank_name: acc.bankName,
-      account_number: acc.accountNumber,
-      account_type: acc.accountType,
-      branch_name: acc.branchName,
-      ifsc_code: acc.ifscCode,
-      opening_balance: acc.openingBalance,
-      current_balance: acc.currentBalance,
-      is_primary: acc.isPrimary,
-      is_active: acc.isActive,
+      settlement_date: settlementDate,
+      items: items.map(i => ({
+        bank_code: i.bankCode,
+        channel_code: i.channelCode,
+        amount: i.amount,
+      })),
     };
-    const updated = await apiFetch(`/api/bank-accounts/${acc.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    setBankAccounts((prev) => prev.map((a) => (a.id === acc.id ? mapBankAccount(updated) : a)));
-  }, []);
-
-  const deleteBankAccount = useCallback(async (id: string) => {
-    await apiFetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
-    setBankAccounts((prev) => prev.filter((a) => a.id !== id));
-  }, []);
-
-  const saveCashSafeLedger = useCallback(async (ledgerData: Omit<CashSafeLedger, 'id'>) => {
-    const payload = {
-      ledger_date: ledgerData.ledgerDate,
-      opening_safe_cash: ledgerData.openingSafeCash,
-      shift_cash_inflow: ledgerData.shiftCashInflow,
-      credit_cash_recovered: ledgerData.creditCashRecovered,
-      petty_cash_expenses: ledgerData.pettyCashExpenses,
-      bank_deposits_dropped: ledgerData.bankDepositsDropped,
-      expected_safe_cash: ledgerData.expectedSafeCash,
-      physical_counted_cash: ledgerData.physicalCountedCash,
-      cash_variance: ledgerData.cashVariance,
-      denominations: ledgerData.denominations,
-      audited_by: ledgerData.auditedBy,
-      notes: ledgerData.notes,
-    };
-    await apiFetch('/api/cash-ledger', { method: 'POST', body: JSON.stringify(payload) });
-  }, []);
+    const res = await apiFetch('/api/settlements/batch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const mapped = Array.isArray(res) ? res.map(mapSettlement) : [];
+    setSettlements(mapped);
+    return mapped;
+  };
 
   return (
     <CashBankContext.Provider
       value={{
         bankDeposits,
-        setBankDeposits,
-        bankAccounts,
-        setBankAccounts,
-        shifts,
+        settlements,
+        dailyReconciliation,
+        masterBanks,
+        masterChannels,
+        masterPaymentModes,
+        selectedDate,
+        setSelectedDate,
         expenses,
         creditPayments,
         bunkProfile,
         role,
         recordBankDeposit,
-        addBankAccount,
-        updateBankAccount,
-        deleteBankAccount,
-        saveCashSafeLedger,
+        deleteBankDeposit,
+        saveReconciliation,
+        saveSettlementsBatch,
         syncCashBank,
+        bankAccounts: [],
+        shifts: [],
+        addBankAccount: async () => {},
+        updateBankAccount: async () => {},
+        deleteBankAccount: async () => {},
+        saveCashSafeLedger: async () => {},
       }}
     >
       {children}
@@ -177,11 +206,9 @@ export const CashBankProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 };
 
 export const useCashBankContext = () => {
-  const context = useContext(CashBankContext);
-  if (!context) {
-    throw new Error('useCashBankContext must be used within a CashBankProvider');
-  }
-  return context;
+  const ctx = useContext(CashBankContext);
+  if (!ctx) throw new Error('useCashBankContext must be used within CashBankProvider');
+  return ctx;
 };
 
-export { CashBankContext };
+export const useCashBank = useCashBankContext;
