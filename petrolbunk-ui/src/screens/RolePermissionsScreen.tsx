@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Switch,
   Alert,
   Modal,
 } from 'react-native';
@@ -29,6 +28,8 @@ import {
   Search,
   Info,
   Building2,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
 import { DropdownPicker } from '../components/DropdownPicker';
@@ -38,7 +39,7 @@ interface PermissionItem {
   key: string;
   title: string;
   description: string;
-  tag?: 'High Impact' | 'Operational' | 'Financial' | 'Sensitive';
+  // tag?: 'High Impact' | 'Operational' | 'Financial' | 'Sensitive';
   lockedForManager?: boolean;
 }
 
@@ -54,7 +55,7 @@ interface PermissionModule {
 const PERMISSION_MODULES: PermissionModule[] = [
   {
     id: 'dashboard',
-    title: '1. Dashboard & Business Intelligence',
+    title: '1. Dashboard',
     icon: LayoutDashboard,
     color: '#3B82F6',
     description: 'Control visibility of revenue figures, gross profit, cash positions, and analytics exports.',
@@ -63,32 +64,32 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'dash_view_sales',
         title: 'View Total Gross Sales & Litres Sold',
         description: 'Allows viewing total station revenue and fuel quantity aggregates on the dashboard.',
-        tag: 'Operational',
+       // tag: 'Operational',
       },
       {
         key: 'dash_view_cash_pos',
         title: 'View Live Cash Position & Safe Daybook',
         description: 'Allows viewing real-time expected cash in drawer and daily cash reconciliation.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
       {
         key: 'dash_view_margins',
         title: 'View Profit Estimates & Product Margins',
         description: 'Displays gross margin estimates and revenue analysis.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
       {
         key: 'dash_export_bi',
         title: 'Export Dashboard Financial Reports',
         description: 'Permits downloading CSV/Excel extracts of dashboard analytics.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
     ],
   },
   {
     id: 'shifts',
-    title: '2. Shift Operations & Meter Readings',
+    title: '2. Shift Ops',
     icon: Fuel,
     color: '#D97706',
     description: 'Control opening shifts, entering closing meters, quality testing, and reconciliation.',
@@ -97,39 +98,39 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'shift_open_new',
         title: 'Open New Shift for Pump Dispensers',
         description: 'Allows selecting pump dispenser and operator to start a new shift.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'shift_enter_closing',
         title: 'Enter Closing Meter Readings & Test Litres',
         description: 'Permits typing closing totalizers and 5-litre testing volumes for fuel sold calculation.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'shift_close_settle',
         title: 'Close & Finalize Shift Reconciliation',
         description: 'Allows freezing shift records and printing thermal settlement vouchers.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'shift_edit_closed',
         title: 'Edit Shift Details After Closure',
         description: 'Permits reopening or adjusting meter entries of already closed shifts.',
-        tag: 'High Impact',
+        // tag: 'High Impact',
         lockedForManager: true,
       },
       {
         key: 'shift_delete',
         title: 'Delete Shift Records Permanently',
         description: 'Irreversibly delete a shift and its associated transaction daybook entries.',
-        tag: 'Sensitive',
+        //  tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
   },
   {
     id: 'tanks',
-    title: '3. Tank Stocks & Nozzle Totalizers',
+    title: '3. Nozzle Meters',
     icon: Gauge,
     color: '#059669',
     description: 'Control recording of morning/evening physical dips, decantation, and density testing.',
@@ -138,38 +139,38 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'tank_record_dip',
         title: 'Record Morning & Evening Physical Dips',
         description: 'Allows recording physical dip rod cm measurements and checking stock volume.',
-        tag: 'Operational',
+        //  tag: 'Operational',
       },
       {
         key: 'tank_record_decantation',
         title: 'Record TT Tanker Decantation Deliveries',
         description: 'Allows recording tanker invoice volume, pre-dip, post-dip, and transit loss.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'tank_enter_density',
         title: 'Enter Observed Density & Temperature',
         description: 'Permits logging hydrometer density and 15°C conversion testing.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'tank_record_nozzle_meters',
         title: 'Save Daily Nozzle Totalizer Meters',
         description: 'Allows batch saving full-day totalizer electronic meter readings.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'tank_override_variance',
         title: 'Override Stock Variance & Book Stock Adjustments',
         description: 'Permits writing off evaporation losses and adjusting system stock ledger.',
-        tag: 'Sensitive',
+        //  tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
   },
   {
     id: 'credit',
-    title: '4. Credit Ledger & Customer Accounts',
+    title: '4. Credit Ledger',
     icon: CreditCard,
     color: '#7C3AED',
     description: 'Control credit fuel dispensing, payment collection receipts, and customer credit limits.',
@@ -178,38 +179,38 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'credit_record_sale',
         title: 'Record Credit Sales Dispense Slips',
         description: 'Allows allocating fuel sales to registered credit customers and vehicle slips.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'credit_record_payment',
         title: 'Record Customer Repayments & Cheques',
         description: 'Permits generating payment receipts for cash, cheque, and NEFT recoveries.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
       {
         key: 'credit_create_customer',
         title: 'Add & Edit Credit Customer Profiles',
         description: 'Allows creating new customer parties, vehicle numbers, and billing addresses.',
-        tag: 'Operational',
+        //  tag: 'Operational',
       },
       {
         key: 'credit_override_limit',
         title: 'Override Credit Limit on Outstanding Balances',
         description: 'Permits issuing credit fuel to parties exceeding their sanctioned limit.',
-        tag: 'High Impact',
+        // tag: 'High Impact',
         lockedForManager: true,
       },
       {
         key: 'credit_export_statement',
         title: 'Export Customer Statements to Excel/PDF',
         description: 'Allows downloading customer account ledgers and outstanding balances.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
     ],
   },
   {
     id: 'expenses',
-    title: '5. Petty Cash & Expense Vouchers',
+    title: '5. Expenses',
     icon: Receipt,
     color: '#EA580C',
     description: 'Control recording of station operational expenses, staff bata, and cash payouts.',
@@ -218,33 +219,33 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'exp_record_voucher',
         title: 'Record Daily Expense Vouchers',
         description: 'Allows filing petty cash payouts, electricity, generator diesel, and tea expenses.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'exp_add_category',
         title: 'Create & Edit Expense Category Heads',
         description: 'Allows defining new expense ledger categories in Station Masters.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'exp_approve_large',
         title: 'Approve High-Value Expenses (>₹5,000)',
         description: 'Permits authorizing capital expenditures and large vendor payments.',
-        tag: 'High Impact',
+        // tag: 'High Impact',
         lockedForManager: true,
       },
       {
         key: 'exp_delete_voucher',
         title: 'Delete or Void Recorded Vouchers',
         description: 'Permits removing existing expense vouchers from the daybook ledger.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
   },
   {
     id: 'rates',
-    title: '6. Daily Fuel Rates & OMC SMS Engine',
+    title: '6. Daily Rates',
     icon: TrendingUp,
     color: '#0284C7',
     description: 'Control daily petrol & diesel price changes, SMS parsing, and automated rate updates.',
@@ -253,32 +254,32 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'rate_manual_change',
         title: 'Manual Fuel Rate Change (MS / HSD)',
         description: 'Allows manually editing active per-litre fuel selling prices.',
-        tag: 'High Impact',
+        // tag: 'High Impact',
       },
       {
         key: 'rate_apply_sms',
         title: 'Apply Rates from Parsed OMC SMS',
         description: 'Allows approving price change messages received from BPCL, IOCL, or HPCL.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'rate_batch_import',
         title: 'Batch Import Rate History via Excel',
         description: 'Allows bulk uploading historical price revision records.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'rate_auto_apply_toggle',
         title: 'Toggle Automated 06:00 AM Rate Engine',
         description: 'Allows enabling or disabling automatic midnight/morning rate changes.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
   },
   {
     id: 'cashbank',
-    title: '7. Cash Safe Daybook & Bank Deposits',
+    title: '7. Cash & Bank',
     icon: Banknote,
     color: '#16A34A',
     description: 'Control bank deposits with currency notes breakdown and safe cash vault audits.',
@@ -287,33 +288,33 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'cash_record_deposit',
         title: 'Record Bank Deposits with Denominations',
         description: 'Allows filing bank drop slips with count of ₹500, ₹200, ₹100, and ₹50 notes.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
       {
         key: 'cash_reconcile_safe',
         title: 'Perform Daily Physical Safe Cash Audits',
         description: 'Allows counting physical cash in drawer and recording shortage/excess.',
-        tag: 'Financial',
+        // tag: 'Financial',
       },
       {
         key: 'cash_add_bank_acc',
         title: 'Add & Edit Station Bank Accounts',
         description: 'Allows configuring CC/OD, Current, and Savings accounts in Masters.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
       {
         key: 'cash_edit_past_daybook',
         title: 'Modify Previous Days Safe Cash Ledger',
         description: 'Permits altering historic cash balance records from earlier dates.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
   },
   {
     id: 'masters',
-    title: '8. Station Masters & Multi-Bunk Network',
+    title: '8. Masters',
     icon: Settings,
     color: '#475569',
     description: 'Configure products, dispensers, nozzles, staff bata rates, and multi-bunk branches.',
@@ -322,26 +323,26 @@ const PERMISSION_MODULES: PermissionModule[] = [
         key: 'master_manage_staff',
         title: 'Add & Manage Operators & Staff Bata',
         description: 'Allows registering pump attendants and setting daily bata amounts.',
-        tag: 'Operational',
+        // tag: 'Operational',
       },
       {
         key: 'master_manage_pumps',
         title: 'Configure Pump Dispensers & Nozzles',
         description: 'Allows creating pump dispensers, assigning fuel colors, and nozzle mappings.',
-        tag: 'High Impact',
+        // tag: 'High Impact',
       },
       {
         key: 'master_manage_products',
         title: 'Manage Fuel Products & Density Limits',
         description: 'Allows adding lubricant lines, fuels, and setting density tolerances.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
       {
         key: 'master_manage_branches',
         title: 'Register Branches & Manage Manager Access',
         description: 'Allows creating new bunk outlets and assigning station managers.',
-        tag: 'Sensitive',
+        // tag: 'Sensitive',
         lockedForManager: true,
       },
     ],
@@ -462,10 +463,10 @@ export const RolePermissionsScreen: React.FC = () => {
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.pageTitle}>Role Access & Permissions</Text>
-              <View style={styles.ownerOnlyBadge}>
+              {/* <View style={styles.ownerOnlyBadge}>
                 <Lock size={11} color="#047857" />
                 <Text style={styles.ownerOnlyBadgeText}>OWNER ONLY</Text>
-              </View>
+              </View> */}
             </View>
             <Text style={styles.pageSubtitle}>
               Configure granular module permissions and station manager operational access across all bunk outlets.
@@ -596,7 +597,7 @@ export const RolePermissionsScreen: React.FC = () => {
                             {item.title}
                           </Text>
 
-                          {item.tag && (
+                          {/* {item.tag && (
                             <View
                               style={[
                                 styles.tagBadge,
@@ -625,22 +626,25 @@ export const RolePermissionsScreen: React.FC = () => {
                               <Lock size={10} color="#7C3AED" />
                               <Text style={styles.ownerLockBadgeText}>Owner Lock</Text>
                             </View>
-                          )}
+                          )} */}
                         </View>
                       </View>
 
-                      {/* Switch Toggle */}
-                      <View style={styles.switchWrap}>
-                        <Switch
-                          value={isEnabled}
-                          onValueChange={() => handleTogglePermission(item.key, isEnabled)}
-                          trackColor={{ false: '#CBD5E1', true: colors.primary }}
-                          thumbColor="#FFFFFF"
-                        />
+                      {/* Checkbox Toggle */}
+                      <TouchableOpacity
+                        style={styles.switchWrap}
+                        onPress={() => handleTogglePermission(item.key, isEnabled)}
+                        activeOpacity={0.7}
+                      >
+                        {isEnabled ? (
+                          <CheckSquare size={24} color={colors.primary} />
+                        ) : (
+                          <Square size={24} color="#94A3B8" />
+                        )}
                         <Text style={[styles.switchStatusLabel, isEnabled ? { color: '#16A34A' } : { color: '#94A3B8' }]}>
                           {isEnabled ? 'ALLOWED' : 'BLOCKED'}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -893,9 +897,15 @@ const styles = StyleSheet.create({
 
   // Modules List
   modulesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 16,
   },
   moduleCard: {
+    flexBasis: '49%',
+    minWidth: 350,
+    flexGrow: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
