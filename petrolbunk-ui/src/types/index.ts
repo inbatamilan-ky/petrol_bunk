@@ -103,6 +103,8 @@ export interface Operator {
   joiningDate?: string;
   emergencyContact?: string;
   assignedShift?: string;
+  govtIdDocName?: string;
+  govtIdDocUrl?: string;
 }
 
 // ── Customer Block (§1.1-C) ──────────────────────────────────────────
@@ -210,7 +212,8 @@ export interface Settlement {
 }
 
 // ── Operator Pump-Day Attribution (§1.1-H) ───────────────────────────
-export type SessionStatus = 'DRAFT' | 'SUBMITTED' | 'RECONCILED';
+export type SessionStatus = 'DRAFT' | 'OPEN' | 'SUBMITTED' | 'CLOSED' | 'LOCKED' | 'RECONCILED';
+
 export type ShiftType = 'MORNING' | 'EVENING' | 'NIGHT';
 
 export interface PumpDayAttribution {
@@ -220,6 +223,8 @@ export interface PumpDayAttribution {
   pumpNo: number;
   operatorId: string;
   operatorName: string;
+  nozzleIds?: string[];
+  nozzleNames?: string[];
   shiftType?: ShiftType | null;
   timeIn?: string | null;   // e.g. "06:00"
   timeOut?: string | null;  // e.g. "14:00"

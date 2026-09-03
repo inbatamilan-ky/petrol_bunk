@@ -1,4 +1,3 @@
-import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,26 +11,37 @@ import {
 import {
   ShieldCheck,
   CheckCircle2,
-  Lock,
-  RotateCcw,
-  Save,
+  CreditCard,
+  Eye,
+  EyeOff,
+  FileText,
   Fuel,
   Gauge,
-  CreditCard,
-  Receipt,
-  TrendingUp,
-  Banknote,
-  Settings,
   LayoutDashboard,
+  Lock,
+  Receipt,
+  RotateCcw,
+  Save,
   Search,
   Building2,
   CheckSquare,
   Square,
 } from 'lucide-react';
-import { useBunk } from '../context/BunkContext';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { DropdownPicker } from '../components/DropdownPicker';
+import { useBunk } from '../context/BunkContext';
 import { PAGE_CONFIGS, PageId } from '../context/PermissionsContext';
-import { colors, typography } from '../theme/colors';
+import { colors } from '../theme/colors';
 
 interface PermissionItem {
   key: string;
@@ -476,7 +486,7 @@ export const RolePermissionsScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={true}
     >
       {/* ── Top Header Card ─────────────────────────────────────────── */}
       <View style={styles.topHeaderCard}>
@@ -492,9 +502,7 @@ export const RolePermissionsScreen: React.FC = () => {
                 <Text style={styles.ownerOnlyBadgeText}>OWNER ONLY</Text>
               </View> */}
             </View>
-            <Text style={styles.pageSubtitle}>
-              Configure full page visibility for Station Managers. Toggling a page OFF completely hides it from navigation and blocks direct access.
-            </Text>
+             
           </View>
         </View>
 
@@ -620,7 +628,7 @@ export const RolePermissionsScreen: React.FC = () => {
                         <Text style={[styles.catBadgeText, { color: catColor }]}>{page.category}</Text>
                       </View>
                     </View>
-                    <Text style={styles.pageCardRoute}>Screen ID: {page.id}</Text>
+                     
                   </View>
                 </View>
 
@@ -628,8 +636,7 @@ export const RolePermissionsScreen: React.FC = () => {
                 <View style={styles.cardHeaderRight}>
                   {isOwnerOnly ? (
                     <View style={styles.lockedBadge}>
-                      <Lock size={12} color="#475569" />
-                      <Text style={styles.lockedBadgeText}>Owner Only</Text>
+                       
                     </View>
                   ) : (
                     <View style={styles.switchWrapper}>
@@ -725,10 +732,7 @@ export const RolePermissionsScreen: React.FC = () => {
       {/* ── Save Action Bar ────────────────────────────────────────── */}
       <View style={styles.saveBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.saveBarTitle}>Ready to apply policy?</Text>
-          <Text style={styles.saveBarSubtitle}>
-            Changes take effect immediately across all active manager navigation menus and screens.
-          </Text>
+           
         </View>
 
         <TouchableOpacity
@@ -742,7 +746,8 @@ export const RolePermissionsScreen: React.FC = () => {
           ) : (
             <>
               <Save size={16} color="#FFFFFF" />
-              <Text style={styles.saveBtnText}>Save Page Access Policy</Text>
+              <Text style={styles.saveBtnText}>Save</Text>
+
             </>
           )}
         </TouchableOpacity>

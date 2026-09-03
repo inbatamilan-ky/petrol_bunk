@@ -229,6 +229,8 @@ class Operator(Base):
     joining_date      = Column(String(30), default="2023-06-01")
     emergency_contact = Column(String(30))
     assigned_shift    = Column(String(50), default="Morning")
+    govt_id_doc_name  = Column(String(255), nullable=True)
+    govt_id_doc_url   = Column(String(500), nullable=True)
     status            = Column(String(30), default="ACTIVE")
     branch_id         = Column(String(20), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
 

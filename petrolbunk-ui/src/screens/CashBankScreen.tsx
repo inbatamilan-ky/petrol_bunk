@@ -12,13 +12,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
 
 import { useCashBankContext } from '../context/CashBankContext';
@@ -267,15 +267,13 @@ export const CashBankScreen: React.FC = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Cash & Balance</Text>
-          <Text style={styles.headerSubtitle}>
-            Daily Bank Settlements & Safe Cash Reconciliation
-          </Text>
+           
         </View>
 
         <View style={styles.headerActionsRow}>
           {/* Date Selector */}
           <View style={styles.dateSelectorRow}>
-            <Calendar size={16} color={colors.primary} />
+            <Calendar size={16} color="#1F2937" />
             <TextInput
               style={styles.dateInput}
               value={selectedDate}
@@ -289,15 +287,17 @@ export const CashBankScreen: React.FC = () => {
           </View>
 
           <TouchableOpacity
-            style={styles.primaryBtn}
+            style={styles.headerSaveBtn}
             onPress={handleSaveAll}
             disabled={isSaving}
           >
-            <Save size={16} color="#FFF" />
-            <Text style={styles.primaryBtnText}>
-              {isSaving ? 'Saving...' : ' Save Cash & Balance'}
+            <Save size={16} color="#1F2937" />
+            <Text style={styles.headerSaveBtnText}>
+              {isSaving ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
+
+
         </View>
       </View>
 
@@ -306,22 +306,22 @@ export const CashBankScreen: React.FC = () => {
         <View style={[styles.kpiCard, { borderColor: '#3B82F6' }]}>
           <Text style={styles.kpiLabel}>Total Cash Available</Text>
           <Text style={[styles.kpiValue, { color: '#3B82F6' }]}>{formatCurrency(totalCash)}</Text>
-          <Text style={styles.kpiSub}>Opening + Morning + Oil</Text>
+           
         </View>
         <View style={[styles.kpiCard, { borderColor: '#8B5CF6' }]}>
           <Text style={styles.kpiLabel}>Bank Settled Total</Text>
           <Text style={[styles.kpiValue, { color: '#8B5CF6' }]}>{formatCurrency(grandSettlementTotal)}</Text>
-          <Text style={styles.kpiSub}>Cards, Gpay, PhonePe, Paytm</Text>
+           
         </View>
         <View style={[styles.kpiCard, { borderColor: '#10B981' }]}>
           <Text style={styles.kpiLabel}>In Excel Sheet</Text>
           <Text style={[styles.kpiValue, { color: '#10B981' }]}>{formatCurrency(inSheet)}</Text>
-          <Text style={styles.kpiSub}>Safe Target Balance</Text>
+           
         </View>
         <View style={[styles.kpiCard, { borderColor: '#06B6D4' }]}>
-          <Text style={styles.kpiLabel}>In Note (Physical)</Text>
+          <Text style={styles.kpiLabel}>Safe Pre-Deposit</Text>
           <Text style={[styles.kpiValue, { color: '#06B6D4' }]}>{formatCurrency(numNote)}</Text>
-          <Text style={styles.kpiSub}>Counted in Drawer</Text>
+           
         </View>
         <View
           style={[
@@ -366,7 +366,7 @@ export const CashBankScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={true}>
         {/* ── TAB 1: CASH AND BALANCE UNIFIED VIEW ───────────────────────── */}
         {activeTab === 'CASH_BALANCE' && (
           <View style={{ gap: 20 }}>
@@ -437,7 +437,7 @@ export const CashBankScreen: React.FC = () => {
                   disabled={isSaving}
                 >
                   <Save size={14} color={colors.primary} />
-                  <Text style={styles.secondaryBtnText}>Save Settlements</Text>
+                  <Text style={styles.secondaryBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
 
@@ -533,7 +533,7 @@ export const CashBankScreen: React.FC = () => {
                   disabled={isSaving}
                 >
                   <Save size={14} color={colors.primary} />
-                  <Text style={styles.secondaryBtnText}>Save Cash Recon</Text>
+                  <Text style={styles.secondaryBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
 
@@ -695,9 +695,10 @@ export const CashBankScreen: React.FC = () => {
               >
                 <Save size={16} color="#FFF" />
                 <Text style={styles.primaryBtnText}>
-                  {isSaving ? 'Saving...' : 'Save Cash & Balance'}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </Text>
               </TouchableOpacity>
+
             </View>
           </View>
         )}
@@ -708,9 +709,7 @@ export const CashBankScreen: React.FC = () => {
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionTitle}>Bank Cash Deposits</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Simple date + amount records matching daily bank drop line
-                </Text>
+                 
               </View>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -820,8 +819,9 @@ export const CashBankScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.primaryBtn} onPress={handleAddDeposit}>
                 <Save size={16} color="#FFF" />
-                <Text style={styles.primaryBtnText}>Save Deposit</Text>
+                <Text style={styles.primaryBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -888,6 +888,26 @@ const styles = StyleSheet.create({
     minWidth: 95,
     padding: 0,
   },
+  headerSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  headerSaveBtnText: {
+    color: '#1F2937',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   kpiStrip: {
     flexDirection: 'row',
     paddingHorizontal: 16,

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Pump Day Attribution router — the Operator Session center of the tally system.
 One row = one person working one pump during one shift on one date.
 All Type-C fields (total_amount, expected_cash_handover, etc.) are auto-computed on every save.
@@ -186,15 +186,17 @@ def update_attribution(
         attr.time_in = _parse_time(data.pop("time_in"))
     if "time_out" in data:
         attr.time_out = _parse_time(data.pop("time_out"))
-    # status is managed by _recalculate_session
-    data.pop("status", None)
+    explicit_status = data.pop("status", None)
     for key, val in data.items():
         setattr(attr, key, val)
 
     _recalculate_session(attr, db, branch_id)
+    if explicit_status:
+        attr.status = explicit_status
     db.commit()
     db.refresh(attr)
     return attr
+
 
 
 @router.delete("/{attribution_id}", status_code=status.HTTP_204_NO_CONTENT)

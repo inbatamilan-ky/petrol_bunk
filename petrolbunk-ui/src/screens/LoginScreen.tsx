@@ -131,7 +131,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>

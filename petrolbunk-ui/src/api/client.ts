@@ -204,12 +204,17 @@ export async function apiFetch(
       },
     });
 
+    if (res.status === 404 && path.startsWith('/api/cash-reconciliation')) {
+      return null;
+    }
+
     if (!res.ok) {
       const body = await res.text();
       const err = new Error(`API ${res.status}: ${body}`);
       logError(`API ${options.method || 'GET'} ${path}`, err, { status: res.status, body });
       throw err;
     }
+
 
     if (res.status === 204) {
       return null;

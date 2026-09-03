@@ -106,7 +106,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           <Text style={styles.sidebarSectionTitle}>MAIN MENU</Text>
         </View> */}
 
-        <ScrollView style={styles.sidebarScroll} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.sidebarScroll} showsVerticalScrollIndicator={true}>
           {allowedItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentScreen === item.id;
@@ -121,7 +121,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 <Text style={[styles.sidebarItemText, isActive && styles.sidebarItemTextActive]}>
                   {item.label}
                 </Text>
-                {item.id === 'shifts' && activeShift && <View style={styles.activeShiftDot} />}
+                {item.id === 'shifts' }
                 {isActive && <ChevronRight size={14} color="#FFFFFF" style={{ marginLeft: 'auto' }} />}
               </TouchableOpacity>
             );
