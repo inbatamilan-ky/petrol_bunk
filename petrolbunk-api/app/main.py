@@ -78,6 +78,19 @@ app.include_router(dashboard.router)
 app.include_router(tally.router)
 
 
+@app.on_event("startup")
+def startup_db_sync():
+    from sqlalchemy import text
+    from app.database import engine
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE operators ADD COLUMN IF NOT EXISTS govt_id_doc_name VARCHAR(255);"))
+            conn.execute(text("ALTER TABLE operators ADD COLUMN IF NOT EXISTS govt_id_doc_url VARCHAR(500);"))
+            conn.commit()
+    except Exception as e:
+        print("Startup db sync info:", e)
+
+
 @app.get("/", tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "fuelpulse-api", "version": "2.0.0"}

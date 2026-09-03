@@ -34,7 +34,7 @@ const RateManagementContext = createContext<RateManagementContextType | undefine
 
 export const RateManagementProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, role, activeBranchId } = useAuthContext();
-  const { products, setProducts } = useMasters();
+  const { products, setProducts, syncMasters } = useMasters();
 
   const [fuelRateHistory, setFuelRateHistory] = useState<FuelRateHistory[]>([]);
 
@@ -62,8 +62,10 @@ export const RateManagementProvider: React.FC<{ children: React.ReactNode }> = (
         body: JSON.stringify({ current_rate: newRate }),
       });
       setProducts(prev => prev.map(p => (p.id === productId ? mapProduct(updated) : p)));
+      await syncMasters();
+      await syncRatesAndLogs();
     },
-    [setProducts]
+    [setProducts, syncMasters, syncRatesAndLogs]
   );
 
   const updateBatchFuelRates = useCallback(
@@ -101,10 +103,12 @@ export const RateManagementProvider: React.FC<{ children: React.ReactNode }> = (
           })
         );
       }
+      await syncMasters();
       await syncRatesAndLogs();
     },
-    [setProducts, syncRatesAndLogs]
+    [setProducts, syncMasters, syncRatesAndLogs]
   );
+
 
 
   return (

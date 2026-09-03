@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, Dimensions, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, Dimensions, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 
 import { BunkProvider, useBunk } from './context/BunkContext';
 import { Header } from './components/Header';
 import { NavigationBar, ScreenId } from './components/NavigationBar';
 import { LoginScreen } from './screens/LoginScreen';
-
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { ShiftOperationsScreen } from './screens/ShiftOperationsScreen';
@@ -19,6 +18,38 @@ import { MastersScreen } from './screens/MastersScreen';
 import { RolePermissionsScreen } from './screens/RolePermissionsScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { colors } from './theme/colors';
+
+// Inject universal scrollbar style on Web
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleId = 'global-scrollbar-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      /* Universal visible scrollbar for all pages and modals */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #F1F5F9;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #94A3B8;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748B;
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #94A3B8 #F1F5F9;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 const SIDEBAR_BREAKPOINT = 900;
 

@@ -295,9 +295,7 @@ export const OperatorCollectionReport: React.FC = () => {
               <Users size={20} color={colors.primary} />
               <Text style={styles.reportTitle}>Operator Collection & Handover Report</Text>
             </View>
-            <Text style={styles.reportSubtitle}>
-              Tracks who collected how much on which pump, shift-wise payment breakdowns, and cash handover shortages.
-            </Text>
+             
           </View>
 
           <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV} activeOpacity={0.8}>
@@ -394,19 +392,19 @@ export const OperatorCollectionReport: React.FC = () => {
         <View style={styles.kpiCard}>
           <Text style={styles.kpiLbl}>PHYSICAL CASH</Text>
           <Text style={[styles.kpiVal, { color: '#16A34A' }]}>{formatCurrency(totals.cash)}</Text>
-          <Text style={styles.kpiSub}>Ground Cash Collected</Text>
+           
         </View>
 
         <View style={styles.kpiCard}>
           <Text style={styles.kpiLbl}>DIGITAL & CARD</Text>
           <Text style={[styles.kpiVal, { color: '#2563EB' }]}>{formatCurrency(totals.digitalTotal)}</Text>
-          <Text style={styles.kpiSub}>Card + GPay + PhonePe + Paytm</Text>
+           
         </View>
 
         <View style={styles.kpiCard}>
           <Text style={styles.kpiLbl}>CREDIT KHATA</Text>
           <Text style={[styles.kpiVal, { color: '#D97706' }]}>{formatCurrency(totals.credit)}</Text>
-          <Text style={styles.kpiSub}>Fleet Billed Fuel</Text>
+           
         </View>
 
         <View

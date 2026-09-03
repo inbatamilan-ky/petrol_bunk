@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import {
   PlusCircle,
@@ -23,6 +24,9 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
+  UploadCloud,
+  FileCheck,
+  Paperclip,
   Search,
   Building,
   User,
@@ -449,8 +453,20 @@ export const MastersScreen: React.FC = () => {
   const [opSalary, setOpSalary] = useState('18000');
   const [opJoinDate, setOpJoinDate] = useState('2023-06-01');
   const [opEmergency, setOpEmergency] = useState('');
-  const [opShift, setOpShift] = useState('Morning');
+  const [opGovtDocName, setOpGovtDocName] = useState('');
+  const [opGovtDocUrl, setOpGovtDocUrl] = useState('');
   const [opActive, setOpActive] = useState(true);
+  const govtDocInputRef = useRef<any>(null);
+
+  const handleGovtDocUpload = (event: any) => {
+    const file = event.target?.files?.[0];
+    if (file) {
+      setOpGovtDocName(file.name);
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.URL) {
+        setOpGovtDocUrl(window.URL.createObjectURL(file));
+      }
+    }
+  };
 
   const openAddOperator = () => {
     setEditingOperator(null);
@@ -461,7 +477,8 @@ export const MastersScreen: React.FC = () => {
     setOpSalary('18000');
     setOpJoinDate('2023-06-01');
     setOpEmergency('');
-    setOpShift('Morning');
+    setOpGovtDocName('');
+    setOpGovtDocUrl('');
     setOpActive(true);
     setShowOpModal(true);
   };
@@ -475,7 +492,8 @@ export const MastersScreen: React.FC = () => {
     setOpSalary(String(op.monthlySalary || 18000));
     setOpJoinDate(op.joiningDate || '2023-06-01');
     setOpEmergency(op.emergencyContact || '');
-    setOpShift(op.assignedShift || 'Morning');
+    setOpGovtDocName(op.govtIdDocName || (op.aadhaarNo ? 'Aadhaar_Document_Verified.pdf' : ''));
+    setOpGovtDocUrl(op.govtIdDocUrl || '');
     setOpActive(op.active);
     setShowOpModal(true);
   };
@@ -494,7 +512,8 @@ export const MastersScreen: React.FC = () => {
       monthlySalary: parseFloat(opSalary) || 18000,
       joiningDate: opJoinDate,
       emergencyContact: opEmergency.trim(),
-      assignedShift: opShift,
+      govtIdDocName: opGovtDocName.trim() || undefined,
+      govtIdDocUrl: opGovtDocUrl || undefined,
       active: opActive,
     };
 
@@ -720,7 +739,7 @@ export const MastersScreen: React.FC = () => {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={true}>
       {/* ── Header Toolbar ─────────────────────────────────────────────────── */}
       <View style={styles.topBar}>
         <View style={styles.titleWrap}>
@@ -1102,7 +1121,7 @@ export const MastersScreen: React.FC = () => {
                 <Text style={[styles.colHead, { flex: 2, minWidth: 160 }]}>NAME</Text>
                 <Text style={[styles.colHead, { width: 130 }]}>PHONE</Text>
                 <Text style={[styles.colHead, { width: 130, textAlign: 'right' }]}>BASE SALARY</Text>
-                <Text style={[styles.colHead, { width: 100, textAlign: 'center' }]}>SHIFT</Text>
+                <Text style={[styles.colHead, { width: 130, textAlign: 'center' }]}>GOVT ID PROOF</Text>
                 <Text style={[styles.colHead, { width: 180, textAlign: 'right' }]}>STATUS & ACTIONS</Text>
               </View>
 
@@ -1113,6 +1132,7 @@ export const MastersScreen: React.FC = () => {
               ) : (
                 filteredOperators.map((op, idx) => {
                   const isActive = op.status === 'ACTIVE' || (op.active !== false && op.status !== 'INACTIVE');
+                  const hasGovtDoc = op.govtIdDocName || op.aadhaarNo;
                   return (
                     <View key={op.id} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt, !isActive && { opacity: 0.8 }]}>
                       <Text style={[styles.cellTextMono, { width: 100 }]}>{op.employeeCode || `EMP-${op.id.slice(-3)}`}</Text>
@@ -1124,7 +1144,20 @@ export const MastersScreen: React.FC = () => {
                       </View>
                       <Text style={[styles.cellText, { width: 130 }]}>{op.phone || '—'}</Text>
                       <Text style={[styles.cellTextMono, { width: 130, textAlign: 'right' }]}>{formatCurrency(op.monthlySalary || 18000)}</Text>
-                      <Text style={[styles.cellText, { width: 100, textAlign: 'center' }]}>{op.assignedShift || 'Morning'}</Text>
+                      <View style={{ width: 130, alignItems: 'center', justifyContent: 'center' }}>
+                        {hasGovtDoc ? (
+                          <View style={styles.docVerifiedPill}>
+                            <FileCheck size={11} color="#059669" />
+                            <Text style={styles.docVerifiedPillText}>
+                              {op.govtIdDocName ? 'ID Attached' : 'Aadhaar ID'}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.docPendingPill}>
+                            <Text style={styles.docPendingPillText}>Pending</Text>
+                          </View>
+                        )}
+                      </View>
                       <View style={{ width: 190, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                         <StatusDropdownBadge
                           currentStatus={(op.status as any) || (isActive ? 'ACTIVE' : 'INACTIVE')}
@@ -1597,8 +1630,9 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProduct}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>{editingProduct ? 'Update Product' : 'Save Product'}</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -1766,8 +1800,9 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSavePump}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>{editingPump ? 'Update Dispenser' : 'Save Dispenser'}</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -1841,32 +1876,18 @@ export const MastersScreen: React.FC = () => {
                   </View>
                 </View>
 
-                <Text style={styles.formSectionHeading}>2. COMPENSATION & SHIFT PREFERENCES</Text>
-                <View style={styles.formGroup}>
-                  <Text style={styles.fieldLabel}>Base Monthly Salary (₹)</Text>
-                  <TextInput
-                    style={styles.fieldInput}
-                    value={opSalary}
-                    onChangeText={setOpSalary}
-                    placeholder=" "
-                    keyboardType="numeric"
-                  />
-                </View>
-
+                <Text style={styles.formSectionHeading}>2. COMPENSATION & GOVT ID VERIFICATION</Text>
+                
                 <View style={styles.formGrid2}>
                   <View style={styles.formGroup}>
-                    <Text style={styles.fieldLabel}>Assigned Shift Type</Text>
-                    <View style={styles.brandRowOptions}>
-                      {['Morning', 'Evening', 'Night', 'Rotating'].map((s) => (
-                        <TouchableOpacity
-                          key={s}
-                          style={[styles.brandOptionPill, opShift === s && styles.brandOptionPillActive]}
-                          onPress={() => setOpShift(s)}
-                        >
-                          <Text style={[styles.brandOptionPillText, opShift === s && styles.brandOptionPillTextActive]}>{s}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <Text style={styles.fieldLabel}>Base Monthly Salary (₹)</Text>
+                    <TextInput
+                      style={styles.fieldInput}
+                      value={opSalary}
+                      onChangeText={setOpSalary}
+                      placeholder="e.g. 18000"
+                      keyboardType="numeric"
+                    />
                   </View>
                   <View style={styles.formGroup}>
                     <Text style={styles.fieldLabel}>Emergency Phone</Text>
@@ -1874,10 +1895,67 @@ export const MastersScreen: React.FC = () => {
                       style={styles.fieldInput}
                       value={opEmergency}
                       onChangeText={setOpEmergency}
-                      placeholder="Emergency number"
+                      placeholder="Emergency contact number"
                       keyboardType="phone-pad"
                     />
                   </View>
+                </View>
+
+                {/* Hidden file input for web */}
+                {Platform.OS === 'web' && (
+                  <input
+                    type="file"
+                    ref={govtDocInputRef as any}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                    onChange={handleGovtDocUpload}
+                  />
+                )}
+
+                {/* Upload Govt ID Proof Document Field */}
+                <View style={[styles.formGroup, { marginTop: 8 }]}>
+                  <Text style={styles.fieldLabel}>Upload Govt ID Proof Document</Text>
+                  {opGovtDocName ? (
+                    <View style={styles.uploadedDocCard}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <View style={styles.docIconCircle}>
+                          <FileCheck size={18} color="#059669" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.uploadedDocName} numberOfLines={1}>{opGovtDocName}</Text>
+                          <Text style={styles.uploadedDocSub}>Govt ID Proof Document Attached</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.docRemoveBtn}
+                        onPress={() => {
+                          setOpGovtDocName('');
+                          setOpGovtDocUrl('');
+                        }}
+                      >
+                        <X size={14} color="#EF4444" />
+                        <Text style={styles.docRemoveBtnText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.uploadDropBox}
+                      onPress={() => {
+                        if (Platform.OS === 'web' && govtDocInputRef.current) {
+                          govtDocInputRef.current.click();
+                        } else {
+                          setOpGovtDocName('Aadhaar_Card_Proof.pdf');
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <UploadCloud size={24} color="#4F46E5" />
+                      <View style={{ alignItems: 'center', marginTop: 4 }}>
+                        <Text style={styles.uploadDropTitle}>Click to upload Govt ID Proof (Aadhaar / DL / Voter ID / PAN)</Text>
+                        <Text style={styles.uploadDropSub}>Supports PDF, JPG, PNG up to 10MB</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </ScrollView>
@@ -1888,8 +1966,9 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveOperator}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>{editingOperator ? 'Update Staff' : 'Save Staff'}</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -1951,8 +2030,9 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveExpenseType}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>{editingExpenseType ? 'Update Head' : 'Save Head'}</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -2141,8 +2221,9 @@ export const MastersScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveCustomer}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>{editingCustomer ? 'Update Party' : 'Save Party'}</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -3009,5 +3090,102 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+
+  // ── Govt ID Proof Document Upload Styles ─────────────────────────────────
+  uploadDropBox: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#C7D2FE',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  uploadDropTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  uploadDropSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  uploadedDocCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    padding: 10,
+    gap: 8,
+  },
+  docIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadedDocName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  uploadedDocSub: {
+    fontSize: 11,
+    color: '#047857',
+    marginTop: 1,
+  },
+  docRemoveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  docRemoveBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  docVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  docVerifiedPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  docPendingPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  docPendingPillText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
   },
 });

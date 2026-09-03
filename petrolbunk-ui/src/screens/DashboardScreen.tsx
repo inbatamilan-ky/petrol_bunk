@@ -3,10 +3,10 @@ import {
   ChevronRight,
   CreditCard,
   Fuel,
-  Receipt
+  Receipt,
 } from 'lucide-react';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { MetricCard } from '../components/MetricCard';
 import { ScreenId } from '../components/NavigationBar';
@@ -37,16 +37,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={true}
     >
       {/* Top Welcome & Quick Actions */}
       <View style={styles.topSection}>
-        <View>
-          <Text style={styles.greetingTitle}>Bunk Operations Overview</Text>
-           
-        </View>
-
-         
+        <Text style={styles.greetingTitle}>Bunk Operations Overview</Text>
       </View>
 
       {/* KPI Metrics Row */}
@@ -116,7 +111,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                     </View>
 
                     <View style={styles.meterDisplay}>
-                      <Text style={styles.meterLabel}>TOTALIZER METER</Text>
+                      <Text style={styles.meterLabel}></Text>
                       <Text style={styles.meterValue}>{formatMeter(noz.currentMeterReading)}</Text>
                     </View>
                   </View>
@@ -203,6 +198,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
   },
+  shiftStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
   actionPills: {
     flexDirection: 'row',
     gap: 10,
@@ -222,10 +226,11 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   actionPillText: {
-    color: '#6F7BF5',
+    color: '#1F2937',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

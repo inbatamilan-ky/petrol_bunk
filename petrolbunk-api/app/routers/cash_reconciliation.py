@@ -31,7 +31,7 @@ def list_reconciliations(
     return q.order_by(models.DailyCashReconciliation.recon_date.desc()).all()
 
 
-@router.get("/{recon_date}", response_model=schemas.DailyCashReconciliationOut)
+@router.get("/{recon_date}", response_model=Optional[schemas.DailyCashReconciliationOut])
 def get_reconciliation(
     recon_date: date_cls,
     db: Session = Depends(get_db),
@@ -43,8 +43,9 @@ def get_reconciliation(
         models.DailyCashReconciliation.recon_date == recon_date,
     ).first()
     if not rec:
-        raise HTTPException(status_code=404, detail="No reconciliation found for this date")
+        return None
     return _serialize(rec)
+
 
 
 @router.post("", response_model=schemas.DailyCashReconciliationOut, status_code=status.HTTP_201_CREATED)

@@ -394,7 +394,8 @@ export default function SessionEntryForm({
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.saveText}>Save Session</Text>
+                <Text style={styles.saveText}>Save</Text>
+
               )}
             </TouchableOpacity>
           </View>

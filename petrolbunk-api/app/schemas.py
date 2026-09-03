@@ -319,6 +319,8 @@ class OperatorCreate(BaseModel):
     joining_date: Optional[str] = "2023-06-01"
     emergency_contact: Optional[str] = None
     assigned_shift: Optional[str] = "Morning"
+    govt_id_doc_name: Optional[str] = None
+    govt_id_doc_url: Optional[str] = None
     status: Optional[str] = "ACTIVE"
 
 
@@ -332,6 +334,8 @@ class OperatorUpdate(BaseModel):
     joining_date: Optional[str] = None
     emergency_contact: Optional[str] = None
     assigned_shift: Optional[str] = None
+    govt_id_doc_name: Optional[str] = None
+    govt_id_doc_url: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -347,6 +351,8 @@ class OperatorOut(BaseModel):
     joining_date: Optional[str] = "2023-06-01"
     emergency_contact: Optional[str] = None
     assigned_shift: Optional[str] = "Morning"
+    govt_id_doc_name: Optional[str] = None
+    govt_id_doc_url: Optional[str] = None
     status: Optional[str] = "ACTIVE"
 
 

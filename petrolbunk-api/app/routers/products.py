@@ -85,7 +85,30 @@ def update_product(
     )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+    if "current_rate" in data and data["current_rate"] is not None:
+        today = date_type.today()
+        new_rate = data["current_rate"]
+        existing_hist = db.query(models.FuelRateHistory).filter(
+            models.FuelRateHistory.branch_id == branch_id,
+            models.FuelRateHistory.product_id == product.id,
+            models.FuelRateHistory.effective_date == today,
+        ).first()
+        if existing_hist:
+            existing_hist.rate = new_rate
+        else:
+            history = models.FuelRateHistory(
+                id=generate_id("frh"),
+                branch_id=branch_id,
+                product_id=product.id,
+                effective_date=today,
+                rate=new_rate,
+                remarks="Manual single rate update",
+            )
+            db.add(history)
+
+    for key, value in data.items():
         setattr(product, key, value)
     db.commit()
     db.refresh(product)
@@ -99,7 +122,7 @@ def batch_update_rates(
     branch_id: str = Depends(get_current_branch),
     _=Depends(get_current_user),
 ):
-    """Update rates for multiple products; write audit row to fuel_rate_history."""
+    """Update rates for multiple products; write audit row to fuel_rate_history (upsert)."""
     updated = []
     today = date_type.today()
     for item in payload.rates:
@@ -107,7 +130,16 @@ def batch_update_rates(
             models.Product.branch_id == branch_id, models.Product.id == item.product_id
         ).first()
         if product:
-            if float(product.current_rate or 0) != float(item.current_rate):
+            existing_hist = db.query(models.FuelRateHistory).filter(
+                models.FuelRateHistory.branch_id == branch_id,
+                models.FuelRateHistory.product_id == product.id,
+                models.FuelRateHistory.effective_date == today,
+            ).first()
+            if existing_hist:
+                existing_hist.rate = item.current_rate
+                if payload.remarks:
+                    existing_hist.remarks = payload.remarks
+            else:
                 history = models.FuelRateHistory(
                     id=generate_id("frh"),
                     branch_id=branch_id,
@@ -123,4 +155,5 @@ def batch_update_rates(
     for p in updated:
         db.refresh(p)
     return updated
+
 

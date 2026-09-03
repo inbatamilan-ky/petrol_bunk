@@ -1,63 +1,48 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  useWindowDimensions,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 
+import {
+  Banknote,
+  ChevronDown,
+  CreditCard,
+  FileSpreadsheet,
+  Layers,
+  LineChart,
+  Printer,
+  Receipt,
+  Search,
+  TrendingUp,
+  UserCheck,
+  Users,
+  X
+} from 'lucide-react';
 import Svg, {
-  Path,
-  Line,
   Circle,
   Defs,
-  LinearGradient,
-  Stop,
   G,
+  Line,
+  LinearGradient,
+  Path,
+  Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import {
-  FileSpreadsheet,
-  Printer,
-  Search,
-  ChevronDown,
-  Layers,
-  CreditCard,
-  Banknote,
-  TrendingUp,
-  TrendingDown,
-  Receipt,
-  Users,
-  LineChart,
-  PieChart,
-  Activity,
-  Sliders,
-  Calendar,
-  Filter,
-  DollarSign,
-  Droplets,
-  ArrowUpRight,
-  ShieldCheck,
-  Zap,
-  Award,
-  BarChart2,
-  CalendarDays,
-  Percent,
-  X,
-  UserCheck,
-} from 'lucide-react';
-import { useReportsContext } from '../context/ReportsContext';
-import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatLitres, formatDate, getTodayDateString } from '../utils/formatters';
-import { exportToCSV } from '../utils/exportHelpers';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { NoDataView } from '../components/NoDataView';
-import { useReportTypes } from '../hooks/useMasters';
 import { OperatorCollectionReport } from '../components/reports/OperatorCollectionReport';
+import { useReportsContext } from '../context/ReportsContext';
+import { useReportTypes } from '../hooks/useMasters';
+import { colors, typography } from '../theme/colors';
+import { exportToCSV } from '../utils/exportHelpers';
+import { formatCurrency, formatDate, formatLitres, getTodayDateString } from '../utils/formatters';
 
 type ReportCategory =
   | 'bi_analytics'
@@ -587,13 +572,13 @@ export const ReportsScreen: React.FC = () => {
       {
         title: 'Executive BI & Dashboards',
         items: [
-          { id: 'bi_analytics', label: 'Power BI Multi-Line Dashboard', icon: LineChart, badge: 'PRO BI' },
+          { id: 'bi_analytics', label: 'Power BI Multi-Line Dashboard', icon: LineChart },
         ],
       },
       {
         title: 'Operations & Staff Tally',
         items: [
-          { id: 'operator_collection', label: 'Operator Collections', icon: UserCheck, badge: 'TALLY' },
+          { id: 'operator_collection', label: 'Operator Collections', icon: UserCheck },
         ],
       },
 
@@ -606,18 +591,18 @@ export const ReportsScreen: React.FC = () => {
       {
         title: 'Transaction Registers (With Line Graphs)',
         items: [
-          { id: 'sale', label: '1. Daily Sales Sheet', icon: Layers, badge: 'GRAPH' },
-          { id: 'purchase', label: '2. Expenses & Purchases', icon: Receipt, badge: 'GRAPH' },
-          { id: 'all_transactions', label: '3. Credit Transactions', icon: CreditCard, badge: 'GRAPH' },
-          { id: 'cashflow', label: '4. Payment Modes Split', icon: Banknote, badge: 'GRAPH' },
-          { id: 'pnl', label: '5. Daily Profit & Loss', icon: TrendingUp, badge: 'GRAPH' },
+          { id: 'sale', label: '1. Daily Sales Sheet', icon: Layers},
+          { id: 'purchase', label: '2. Expenses & Purchases', icon: Receipt },
+          { id: 'all_transactions', label: '3. Credit Transactions', icon: CreditCard },
+          { id: 'cashflow', label: '4. Payment Modes Split', icon: Banknote },
+          { id: 'pnl', label: '5. Daily Profit & Loss', icon: TrendingUp },
         ],
       },
     ];
 
     return (
       <View style={[styles.subSidebar, isMobile && { width: '100%', maxHeight: 200, borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }]}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={true}>
           {reportGroups.map((grp) => (
             <View key={grp.title} style={styles.groupContainer}>
               <Text style={styles.groupHeader}>{grp.title}</Text>
@@ -667,10 +652,9 @@ export const ReportsScreen: React.FC = () => {
             <View style={styles.biHeaderRibbon}>
               <View style={{ flex: 1, minWidth: 260 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.biScreenTitle}>Power BI Executive Multi-Line Dashboard</Text>
+                  <Text style={styles.biScreenTitle}>Executive Dashboard</Text>
                   <View style={styles.liveStreamPill}>
-                    <Activity size={12} color={colors.success} />
-                    <Text style={styles.liveStreamText}>Time Series Active</Text>
+                     
                   </View>
                 </View>
                  
@@ -1228,7 +1212,7 @@ export const ReportsScreen: React.FC = () => {
     <View style={[styles.container, isMobile && { flexDirection: 'column' }]}>
       {renderSubSidebar()}
       <View style={styles.contentArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={true}>
           {renderContent()}
         </ScrollView>
       </View>

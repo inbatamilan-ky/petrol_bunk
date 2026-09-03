@@ -1,29 +1,26 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
   Alert,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import {
-  Gauge,
   Calendar,
-  Save,
-  Fuel,
-  TrendingUp,
-  CheckCircle2,
-  AlertCircle,
-  FileSpreadsheet,
+  Gauge,
+  Lock,
+  Save
 } from 'lucide-react';
-import { useTankDipContext } from '../context/TankDipContext';
 import { useMasters } from '../context/MastersContext';
+import { useShiftOperationsContext } from '../context/ShiftOperationsContext';
+import { useTankDipContext } from '../context/TankDipContext';
 import { colors } from '../theme/colors';
-import { formatCurrency, formatDate, getTodayDateString } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 
 interface NozzleReadingInput {
   pumpId: string;
@@ -40,7 +37,8 @@ interface NozzleReadingInput {
 
 export const TankDipScreen: React.FC = () => {
   const { dailyNozzleMeters, saveBatchNozzleMeters, syncDailyNozzleMeters } = useTankDipContext();
-  const { pumps, products } = useMasters();
+  const { pumps, products, syncMasters } = useMasters();
+  const { isShiftLocked } = useShiftOperationsContext();
 
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
@@ -48,10 +46,14 @@ export const TankDipScreen: React.FC = () => {
   const [readingsState, setReadingsState] = useState<{ [nozzleId: string]: { opening: string; closing: string } }>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sync daily nozzle meters when selectedDate changes
+  const isLocked = isShiftLocked(selectedDate);
+
+  // Sync daily nozzle meters and product master rates when selectedDate changes
   useEffect(() => {
     syncDailyNozzleMeters(selectedDate);
-  }, [selectedDate, syncDailyNozzleMeters]);
+    syncMasters();
+  }, [selectedDate, syncDailyNozzleMeters, syncMasters]);
+
 
   // Map existing daily nozzle meters into form state
   useEffect(() => {
@@ -190,14 +192,12 @@ export const TankDipScreen: React.FC = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Daily Nozzle Meter Readings</Text>
-          <Text style={styles.headerSubtitle}>
-            Block B (Meters: Opening → Closing → Litres → Amount) & Block G (Product Totals)
-          </Text>
+           
         </View>
 
         <View style={styles.headerActions}>
           <View style={styles.dateSelectorRow}>
-            <Calendar size={16} color={colors.primary} />
+            <Calendar size={16} color="#1F2937" />
             <TextInput
               style={styles.dateInput}
               value={selectedDate}
@@ -207,18 +207,37 @@ export const TankDipScreen: React.FC = () => {
             />
           </View>
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={handleSaveAll}
-            disabled={isSaving}
-          >
-            <Save size={16} color="#FFF" />
-            <Text style={styles.primaryBtnText}>
-              {isSaving ? 'Saving...' : 'Save All Readings'}
-            </Text>
-          </TouchableOpacity>
+
+          {!isLocked ? (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={handleSaveAll}
+              disabled={isSaving}
+            >
+              <Save size={16} color="#1F2937" />
+              <Text style={styles.primaryBtnText}>
+                {isSaving ? 'Saving...' : 'Save'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1' }}>
+              <Lock size={14} color="#64748B" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>Shift Locked</Text>
+            </View>
+          )}
+
         </View>
       </View>
+
+      {/* Lock Notification Banner */}
+      {isLocked && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#FDE68A', marginBottom: 12 }}>
+          <Lock size={16} color="#B45309" />
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>
+            🔒 Shift finalized & locked for {selectedDate}. Meter readings are in read-only mode for reconciliation.
+          </Text>
+        </View>
+      )}
 
       {/* KPI Top Strip — Product Totals (Block G) */}
       <View style={styles.kpiStrip}>
@@ -241,7 +260,7 @@ export const TankDipScreen: React.FC = () => {
         </View>
       </View>
 
-      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={styles.contentScroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={true}>
         {pumpNozzleRows.map(({ pump, nozzles }) => (
           <View key={pump.id} style={styles.pumpCard}>
             <View style={styles.pumpHeader}>
@@ -271,9 +290,7 @@ export const TankDipScreen: React.FC = () => {
                 <View key={noz.nozzleId} style={styles.tableDataRow}>
                   {/* Nozzle Info */}
                   <View style={{ flex: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={[styles.fuelChip, { backgroundColor: noz.productCode === 'HSD' ? '#D97706' : '#059669' }]}>
-                      <Text style={styles.fuelChipText}>N{noz.nozzleNo}</Text>
-                    </View>
+                     
                     <View>
                       <Text style={styles.nozzleName}>Nozzle {noz.nozzleNo}</Text>
                       <Text style={styles.nozzleFuel}>{noz.productName}</Text>
@@ -288,24 +305,26 @@ export const TankDipScreen: React.FC = () => {
                   {/* Opening Meter Input */}
                   <View style={{ flex: 1.5, alignItems: 'flex-end', paddingHorizontal: 4 }}>
                     <TextInput
-                      style={styles.meterInput}
+                      style={[styles.meterInput, isLocked && { backgroundColor: '#F1F5F9', color: '#64748B' }]}
                       keyboardType="numeric"
                       value={noz.openingMeter}
                       onChangeText={val => handleMeterChange(noz.nozzleId, 'opening', val)}
                       placeholder="0.00"
                       placeholderTextColor={colors.textMuted}
+                      editable={!isLocked}
                     />
                   </View>
 
                   {/* Closing Meter Input */}
                   <View style={{ flex: 1.5, alignItems: 'flex-end', paddingHorizontal: 4 }}>
                     <TextInput
-                      style={[styles.meterInput, { borderColor: colors.primary }]}
+                      style={[styles.meterInput, { borderColor: colors.primary }, isLocked && { backgroundColor: '#F1F5F9', color: '#64748B' }]}
                       keyboardType="numeric"
                       value={noz.closingMeter}
                       onChangeText={val => handleMeterChange(noz.nozzleId, 'closing', val)}
                       placeholder="0.00"
                       placeholderTextColor={colors.textMuted}
+                      editable={!isLocked}
                     />
                   </View>
 
@@ -411,10 +430,11 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   primaryBtnText: {
-    color: '#6F7BF5',
+    color: '#1F2937',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+
   kpiStrip: {
     flexDirection: 'row',
     paddingHorizontal: 16,

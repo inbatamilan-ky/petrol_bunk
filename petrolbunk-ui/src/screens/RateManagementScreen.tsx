@@ -1,41 +1,33 @@
-import React, { useState, useMemo, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import {
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  AlertCircle,
-  Copy,
-  Check,
   CalendarCheck,
-  FileText,
-  History,
+  CheckCircle2,
+  Copy,
   Download,
-  Search,
-  UploadCloud,
-  FileSpreadsheet,
   Edit3,
+  History,
   Layers,
   Lock,
-  X,
+  Save,
+  Search,
+  X
 } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import { useRateManagementContext } from '../context/RateManagementContext';
 import { colors, typography } from '../theme/colors';
-import { formatCurrency, formatRate, formatDateTime, formatDate, getTodayDateString } from '../utils/formatters';
-import { Product, FuelRateHistory, UserRole } from '../types';
+import { formatDate, formatDateTime, formatRate, getTodayDateString } from '../utils/formatters';
 
-import { DatePickerInput } from '../components/DatePickerInput';
 import { useRateChangeSources } from '../hooks/useMasters';
 
 interface CsvParsedRow {
@@ -411,7 +403,7 @@ export const RateManagementScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={true}>
       {/* Hidden file input for web */}
       {Platform.OS === 'web' && (
         <input
@@ -437,7 +429,7 @@ export const RateManagementScreen: React.FC = () => {
               onPress={() => handleOpenRateModal('MANUAL')}
               activeOpacity={0.8}
             >
-              <CalendarCheck size={15} color="#FFFFFF" />
+              <CalendarCheck size={15} color="#1F2937" />
               <Text style={styles.registerRatesBtnText}>Register Today's Rates</Text>
             </TouchableOpacity>
           )}
@@ -458,10 +450,11 @@ export const RateManagementScreen: React.FC = () => {
             onPress={downloadCsvTemplate}
             activeOpacity={0.8}
           >
-            <Download size={14} color={colors.textSecondary} />
+            <Download size={14} color="#1F2937" />
             <Text style={styles.downloadTemplateBtnText}>CSV Template</Text>
           </TouchableOpacity>
         </View>
+
       </View>
 
       {/* Success Notification Banner */}
@@ -518,7 +511,7 @@ export const RateManagementScreen: React.FC = () => {
                         </View>
                       </View>
                       <Text style={styles.prodCode}>
-                        {prod.code} • Litre
+                        {prod.code}
                       </Text>
                     </View>
                   </View>
@@ -526,7 +519,7 @@ export const RateManagementScreen: React.FC = () => {
 
               {/* Price Display / Edit Form */}
               <View style={styles.rateDisplayArea}>
-                <Text style={styles.rateLabel}>RETAIL SELLING PRICE (RSP)</Text>
+                 
                 {isEditing ? (
                   <View style={styles.editRow}>
                     <Text style={styles.currencyPrefix}>₹</Text>
@@ -603,9 +596,7 @@ export const RateManagementScreen: React.FC = () => {
                 <Text style={styles.historyCountText}>{filteredHistory.length} Revisions</Text>
               </View>
             </View>
-            <Text style={styles.historySubtitle}>
-              Historical audit register of all manual rate entries, CSV uploads and price overrides
-            </Text>
+             
           </View>
 
           {/* Export to CSV Button */}
@@ -615,10 +606,11 @@ export const RateManagementScreen: React.FC = () => {
               onPress={exportHistoryCsv}
               activeOpacity={0.8}
             >
-              <Download size={14} color="#000" />
+              <Download size={14} color="#1F2937" />
               <Text style={styles.exportCsvBtnText}>Export Excel / CSV</Text>
             </TouchableOpacity>
           )}
+
         </View>
 
         {/* Filters Bar */}
@@ -741,380 +733,120 @@ export const RateManagementScreen: React.FC = () => {
       <Modal
         visible={showRateModal}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setShowRateModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
+          <View style={[styles.modalContent, { maxWidth: 480, maxHeight: '90%' }]}>
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={styles.modalIconBox}>
-                  {modalTab === 'MANUAL' ? (
-                    <CalendarCheck size={20} color={colors.primary} />
-                  ) : (
-                    <UploadCloud size={20} color={colors.primary} />
-                  )}
+                  <CalendarCheck size={20} color={colors.primary} />
                 </View>
-                <View>
-                  <Text style={styles.modalTitle}>Daily Fuel Rates Registration</Text>
-                  <Text style={styles.modalSubtitle}>
-                    {modalTab === 'MANUAL'
-                      ? "Enter today's manual fuel rates per product"
-                      : 'Upload CSV file or paste formatted rate lines'}
-                  </Text>
-                </View>
+                <Text style={styles.modalTitle}>Daily Fuel Rates Registration</Text>
               </View>
               <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowRateModal(false)}>
                 <X size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-            </View>
-
-            {/* Modal Tab Switcher */}
-            <View style={styles.modalTabsRow}>
-              <TouchableOpacity
-                style={[styles.modalTabBtn, modalTab === 'MANUAL' && styles.modalTabBtnActive]}
-                onPress={() => setModalTab('MANUAL')}
-              >
-                <Edit3 size={14} color={modalTab === 'MANUAL' ? colors.primary : colors.textSecondary} />
-                <Text style={[styles.modalTabBtnText, modalTab === 'MANUAL' && styles.modalTabBtnTextActive]}>
-                  Manual Form Entry
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalTabBtn, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnActive]}
-                onPress={() => setModalTab('CSV_UPLOAD')}
-              >
-                <FileSpreadsheet size={14} color={modalTab === 'CSV_UPLOAD' ? colors.primary : colors.textSecondary} />
-                <Text style={[styles.modalTabBtnText, modalTab === 'CSV_UPLOAD' && styles.modalTabBtnTextActive]}>
-                  CSV / File Upload
-                </Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView
               style={{ flexShrink: 1 }}
-              contentContainerStyle={{ gap: 14, paddingBottom: 28 }}
+              contentContainerStyle={{ gap: 12, paddingVertical: 14 }}
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
             >
+              <View style={{ gap: 10 }}>
+                {products.map((prod) => {
+                  const isProdActive = prod.active !== false;
+                  const currentVal = rateEntryForm[prod.id] ?? String(prod.currentRate);
 
-              {/* Date & Who Common Controls */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <DatePickerInput
-                    label="EFFECTIVE DATE *"
-                    value={rateEntryDate}
-                    onChange={setRateEntryDate}
-                    maxDate={getTodayDateString()}
-                  />
-                </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>REGISTERED BY</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={rateEntryBy}
-                    onChangeText={setRateEntryBy}
-                    placeholder="Manager / Owner name"
-                  />
-                </View>
-              </View>
-
-              {/* ── TAB 1: MANUAL FORM ENTRY ─────────────────────────────────── */}
-              {modalTab === 'MANUAL' && (
-                <>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>FUEL RATES — RETAIL SELLING PRICE (₹/L)</Text>
-                    <View style={{ gap: 10, marginTop: 4 }}>
-                      {products.map((prod) => {
-                        const isProdActive = prod.active !== false;
-                        const currentVal = rateEntryForm[prod.id] ?? String(prod.currentRate);
-                        const parsedNew = parseFloat(currentVal);
-                        const diff = parsedNew > 0 ? Math.round((parsedNew - prod.currentRate) * 100) / 100 : 0;
-
-                        return (
-                          <View key={prod.id} style={[styles.rateEntryRow, !isProdActive && { opacity: 0.65, backgroundColor: '#FEF2F2' }]}>
-                            <View style={styles.rateEntryProductInfo}>
-                              <View style={[styles.rateEntryDot, { backgroundColor: prod.code === 'HSD' ? '#D97706' : '#059669' }]} />
-                              <View>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <Text style={styles.rateEntryProdName}>{prod.name}</Text>
-                                  {!isProdActive && (
-                                    <View style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#CBD5E1' }}>
-                                      <Text style={{ fontSize: 8, fontWeight: '800', color: '#475569' }}>INACTIVE</Text>
-                                    </View>
-                                  )}
-                                </View>
-                                <Text style={styles.rateEntryProdCode}>
-                                  {prod.code} · Current: ₹{prod.currentRate}
-                                </Text>
-                              </View>
-                            </View>
-                            {isProdActive ? (
-                              <View style={styles.rateEntryInputWrap}>
-                                <TouchableOpacity
-                                  style={styles.fieldPasteMiniBtn}
-                                  onPress={() =>
-                                    handlePasteIntoField((val) =>
-                                      setRateEntryForm((f) => ({ ...f, [prod.id]: val }))
-                                    )
-                                  }
-                                  activeOpacity={0.7}
-                                >
-                                  <Copy size={11} color={colors.primary} />
-                                  <Text style={styles.fieldPasteMiniText}>Paste</Text>
-                                </TouchableOpacity>
-                                <Text style={styles.rateEntryRs}>₹</Text>
-                                <TextInput
-                                  style={styles.rateEntryInput}
-                                  value={currentVal}
-                                  onChangeText={(v) =>
-                                    setRateEntryForm((f) => ({ ...f, [prod.id]: sanitizeRateInput(v) }))
-                                  }
-                                  keyboardType="decimal-pad"
-                                  selectTextOnFocus
-                                />
-
-                                {diff !== 0 && (
-                                  <View
-                                    style={[
-                                      styles.rateEntryDiffBadge,
-                                      { backgroundColor: diff > 0 ? '#FEF2F2' : '#F0FDF4' },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.rateEntryDiffText,
-                                        { color: diff > 0 ? colors.danger : colors.success },
-                                      ]}
-                                    >
-                                        {diff > 0 ? '+' : ''}
-                                        {Math.round(diff)}
-                                    </Text>
-                                  </View>
-                                )}
-                              </View>
-                            ) : (
-                              <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F1F5F9', borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1' }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>Inactive</Text>
-                              </View>
-
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Remarks */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>REMARKS (OPTIONAL)</Text>
-                    <TextInput
-                      style={[styles.formInput, { height: 56, textAlignVertical: 'top' }]}
-                      value={rateEntryRemarks}
-                      onChangeText={setRateEntryRemarks}
-                      placeholder="e.g. Morning manual rate revision effective 06:00 AM"
-                      multiline
-                    />
-                  </View>
-
-                  {/* Save Button */}
-                  <TouchableOpacity
-                    style={[styles.saveRateEntryBtn, isSavingRates && { opacity: 0.6 }]}
-                    onPress={handleSaveManualRates}
-                    disabled={isSavingRates}
-                    activeOpacity={0.8}
-                  >
-                    {isSavingRates ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <FileText size={16} color="#FFFFFF" />
-                        <Text style={styles.saveRateEntryBtnText}>Save & Apply Manual Rates</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-
-              {/* ── TAB 2: CSV / FILE UPLOAD ─────────────────────────────────── */}
-              {modalTab === 'CSV_UPLOAD' && (
-                <>
-                  <View style={styles.uploadOptionsBox}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                      <Text style={styles.formLabel}>UPLOAD CSV / TEXT FILE OR PASTE</Text>
-                      <TouchableOpacity
-                        style={styles.miniTemplateBtn}
-                        onPress={downloadCsvTemplate}
-                        activeOpacity={0.7}
-                      >
-                        <Download size={12} color={colors.primary} />
-                        <Text style={styles.miniTemplateBtnText}>Download Template</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* File Picker Trigger */}
-                    {Platform.OS === 'web' && (
-                      <TouchableOpacity
-                        style={styles.chooseFileBtn}
-                        onPress={() => fileInputRef.current?.click()}
-                        activeOpacity={0.8}
-                      >
-                        <UploadCloud size={20} color={colors.primary} />
+                  return (
+                    <View
+                      key={prod.id}
+                      style={[
+                        styles.rateEntryRow,
+                        !isProdActive && { opacity: 0.65, backgroundColor: '#FEF2F2' },
+                      ]}
+                    >
+                      <View style={styles.rateEntryProductInfo}>
+                        <View
+                          style={[
+                            styles.rateEntryDot,
+                            {
+                              backgroundColor:
+                                prod.code === 'HSD' ? '#D97706' : prod.color || '#059669',
+                            },
+                          ]}
+                        />
                         <View>
-                          <Text style={styles.chooseFileTitle}>Click to Choose CSV / Excel File</Text>
-                          <Text style={styles.chooseFileSub}>Accepts .csv, .txt files with columns: Product Code, Rate</Text>
+                          <Text style={styles.rateEntryProdName}>{prod.name}</Text>
+                          <Text style={styles.rateEntryProdCode}>
+                            {prod.code} · Current: ₹{prod.currentRate}
+                          </Text>
                         </View>
-                      </TouchableOpacity>
-                    )}
+                      </View>
 
-                    {/* Raw Text Paste Input */}
-                    <View style={{ gap: 6 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: '600' }}>
-                          Or paste CSV / text lines below:
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.fieldPasteMiniBtn}
-                          onPress={async () => {
-                            try {
-                              if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
-                                const clip = await navigator.clipboard.readText();
-                                if (clip) {
-                                  setCsvRawText(clip);
-                                  parseCsvContent(clip);
-                                  triggerSuccess('Pasted and parsed CSV data');
-                                }
-                              }
-                            } catch {}
+                      {isProdActive ? (
+                        <View style={styles.rateEntryInputWrap}>
+                          <Text style={styles.rateEntryRs}>₹</Text>
+                          <TextInput
+                            style={styles.rateEntryInput}
+                            value={currentVal}
+                            onChangeText={(v) =>
+                              setRateEntryForm((f) => ({
+                                ...f,
+                                [prod.id]: sanitizeRateInput(v),
+                              }))
+                            }
+                            keyboardType="decimal-pad"
+                            selectTextOnFocus
+                            placeholder="0.00"
+                          />
+                        </View>
+                      ) : (
+                        <View
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            backgroundColor: '#F1F5F9',
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: '#CBD5E1',
                           }}
                         >
-                          <Copy size={11} color={colors.primary} />
-                          <Text style={styles.fieldPasteMiniText}>Paste From Clipboard</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <TextInput
-                        style={styles.csvTextArea}
-                        placeholder={`Example:\nMS, 102.75\nHSD, 93.40\nSPEED, 108.50`}
-                        placeholderTextColor={colors.textMuted}
-                        value={csvRawText}
-                        onChangeText={(t) => {
-                          setCsvRawText(t);
-                          parseCsvContent(t);
-                        }}
-                        multiline
-                      />
-                    </View>
-                  </View>
-
-                  {/* Parse Error */}
-                  {csvParseError && (
-                    <View style={styles.errorBanner}>
-                      <AlertCircle size={16} color={colors.danger} />
-                      <Text style={styles.errorBannerText}>{csvParseError}</Text>
-                    </View>
-                  )}
-
-                  {/* Parsed Preview Table */}
-                  {parsedCsvRows.length > 0 && (
-                    <View style={styles.parsedPreviewCard}>
-                      <Text style={styles.previewTitle}>Parsed Rate Preview ({parsedCsvRows.length} rows)</Text>
-                      <View style={styles.previewTable}>
-                        <View style={styles.previewTableHeader}>
-                          <Text style={[styles.previewTh, { flex: 2 }]}>Product</Text>
-                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'right' }]}>Current</Text>
-                          <Text style={[styles.previewTh, { flex: 1.4, textAlign: 'right' }]}>New Rate</Text>
-                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'right' }]}>Diff</Text>
-                          <Text style={[styles.previewTh, { flex: 1.2, textAlign: 'center' }]}>Status</Text>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>
+                            Inactive
+                          </Text>
                         </View>
-
-                        {parsedCsvRows.map((r, idx) => {
-                          const diff = r.isValid ? Math.round((r.newRate - r.currentRate) * 100) / 100 : 0;
-                          return (
-                            <View key={idx} style={[styles.previewTableRow, !r.isValid && styles.previewRowInvalid]}>
-                              <View style={{ flex: 2 }}>
-                                <Text style={styles.previewProdName}>{r.productName}</Text>
-                                <Text style={styles.previewProdCode}>{r.productCode}</Text>
-                              </View>
-                              <Text style={[styles.previewTd, { flex: 1.2, textAlign: 'right', color: colors.textSecondary }]}>
-                                {r.currentRate > 0 ? formatRate(r.currentRate) : '—'}
-                              </Text>
-                              <Text style={[styles.previewTdBold, { flex: 1.4, textAlign: 'right', color: r.isValid ? '#000' : colors.danger }]}>
-                                {r.isValid ? formatRate(r.newRate) : 'Invalid'}
-                              </Text>
-                              <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-                                {diff === 0 ? (
-                                  <Text style={styles.diffZero}>0.00</Text>
-                                ) : (
-                                  <Text style={{ fontSize: 11, fontWeight: '700', color: diff > 0 ? colors.danger : colors.success }}>
-                                    {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                                  </Text>
-                                )}
-                              </View>
-
-                              <View style={{ flex: 1.2, alignItems: 'center' }}>
-                                {r.isValid ? (
-                                  <View style={styles.validBadge}>
-                                    <Check size={10} color={colors.success} />
-                                    <Text style={styles.validBadgeText}>Valid</Text>
-                                  </View>
-                                ) : (
-                                  <View style={styles.invalidBadge}>
-                                    <Text style={styles.invalidBadgeText}>{r.error || 'Error'}</Text>
-                                  </View>
-                                )}
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </View>
+                      )}
                     </View>
-                  )}
+                  );
+                })}
+              </View>
 
-                  {/* Remarks */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>REMARKS (OPTIONAL)</Text>
-                    <TextInput
-                      style={[styles.formInput, { height: 56, textAlignVertical: 'top' }]}
-                      value={rateEntryRemarks}
-                      onChangeText={setRateEntryRemarks}
-                      placeholder="e.g. Daily CSV rate upload"
-                      multiline
-                    />
-                  </View>
-
-                  {/* Apply CSV Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.saveRateEntryBtn,
-                      (isSavingRates || parsedCsvRows.filter((r) => r.isValid).length === 0) && { opacity: 0.6 },
-                    ]}
-                    onPress={handleApplyCsvUpload}
-                    disabled={isSavingRates || parsedCsvRows.filter((r) => r.isValid).length === 0}
-                    activeOpacity={0.8}
-                  >
-                    {isSavingRates ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <UploadCloud size={16} color="#FFFFFF" />
-                        <Text style={styles.saveRateEntryBtnText}>
-                          Upload & Apply {parsedCsvRows.filter((r) => r.isValid).length} Rates
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-
-              <Text style={styles.rateEntryFootnote}>
-                All rate changes are permanently recorded in the <Text style={{ fontWeight: '700' }}>fuel_rate_history</Text> audit log and broadcast immediately to active shift operations and nozzles.
-              </Text>
-
+              {/* Save Button */}
+              <TouchableOpacity
+                style={[
+                  styles.saveRateEntryBtn,
+                  isSavingRates && { opacity: 0.6 },
+                  { marginTop: 14 },
+                ]}
+                onPress={handleSaveManualRates}
+                disabled={isSavingRates}
+                activeOpacity={0.8}
+              >
+                {isSavingRates ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Save size={16} color="#FFFFFF" />
+                    <Text style={styles.saveRateEntryBtnText}>Save</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -1188,9 +920,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   registerRatesBtnText: {
-    color: '#6F7BF5',
+    color: '#1F2937',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   uploadCsvHeaderBtn: {
     flexDirection: 'row',
@@ -1202,9 +934,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   uploadCsvHeaderBtnText: {
-    color: '#6F7BF5',
+    color: '#1F2937',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   downloadTemplateBtn: {
     flexDirection: 'row',
@@ -1223,10 +955,11 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   downloadTemplateBtnText: {
-    color: '#6F7BF5',
+    color: '#1F2937',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+
 
   successBanner: {
     flexDirection: 'row',
@@ -1414,27 +1147,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
   editTriggerText: {
-    color: colors.textPrimary,
+    color: '#1F2937',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+
 
   // ── History & Audit Table ──────────────────────────────────────────────────
   historySectionCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
     padding: 16,
     gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   historyHeader: {
     flexDirection: 'row',
@@ -1444,18 +1183,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   historyTitle: {
-    color: '#000',
+    color: '#1F2937',
     fontSize: 16,
     fontWeight: '800',
   },
   historyCountBadge: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   historyCountText: {
-    color: '#000',
+    color: '#1D4ED8',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -1468,62 +1207,70 @@ const styles = StyleSheet.create({
   exportCsvBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 8,
+    borderRadius: 20,
     gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   exportCsvBtnText: {
-    color: '#000',
+    color: '#1F2937',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   historyFiltersBar: {
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: '#EEF1F5',
     paddingTop: 12,
   },
   historySearchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
     gap: 8,
     height: 38,
   },
   historySearchInput: {
     flex: 1,
     fontSize: 12,
-    color: '#000',
+    color: '#1F2937',
     paddingVertical: 0,
   },
   historyFilterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     gap: 6,
   },
   historyFilterPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
   },
   historyFilterPillText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
+    color: '#4B5563',
+    fontSize: 12,
+    fontWeight: '600',
   },
   historyFilterPillTextActive: {
-    color: '#000',
+    color: '#1D4ED8',
+    fontWeight: '700',
   },
   historyDot: {
     width: 8,
@@ -1534,13 +1281,13 @@ const styles = StyleSheet.create({
     padding: 32,
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#EEF1F5',
   },
   emptyHistoryTitle: {
-    color: '#000',
+    color: '#1F2937',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -1555,19 +1302,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: '#EEF1F5',
+    backgroundColor: '#FFFFFF',
   },
   historyTableHeader: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderBottomWidth: 1.5,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#EEF1F5',
   },
   historyTh: {
-    color: colors.textMuted,
+    color: '#64748B',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1578,13 +1325,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border + '60',
+    borderBottomColor: '#F1F5F9',
   },
   historyTableRowAlt: {
-    backgroundColor: colors.surfaceCard + '60',
+    backgroundColor: '#FAFAFA',
   },
   historyDateText: {
-    color: '#000',
+    color: '#1F2937',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1594,7 +1341,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   historyProdName: {
-    color: '#000',
+    color: '#1F2937',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -1611,6 +1358,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontFamily: typography.monoFont,
   },
+
   diffPlusBadge: {
     flexDirection: 'row',
     alignItems: 'center',

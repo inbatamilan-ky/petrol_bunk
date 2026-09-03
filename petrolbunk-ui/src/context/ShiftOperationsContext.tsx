@@ -6,6 +6,7 @@ import {
   Pump,
   Operator,
   Product,
+  MasterChannel,
 } from '../types';
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
@@ -22,6 +23,7 @@ export interface ShiftOperationsContextType {
   pumps: Pump[];
   operators: Operator[];
   products: Product[];
+  masterChannels: MasterChannel[];
   role: UserRole;
 
   // Pump-day attribution operations (Block H)
@@ -30,6 +32,8 @@ export interface ShiftOperationsContextType {
     attributionDate: string;
     pumpId: string;
     operatorId: string;
+    nozzleIds?: string[];
+    nozzleNames?: string[];
     timeIn?: string | null;
     timeOut?: string | null;
     advancePayment?: number;
@@ -44,8 +48,11 @@ export interface ShiftOperationsContextType {
     upiGpayCollected?: number;
     totalAmount?: number;
     netPayment?: number;
+    status?: string;
   }) => Promise<PumpDayAttribution>;
   deleteAttribution: (id: string) => Promise<void>;
+  toggleShiftLock: (id: string, newStatus: 'OPEN' | 'CLOSED' | 'LOCKED') => Promise<void>;
+  isShiftLocked: (date?: string) => boolean;
 
   // Daily nozzle meter readings operations (Block B)
   saveNozzleMetersBatch: (
@@ -71,7 +78,7 @@ const ShiftOperationsContext = createContext<ShiftOperationsContextType | undefi
 
 export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, role, activeBranchId } = useAuthContext();
-  const { pumps, operators, products } = useMasters();
+  const { pumps, operators, products, masterChannels } = useMasters();
 
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
@@ -108,6 +115,8 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
     attributionDate: string;
     pumpId: string;
     operatorId: string;
+    nozzleIds?: string[];
+    nozzleNames?: string[];
     timeIn?: string | null;
     timeOut?: string | null;
     advancePayment?: number;
@@ -122,6 +131,7 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
     upiGpayCollected?: number;
     totalAmount?: number;
     netPayment?: number;
+    status?: string;
   }): Promise<PumpDayAttribution> => {
     const gpay = params.gpayCollected ?? 0;
     const phonePay = params.phonePayCollected ?? 0;
@@ -134,6 +144,8 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
         body: JSON.stringify({
           time_in: params.timeIn,
           time_out: params.timeOut,
+          nozzle_ids: params.nozzleIds,
+          nozzle_names: params.nozzleNames,
           advance_payment: params.advancePayment,
           credit_acc: params.creditAcc,
           cash_collected: params.cashCollected,
@@ -146,6 +158,7 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
           upi_gpay_collected: upiLegacy,
           total_amount: params.totalAmount,
           net_payment: params.netPayment,
+          status: params.status,
         }),
       });
       const mapped = mapPumpDayAttribution(updated);
@@ -158,6 +171,8 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
           attribution_date: params.attributionDate,
           pump_id: params.pumpId,
           operator_id: params.operatorId,
+          nozzle_ids: params.nozzleIds,
+          nozzle_names: params.nozzleNames,
           time_in: params.timeIn,
           time_out: params.timeOut,
           advance_payment: params.advancePayment || 0,
@@ -172,6 +187,7 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
           upi_gpay_collected: upiLegacy,
           total_amount: params.totalAmount || 0,
           net_payment: params.netPayment || 0,
+          status: params.status || 'OPEN',
         }),
       });
       const mapped = mapPumpDayAttribution(created);
@@ -180,10 +196,27 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
     }
   };
 
+  const toggleShiftLock = async (id: string, newStatus: 'OPEN' | 'CLOSED' | 'LOCKED') => {
+    const updated = await apiFetch(`/api/pump-attribution/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const mapped = mapPumpDayAttribution(updated);
+    setAttributions(prev => prev.map(a => (a.id === mapped.id ? mapped : a)));
+  };
+
+  const isShiftLocked = useCallback((date?: string) => {
+    const targetDate = date || selectedDate;
+    const dayAttrs = attributions.filter(a => (a.attributionDate || '').slice(0, 10) === targetDate);
+    if (dayAttrs.length === 0) return false;
+    return dayAttrs.every(a => a.status === 'CLOSED' || a.status === 'LOCKED');
+  }, [attributions, selectedDate]);
+
   const deleteAttribution = async (id: string) => {
     await apiFetch(`/api/pump-attribution/${id}`, { method: 'DELETE' });
     setAttributions(prev => prev.filter(a => a.id !== id));
   };
+
 
   const saveNozzleMetersBatch = async (
     readingDate: string,
@@ -228,14 +261,18 @@ export const ShiftOperationsProvider: React.FC<{ children: React.ReactNode }> = 
         pumps,
         operators,
         products,
+        masterChannels,
         role,
         saveAttribution,
         deleteAttribution,
+        toggleShiftLock,
+        isShiftLocked,
         saveNozzleMetersBatch,
         syncOperationsData,
         shifts: attributions,
         activeShift: attributions[0] || null,
       }}
+
     >
       {children}
     </ShiftOperationsContext.Provider>

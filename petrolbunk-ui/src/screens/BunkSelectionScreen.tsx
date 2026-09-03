@@ -149,7 +149,7 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
       </View>
 
       {/* Main Content */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={true}>
         <View style={styles.contentCard}>
           <View style={styles.headingRow}>
             <View>
@@ -381,8 +381,9 @@ export const BunkSelectionScreen: React.FC<BunkSelectionScreenProps> = ({
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveNewBranch}>
                 <CheckCircle2 size={15} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>Save Station</Text>
+                <Text style={styles.saveBtnText}>Save</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </View>

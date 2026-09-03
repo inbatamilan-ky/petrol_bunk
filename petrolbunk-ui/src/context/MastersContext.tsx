@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Product, Pump, Operator, CreditCustomer, ExpenseType, Branch, UserRole } from '../types';
+import { Product, Pump, Operator, CreditCustomer, ExpenseType, Branch, UserRole, MasterChannel } from '../types';
 import { apiFetch } from '../api/client';
 import { useAuthContext } from './AuthContext';
 import {
@@ -8,6 +8,7 @@ import {
   mapOperator,
   mapCustomer,
   mapExpenseType,
+  mapMasterChannel,
 } from './mappers';
 
 export interface MastersContextType {
@@ -21,6 +22,7 @@ export interface MastersContextType {
   setCustomers: React.Dispatch<React.SetStateAction<CreditCustomer[]>>;
   expenseTypes: ExpenseType[];
   setExpenseTypes: React.Dispatch<React.SetStateAction<ExpenseType[]>>;
+  masterChannels: MasterChannel[];
   branches: Branch[];
   bunks: Branch[];
   bunkProfile: Branch | null;
@@ -63,15 +65,17 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [operators, setOperators] = useState<Operator[]>([]);
   const [customers, setCustomers] = useState<CreditCustomer[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+  const [masterChannels, setMasterChannels] = useState<MasterChannel[]>([]);
 
   const syncMasters = useCallback(async () => {
     try {
-      const [prodData, pumpData, opData, custData, etData] = await Promise.all([
+      const [prodData, pumpData, opData, custData, etData, channelsData] = await Promise.all([
         apiFetch('/api/products').catch(() => []),
         apiFetch('/api/pumps').catch(() => []),
         apiFetch('/api/operators').catch(() => []),
         apiFetch('/api/customers').catch(() => []),
         apiFetch('/api/masters/expense-types').catch(() => []),
+        apiFetch('/api/masters/channels').catch(() => []),
       ]);
 
       const prodMap = new Map(((prodData as any[]) || []).map((p: any) => [p.id, p]));
@@ -91,6 +95,7 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setOperators(Array.isArray(opData) ? (opData as any[]).map(mapOperator) : []);
       setCustomers(Array.isArray(custData) ? (custData as any[]).map(mapCustomer) : []);
       setExpenseTypes(Array.isArray(etData) ? (etData as any[]).map(mapExpenseType) : []);
+      setMasterChannels(Array.isArray(channelsData) ? (channelsData as any[]).map(mapMasterChannel) : []);
     } catch {
       // Offline / error state
     }
@@ -226,6 +231,8 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
         joining_date: op.joiningDate,
         emergency_contact: op.emergencyContact,
         assigned_shift: op.assignedShift,
+        govt_id_doc_name: op.govtIdDocName,
+        govt_id_doc_url: op.govtIdDocUrl,
         status: op.status || 'ACTIVE',
       }),
     });
@@ -245,6 +252,8 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
         joining_date: op.joiningDate,
         emergency_contact: op.emergencyContact,
         assigned_shift: op.assignedShift,
+        govt_id_doc_name: op.govtIdDocName,
+        govt_id_doc_url: op.govtIdDocUrl,
         status: op.status,
       }),
     });
@@ -372,6 +381,7 @@ export const MastersProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCustomers,
         expenseTypes,
         setExpenseTypes,
+        masterChannels,
         branches,
         bunks: branches,
         bunkProfile,

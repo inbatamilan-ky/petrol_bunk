@@ -96,6 +96,8 @@ export function mapOperator(a: any): Operator {
     joiningDate: a?.joining_date ?? a?.joiningDate ?? '2023-06-01',
     emergencyContact: a?.emergency_contact ?? a?.emergencyContact ?? '',
     assignedShift: a?.assigned_shift ?? a?.assignedShift ?? 'Morning',
+    govtIdDocName: a?.govt_id_doc_name ?? a?.govtIdDocName ?? '',
+    govtIdDocUrl: a?.govt_id_doc_url ?? a?.govtIdDocUrl ?? '',
   };
 }
 
@@ -234,6 +236,9 @@ export function mapPumpDayAttribution(a: any): PumpDayAttribution {
     phonePayCollected: phonePay,
     paytmCollected: paytm,
     upiGpayCollected: upiTotal,
+    status: (a?.status as any) || 'OPEN',
+    nozzleIds: Array.isArray(a?.nozzle_ids) ? a.nozzle_ids : (Array.isArray(a?.nozzleIds) ? a.nozzleIds : []),
+    nozzleNames: Array.isArray(a?.nozzle_names) ? a.nozzle_names : (Array.isArray(a?.nozzleNames) ? a.nozzleNames : []),
     totalAmount: Number(a?.total_amount ?? a?.totalAmount ?? 0),
     netPayment: Number(a?.net_payment ?? a?.netPayment ?? 0),
   };
