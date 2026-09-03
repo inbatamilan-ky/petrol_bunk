@@ -147,17 +147,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </Text>
                 </View>
 
-                  <View style={styles.shiftCardRight}>
-                    <Text style={[styles.shiftAmountText, isClosed && { color: colors.inactiveGrey }]}>{formatCurrency(shift.totalSalesAmount)}</Text>
-                    {/* <TouchableOpacity
-                      style={styles.printSlipBtn}
-                      onPress={() => openShiftThermal(shift)}
-                      activeOpacity={0.7}
-                    >
-                      <Printer size={13} color={colors.textSecondary} />
-                      <Text style={styles.printSlipText}>POS Slip</Text>
-                    </TouchableOpacity> */}
-                  </View>
+                <View style={styles.shiftCardRight}>
+                  <Text style={[styles.shiftAmountText, attr.status === 'CLOSED' && { color: colors.inactiveGrey }]}>
+                    {formatCurrency(attr.totalAmount ?? attr.cashCollected ?? 0)}
+                  </Text>
                 </View>
               </View>
             ))}
