@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textSecondary,
     marginBottom: 5,
-    textTransform: 'uppercase',
+    // textTransform: 'lowercase',
     letterSpacing: 0.5,
   },
   inputButton: {

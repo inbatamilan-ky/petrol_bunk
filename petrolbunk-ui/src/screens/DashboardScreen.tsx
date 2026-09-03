@@ -124,13 +124,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
       {/* Recent Operator Attributions */}
       <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Operator Sessions (Block H)</Text>
-          <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
-            <Text style={styles.linkText}>All Attributions</Text>
-            <ChevronRight size={14} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Shifts</Text>
+            <TouchableOpacity onPress={() => onNavigate('shifts')} style={styles.linkRow}>
+              <Text style={styles.linkText}>All Shifts</Text>
+              <ChevronRight size={14} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
 
         {shifts.length === 0 ? (
           <View style={styles.emptyState}>
@@ -147,9 +147,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </Text>
                 </View>
 
-                <View style={styles.shiftCardRight}>
-                  <Text style={styles.shiftAmountText}>{formatCurrency(attr.totalAmount)}</Text>
-                  <Text style={styles.shiftNetText}>Net: {formatCurrency(attr.netPayment)}</Text>
+                  <View style={styles.shiftCardRight}>
+                    <Text style={[styles.shiftAmountText, isClosed && { color: colors.inactiveGrey }]}>{formatCurrency(shift.totalSalesAmount)}</Text>
+                    {/* <TouchableOpacity
+                      style={styles.printSlipBtn}
+                      onPress={() => openShiftThermal(shift)}
+                      activeOpacity={0.7}
+                    >
+                      <Printer size={13} color={colors.textSecondary} />
+                      <Text style={styles.printSlipText}>POS Slip</Text>
+                    </TouchableOpacity> */}
+                  </View>
                 </View>
               </View>
             ))}
